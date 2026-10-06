@@ -1,0 +1,8 @@
+{
+  "name": "Effetto Calamita – L'app",
+  "description": "Il metodo del Filo Invisibile per creare vera connessione nel ballo di Salsa e Bachata – di Andrea Frattesi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
