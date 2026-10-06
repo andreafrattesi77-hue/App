@@ -9,10 +9,10 @@ export const ACCESS_CODES: string[] = ['CALAMITA2026', 'CALAMITA', 'FILOINVISIBI
 // Link esterni ufficiali
 export const STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/aFadR84YobTbdYa6bkdwc0b';
 export const VIDEOCORSO_URL = 'https://www.andreafrattesi.com/landing';
-export const AREA_RISERVATA_URL = '[LINK AREA RISERVATA SYSTEME]';
+export const AREA_RISERVATA_URL = 'https://www.andreafrattesi.com/it/login';
 export const LANDING_URL = 'https://www.andreafrattesi.com/landingeffettocalamita';
 export const INSTAGRAM_URL = 'https://www.instagram.com/andreaseduzioneballo';
-export const SUPPORT_EMAIL = 'assistenza@andreafrattesi.com';
+export const SUPPORT_EMAIL = 'info@andreafrattesi.com';
 
 // Limiti operativi per il Coach AI Gemini
 export const COACH_DAILY_LIMIT = 20;
