@@ -7,6 +7,7 @@
 export const ACCESS_CODES: string[] = ['CALAMITA2026', 'CALAMITA', 'FILOINVISIBILE', 'ANDREA2026'];
 
 // Link esterni ufficiali
+export const STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/aFadR84YobTbdYa6bkdwc0b';
 export const VIDEOCORSO_URL = 'https://www.andreafrattesi.com/landing';
 export const AREA_RISERVATA_URL = '[LINK AREA RISERVATA SYSTEME]';
 export const LANDING_URL = 'https://www.andreafrattesi.com/landingeffettocalamita';
