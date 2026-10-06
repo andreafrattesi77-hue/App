@@ -144,7 +144,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
       saveChatMessages(finalHistory);
     } catch {
       const namePart = currentUserName ? `Ciao ${currentUserName}, ` : 'Ciao, ';
-      const fallbackReply = `${namePart}sono Andrea Frattesi. Qualunque sia il dubbio in questo momento, torna subito al tuo Asse: respira profondo, allinea la postura e applica la regola dei 3 secondi. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]] prima del prossimo ballo!`;
+      const fallbackReply = `${namePart}qualunque sia il dubbio in questo momento, torna subito al tuo Asse: respira profondo, allinea la postura e applica la regola dei 3 secondi. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]] prima del prossimo ballo!`;
       const fallbackMsg: ChatMessage = {
         id: `coach-${Date.now()}`,
         sender: 'coach',

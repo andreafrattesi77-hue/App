@@ -20,7 +20,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               EFFETTO CALAMITA
             </h1>
             <p className="text-[10px] text-[#F9C03E] font-serif italic -mt-0.5">
-              Il metodo del Filo Invisibile
+              Il metodo del flirt invisibile
             </p>
           </div>
         </div>

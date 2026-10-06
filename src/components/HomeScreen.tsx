@@ -295,9 +295,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </div>
 
       {/* Signature in calce */}
-      <div className="pt-4 text-center">
-        <p className="text-xs text-[#88A5BF] italic font-serif leading-relaxed px-4">
-          "{OFFICIAL_SIGNATURE}"
+      <div className="pt-6 pb-2 text-center px-4">
+        <p className="text-sm sm:text-base text-slate-200 font-serif leading-relaxed">
+          <span className="italic">«Faccio quello che insegno. Insegno quello che faccio.»</span>
+          <span className="block mt-1 text-[#F9C03E] font-medium tracking-wide text-xs sm:text-sm not-italic">
+            – Andrea Frattesi
+          </span>
         </p>
       </div>
     </div>

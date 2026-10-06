@@ -27,7 +27,7 @@ export async function sendCoachChatMessage(params: {
     console.error('Coach API call failed:', error);
     const cleanName = params.userName?.trim();
     const namePart = cleanName ? `Ciao ${cleanName}, ` : 'Ciao, ';
-    return `${namePart}sono Andrea Frattesi. Al momento ho problemi di connessione ma ricordati: qualunque cosa accada in pista, torna subito all'Asse! Respira a fondo, allinea la postura e applica la regola dei 3 secondi prima dell'invito. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]]!`;
+    return `${namePart}qualunque sia il dubbio in questo momento, torna subito all'Asse! Respira a fondo, allinea la postura e applica la regola dei 3 secondi prima dell'invito. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]] prima del prossimo ballo!`;
   }
 }
 

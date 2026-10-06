@@ -5,26 +5,30 @@ import {
   ShieldCheck,
   UserCheck,
   CreditCard,
-  Sparkles,
-  CheckCircle2,
   ExternalLink,
-  Lock,
 } from 'lucide-react';
-import { ACCESS_CODES, STRIPE_CHECKOUT_URL, OFFICIAL_SIGNATURE } from '../config';
-import { saveUserData } from '../services/storage';
+import { ACCESS_CODES, STRIPE_CHECKOUT_URL } from '../config';
+import { saveUserData, getUserData } from '../services/storage';
 
 interface AuthScreenProps {
   onSuccess: (name: string, accessCode: string) => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
-  const [activeMode, setActiveMode] = useState<'checkout' | 'code'>('checkout');
   const [code, setCode] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [step, setStep] = useState<'auth' | 'name'>('auth');
   const [validCode, setValidCode] = useState('');
   const [name, setName] = useState('');
   const [isAutoUnlocked, setIsAutoUnlocked] = useState(false);
+
+  // Initialize stored name if already saved previously
+  useEffect(() => {
+    const existing = getUserData();
+    if (existing?.name) {
+      setName(existing.name);
+    }
+  }, []);
 
   // Magic Link auto-detection on mount: ?codice=... o ?code=... e ?nome=... o ?name=...
   useEffect(() => {
@@ -45,11 +49,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           (valid) => valid.toUpperCase() === queryCode
         );
         if (isValid) {
-          if (queryName) {
+          const existing = getUserData();
+          const targetName = queryName || existing?.name?.trim();
+          if (targetName) {
             // Accesso istantaneo completo
-            saveUserData({ accessCode: queryCode, name: queryName });
+            saveUserData({ accessCode: queryCode, name: targetName });
             window.history.replaceState({}, document.title, window.location.pathname);
-            onSuccess(queryName, queryCode);
+            onSuccess(targetName, queryCode);
             return;
           } else {
             // Codice valido riconosciuto dal link, chiede subito il nome
@@ -81,6 +87,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     );
 
     if (isValid) {
+      // Se il nome è già in memoria, accede direttamente senza chiederlo di nuovo
+      const existing = getUserData();
+      const existingName = existing?.name?.trim() || name.trim();
+      if (existingName) {
+        saveUserData({
+          accessCode: cleanCode,
+          name: existingName,
+        });
+        onSuccess(existingName, cleanCode);
+        return;
+      }
+
       setValidCode(cleanCode);
       setStep('name');
     } else {
@@ -127,7 +145,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
               EFFETTO CALAMITA
             </h1>
             <p className="text-sm font-medium text-[#F9C03E] mt-0.5 font-serif italic">
-              Il metodo del Filo Invisibile
+              Il metodo del flirt invisibile
             </p>
             <p className="text-xs text-slate-300 leading-relaxed mt-2">
               L'app per creare vera connessione nel ballo di Salsa e Bachata, di Andrea Frattesi.
@@ -136,173 +154,80 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
 
           {step === 'auth' ? (
             <div className="space-y-4">
-              {/* Tab Selector: Acquista vs Ho già il codice */}
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#021831]/80 rounded-xl border border-[#88A5BF]/25">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMode('checkout');
-                    setErrorMessage('');
-                  }}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    activeMode === 'checkout'
-                      ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
+              {/* Pulsanti: Acquista ora vs Ho già il codice */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-[#021831]/80 rounded-xl border border-[#88A5BF]/25">
+                <a
+                  href={STRIPE_CHECKOUT_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-[#234C77]/60 hover:bg-[#234C77] text-white hover:text-[#F9C03E] border border-[#88A5BF]/30 cursor-pointer shadow-sm"
                 >
-                  <CreditCard className="w-3.5 h-3.5" />
+                  <CreditCard className="w-3.5 h-3.5 text-[#F9C03E]" />
                   <span>Acquista ora</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMode('code');
-                    setErrorMessage('');
-                  }}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    activeMode === 'code'
-                      ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
+                  <ExternalLink className="w-3 h-3 text-[#F9C03E]" />
+                </a>
+                <div
+                  className="py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-[#F9C03E] text-[#042B58] shadow-sm select-none"
                 >
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Ho già il codice</span>
-                </button>
+                </div>
               </div>
 
-              {/* MODE 1: Acquista e Accedi subito (Stripe Checkout) */}
-              {activeMode === 'checkout' && (
-                <div className="space-y-4 text-left animate-fadeIn">
-                  <div className="p-4 rounded-xl bg-[#021831]/60 border border-[#88A5BF]/25 space-y-2.5">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/50">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-[#F9C03E]" />
-                        <span>Cosa ricevi subito</span>
-                      </span>
-                      <span className="text-[11px] font-bold text-emerald-400">Accesso Immediato</span>
-                    </div>
-
-                    <ul className="space-y-1.5 text-xs text-slate-200">
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>Ebook Completo:</strong> Il Metodo in 5 parti</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>I 6 bonus pratici:</strong> Cosa dire e come chattare</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>Guida Ripartire:</strong> Separazione, età e stile</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>Coach AI 24/7:</strong> Consigli su misura per te</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>Piano 21 Serate & Diario</strong> con Reset anti-blocco</span>
-                      </li>
-                    </ul>
+              {/* Inserimento Codice di Accesso */}
+              <form onSubmit={handleVerifyCode} className="space-y-4 animate-fadeIn">
+                <div className="text-left">
+                  <label
+                    htmlFor="accessCodeInput"
+                    className="block text-xs font-semibold text-[#88A5BF] uppercase tracking-wider mb-2"
+                  >
+                    Inserisci il tuo codice di accesso
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                    <input
+                      id="accessCodeInput"
+                      type="text"
+                      value={code}
+                      onChange={(e) => {
+                        setCode(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                      }}
+                      placeholder="inserisci codice"
+                      className="w-full pl-10 pr-4 py-3 bg-[#021831]/80 border border-[#88A5BF]/40 rounded-xl text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E]"
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      autoFocus
+                    />
                   </div>
+                </div>
 
-                  {/* Pulsante Oro Stripe */}
+                {errorMessage && (
+                  <div className="p-3 bg-red-950/70 border border-red-500/40 rounded-xl text-left text-xs text-red-200">
+                    <p className="font-medium">{errorMessage}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-sm font-bold flex items-center justify-center gap-2 group cursor-pointer"
+                >
+                  <span>Verifica ed Entra</span>
+                  <ArrowRight className="w-4 h-4 text-[#042B58] group-hover:translate-x-1 transition-transform" />
+                </button>
+
+                <div className="text-center pt-2 border-t border-slate-700/50">
                   <a
                     href={STRIPE_CHECKOUT_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors underline underline-offset-4"
                   >
-                    <span>Acquista e Accedi Subito</span>
-                    <ExternalLink className="w-4 h-4" />
+                    <span>Non hai ancora acquistato? Clicca qui per acquistare</span>
+                    <ExternalLink className="w-3 h-3" />
                   </a>
-
-                  {/* Sicurezza e metodi */}
-                  <div className="flex items-center justify-center gap-2 text-[11px] text-[#88A5BF] pt-1">
-                    <Lock className="w-3 h-3 text-slate-400" />
-                    <span>Pagamento sicuro con Carta, Apple Pay e Google Pay</span>
-                  </div>
-
-                  {/* Switch rapido a inserimento codice */}
-                  <div className="text-center pt-1 border-t border-slate-700/50">
-                    <button
-                      type="button"
-                      onClick={() => setActiveMode('code')}
-                      className="text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors underline underline-offset-4"
-                    >
-                      Hai già completato l'acquisto? Inserisci il codice
-                    </button>
-                  </div>
                 </div>
-              )}
-
-              {/* MODE 2: Inserimento Codice di Accesso */}
-              {activeMode === 'code' && (
-                <form onSubmit={handleVerifyCode} className="space-y-4 animate-fadeIn">
-                  <div className="text-left">
-                    <label
-                      htmlFor="accessCodeInput"
-                      className="block text-xs font-semibold text-[#88A5BF] uppercase tracking-wider mb-2"
-                    >
-                      Inserisci il tuo codice di accesso
-                    </label>
-                    <div className="relative">
-                      <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                      <input
-                        id="accessCodeInput"
-                        type="text"
-                        value={code}
-                        onChange={(e) => {
-                          setCode(e.target.value);
-                          if (errorMessage) setErrorMessage('');
-                        }}
-                        placeholder="Es. CALAMITA2026"
-                        className="w-full pl-10 pr-4 py-3 bg-[#021831]/80 border border-[#88A5BF]/40 rounded-xl text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E]"
-                        autoCapitalize="characters"
-                        autoCorrect="off"
-                        autoFocus
-                      />
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-[11px] text-[#88A5BF]">
-                      <span>Codice di esempio:</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCode('CALAMITA2026');
-                          if (errorMessage) setErrorMessage('');
-                        }}
-                        className="text-[#F9C03E] hover:underline font-mono font-semibold"
-                      >
-                        CALAMITA2026 (inserisci)
-                      </button>
-                    </div>
-                  </div>
-
-                  {errorMessage && (
-                    <div className="p-3 bg-red-950/70 border border-red-500/40 rounded-xl text-left text-xs text-red-200">
-                      <p className="font-medium">{errorMessage}</p>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-sm font-bold flex items-center justify-center gap-2 group cursor-pointer"
-                  >
-                    <span>Verifica ed Entra</span>
-                    <ArrowRight className="w-4 h-4 text-[#042B58] group-hover:translate-x-1 transition-transform" />
-                  </button>
-
-                  <div className="text-center pt-1 border-t border-slate-700/50">
-                    <button
-                      type="button"
-                      onClick={() => setActiveMode('checkout')}
-                      className="text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors underline underline-offset-4"
-                    >
-                      Non hai ancora acquistato? Clicca qui per acquistare
-                    </button>
-                  </div>
-                </form>
-              )}
+              </form>
             </div>
           ) : (
             /* STEP 2: Inserimento Nome Utente */
@@ -374,9 +299,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
       </div>
 
       {/* Signature footer */}
-      <div className="w-full py-3 text-center z-10">
-        <p className="text-[11px] text-[#88A5BF] italic font-serif">
-          "{OFFICIAL_SIGNATURE}"
+      <div className="w-full py-4 text-center z-10 px-4">
+        <p className="text-sm sm:text-base text-slate-200 font-serif leading-relaxed">
+          <span className="italic">«Faccio quello che insegno. Insegno quello che faccio.»</span>
+          <span className="block mt-1 text-[#F9C03E] font-medium tracking-wide text-xs sm:text-sm not-italic">
+            – Andrea Frattesi
+          </span>
         </p>
       </div>
     </div>
