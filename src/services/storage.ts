@@ -125,21 +125,34 @@ export function incrementCoachUsage(): { remainingToday: number } {
 }
 
 // Chat History
-const INITIAL_COACH_MESSAGE: ChatMessage = {
-  id: 'init-coach',
-  sender: 'coach',
-  text: 'Ciao, sono il tuo coach Effetto Calamita. Raccontami cosa è successo in pista o cosa ti blocca: ti rispondo con il metodo.',
-  timestamp: Date.now(),
-};
+export function createInitialCoachMessage(userName?: string): ChatMessage {
+  const cleanName = userName?.trim();
+  const namePart = cleanName ? ` ${cleanName}, ` : ', ';
+  return {
+    id: 'init-coach',
+    sender: 'coach',
+    text: `Ciao${namePart}sono Andrea Frattesi il tuo coach di EFFETTO CALAMITA. Raccontami cosa è successo in pista o cosa ti blocca: ti rispondo subito con il metodo.`,
+    timestamp: Date.now(),
+  };
+}
 
-export function getChatMessages(): ChatMessage[] {
+export function getChatMessages(userName?: string): ChatMessage[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CHAT);
-    if (!raw) return [INITIAL_COACH_MESSAGE];
+    const initial = [createInitialCoachMessage(userName)];
+    if (!raw) return initial;
+
     const msgs: ChatMessage[] = JSON.parse(raw);
-    return msgs.length > 0 ? msgs : [INITIAL_COACH_MESSAGE];
+    if (!Array.isArray(msgs) || msgs.length === 0) return initial;
+
+    // Se c'è solo il messaggio iniziale di benvenuto (o inizia con init-coach), aggiorna il saluto con il nome
+    if (msgs.length === 1 && msgs[0].sender === 'coach') {
+      return initial;
+    }
+
+    return msgs;
   } catch {
-    return [INITIAL_COACH_MESSAGE];
+    return [createInitialCoachMessage(userName)];
   }
 }
 
@@ -147,10 +160,10 @@ export function saveChatMessages(messages: ChatMessage[]): void {
   localStorage.setItem(STORAGE_KEYS.CHAT, JSON.stringify(messages));
 }
 
-export function resetChatMessages(): ChatMessage[] {
+export function resetChatMessages(userName?: string): ChatMessage[] {
   const initial = [
     {
-      ...INITIAL_COACH_MESSAGE,
+      ...createInitialCoachMessage(userName),
       id: `init-${Date.now()}`,
       timestamp: Date.now(),
     },

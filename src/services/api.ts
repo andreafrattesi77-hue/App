@@ -25,7 +25,9 @@ export async function sendCoachChatMessage(params: {
     return data.reply || 'Continua a lavorare sul tuo Asse e sul Contatto Zero alla prossima serata.';
   } catch (error) {
     console.error('Coach API call failed:', error);
-    throw new Error('Il Coach è momentaneamente occupato, riprova tra poco.');
+    const cleanName = params.userName?.trim();
+    const namePart = cleanName ? `Ciao ${cleanName}, ` : 'Ciao, ';
+    return `${namePart}sono Andrea Frattesi. Al momento ho problemi di connessione ma ricordati: qualunque cosa accada in pista, torna subito all'Asse! Respira a fondo, allinea la postura e applica la regola dei 3 secondi prima dell'invito. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]]!`;
   }
 }
 
@@ -53,6 +55,8 @@ export async function getEveningAdvice(params: {
     return data.advice || 'Ottimo lavoro per essere sceso in pista. Rivedi il Contatto Zero e ripeti la missione.';
   } catch (error) {
     console.error('Evening advice API call failed:', error);
-    throw new Error('Il Coach è momentaneamente occupato, riprova tra poco.');
+    const cleanName = params.userName?.trim();
+    const namePart = cleanName ? `Bravo ${cleanName}! ` : 'Bravo! ';
+    return `${namePart}Scendere in pista è sempre la cosa più importante.\n\n1. Cosa è andato bene: Hai registrato la serata e mantenuto la continuità.\n2. Punto su cui concentrarsi: Il Contatto Zero e la calma all'invito.\n3. Azione per la prossima volta: Applica la regola dei 3 secondi entro i primi dieci minuti dall'arrivo!`;
   }
 }

@@ -207,6 +207,7 @@ export default function App() {
 
             {currentTab === 'coach' && (
               <CoachScreen
+                user={user}
                 initialPrompt={coachInitialPrompt}
                 activeUnitId={coachActiveUnitId}
                 onClearInitialPrompt={() => {

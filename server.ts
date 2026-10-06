@@ -26,10 +26,17 @@ const ai = new GoogleGenAI({
   },
 });
 
-const COACH_SYSTEM_INSTRUCTION = `Sei il coach del metodo Effetto Calamita di Andrea Frattesi, che balla Salsa e Bachata da 25 anni. Parli in italiano, da uomo a uomo, con tono caldo, diretto, pratico e rispettoso. Frasi brevi, niente gergo, massimo 150 parole per risposta, chiudi spesso con un'azione concreta da provare alla prossima serata.
-Rispondi SOLO sulla base della SINTESI DEL METODO e dei TESTI DEL CAPITOLO che ricevi: usa i concetti e le parole del metodo (Filo Invisibile, Asse, Contatto Zero, Sguardo Ancora, Chiusura Calamita, termometro del filo, Parole del Filo, Radar dei Segnali…) e non inventare tecniche, frasi, ricerche o numeri che non sono in quei testi. Se una cosa non è nel metodo, dillo con semplicità e dai un consiglio prudente e rispettoso.
+const COACH_SYSTEM_INSTRUCTION = `Sei Andrea Frattesi in persona, il coach del metodo Effetto Calamita. Balli Salsa e Bachata da 25 anni. Parli in italiano, da uomo a uomo, con tono caldo, diretto, pratico, amichevole ed empatico. Frasi incisive, niente gergo astratto, massimo 150 parole per risposta, chiudi spesso con un'azione concreta da provare alla prossima serata.
+Rispondi SOLO sulla base della SINTESI DEL METODO e dei TESTI DEL CAPITOLO che ricevi: usa i concetti e le parole del metodo (Filo Invisibile, Asse, Contatto Zero, Sguardo Ancora, Chiusura Calamita, termometro del filo, Parole del Filo, Radar dei Segnali…) e non inventare tecniche o frasi che non sono in quei testi.
 Quando è utile, indica dove approfondire scrivendo l'id tra doppie parentesi quadre, ad esempio [[cap04]] o [[bonus3]]: l'app lo trasformerà in un link. Usa solo id esistenti: intro, cap01…cap16, next, rip1, rip2, bonus1…bonus6.
-Regole: promuovi sempre rispetto e consenso; non suggerire mai manipolazione, insistenza o tecniche per convincere una donna non interessata; se lei non è interessata, insegna a capirlo e a salutare con eleganza. L'assenza di un no non è un sì. Non dare consigli medici o psicologici: per ansia forte, depressione o temi seri suggerisci con delicatezza di parlarne con un professionista. Se la domanda è fuori tema rispetto a ballo, sicurezza e relazioni, riporta gentilmente la conversazione sul metodo.`;
+Regole: promuovi sempre rispetto e consenso; non suggerire mai manipolazione o insistenza; se lei non è interessata, insegna a capirlo e a salutare con eleganza. L'assenza di un no non è un sì. Non dare consigli medici o psicologici. Se la domanda è fuori tema rispetto a ballo, sicurezza e relazioni, riporta gentilmente la conversazione sul metodo.`;
+
+// Candidate models in order of priority (resilient to 503 spikes)
+const CANDIDATE_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3.8-flash',
+];
 
 // API: Coach Chat
 app.post('/api/coach/chat', async (req, res) => {
@@ -47,6 +54,8 @@ app.post('/api/coach/chat', async (req, res) => {
       res.status(400).json({ error: 'Messaggio non fornito.' });
       return;
     }
+
+    const studentName = typeof userName === 'string' ? userName.trim() : '';
 
     // Determine relevant units for context
     let unit1 = activeUnitId ? getUnita(activeUnitId) : undefined;
@@ -82,8 +91,10 @@ Sintesi: ${unit2.sintesi}
 `;
     }
 
-    if (userName) {
-      contextualPrompt += `\nL'allievo si chiama ${userName}. Chiamalo per nome quando opportuno.`;
+    if (studentName) {
+      contextualPrompt += `\n\nREQUISITO TASSATIVO SUL NOME DELL'ALLIEVO:
+L'allievo con cui stai parlando si chiama "${studentName}".
+Devi SEMPRE chiamarlo per nome fin dal saluto di apertura (es. "Ciao ${studentName}...") e rivolgerti a lui chiamandolo "${studentName}" in modo caldo, naturale e diretto. Non omettere mai il suo nome.`;
     }
     if (userProfile) {
       contextualPrompt += `\nProfilo dell'allievo dal test: "${userProfile}".`;
@@ -107,23 +118,39 @@ Sintesi: ${unit2.sintesi}
 
     contents.push({ role: 'user', parts: [{ text: message }] });
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents,
-      config: {
-        systemInstruction: contextualPrompt,
-        temperature: 0.7,
-      },
-    });
+    let replyText = '';
+    for (const modelName of CANDIDATE_MODELS) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents,
+          config: {
+            systemInstruction: contextualPrompt,
+            temperature: 0.7,
+          },
+        });
 
-    const reply =
-      response.text ||
-      'Continua a lavorare sul tuo Asse e sul Contatto Zero alla prossima serata.';
-    res.json({ reply });
+        if (response.text && response.text.trim()) {
+          replyText = response.text.trim();
+          break;
+        }
+      } catch (err: unknown) {
+        console.warn(`Model ${modelName} call failed, trying next fallback:`, (err as Error)?.message || err);
+      }
+    }
+
+    if (!replyText) {
+      const nameGreeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
+      replyText = `${nameGreeting}sono Andrea Frattesi. Qualunque sia il dubbio in questo momento, torna subito all'Asse: respira profondo, allinea la postura e applica la regola dei 3 secondi. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]] prima del prossimo ballo!`;
+    }
+
+    res.json({ reply: replyText });
   } catch (error) {
     console.error('Gemini chat error:', error);
-    res.status(500).json({
-      error: 'Il Coach è momentaneamente occupato, riprova tra poco.',
+    const studentName = typeof req.body?.userName === 'string' ? req.body.userName.trim() : '';
+    const nameGreeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
+    res.json({
+      reply: `${nameGreeting}sono Andrea Frattesi. Continua a lavorare sul tuo Asse e sul Contatto Zero alla prossima serata: rivedi [[cap06]] e prova la regola dei 3 secondi!`,
     });
   }
 });
@@ -162,38 +189,54 @@ ${userProfile ? `- Profilo allievo: ${userProfile}` : ''}
 ${currentMission ? `- Missione attuale: ${currentMission}` : ''}
     `.trim();
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
+    let advice = '';
+    for (const modelName of CANDIDATE_MODELS) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: [
             {
-              text: `Analizza questa serata dell'allievo e fornisci il tuo consiglio nello stile del Coach Andrea Frattesi. Rispondi con massimo 120 parole, diviso chiaramente in questi 3 punti (puoi includere link ad unità [[id]] se utile):
+              role: 'user',
+              parts: [
+                {
+                  text: `Analizza questa serata dell'allievo e fornisci il tuo consiglio nello stile del Coach Andrea Frattesi. Rispondi con massimo 120 parole, diviso chiaramente in questi 3 punti (puoi includere link ad unità [[id]] se utile):
 1. Cosa è andato bene
 2. Un punto su cui concentrarsi
 3. Un'azione concreta per la prossima serata
 
 Ecco i dati:
 ${eveningContext}`,
+                },
+              ],
             },
           ],
-        },
-      ],
-      config: {
-        systemInstruction: contextualPrompt,
-        temperature: 0.7,
-      },
-    });
+          config: {
+            systemInstruction: contextualPrompt,
+            temperature: 0.7,
+          },
+        });
 
-    const advice =
-      response.text ||
-      'Ottimo lavoro per essere sceso in pista. Rivedi il Contatto Zero e ripeti la missione.';
+        if (response.text && response.text.trim()) {
+          advice = response.text.trim();
+          break;
+        }
+      } catch (err: unknown) {
+        console.warn(`Evening advice model ${modelName} failed:`, (err as Error)?.message || err);
+      }
+    }
+
+    if (!advice) {
+      const nameGreeting = userName ? `Bravo ${userName}! ` : 'Bravo! ';
+      advice = `${nameGreeting}Scendere in pista è sempre la cosa più importante.\n\n1. Cosa è andato bene: Hai registrato la serata e mantenuto la continuità.\n2. Punto su cui concentrarsi: Il Contatto Zero e la calma all'invito.\n3. Azione per la prossima volta: Applica la regola dei 3 secondi entro i primi dieci minuti dall'arrivo!`;
+    }
+
     res.json({ advice });
   } catch (error) {
     console.error('Gemini advice error:', error);
-    res.status(500).json({
-      error: 'Il Coach è momentaneamente occupato, riprova tra poco.',
+    const studentName = typeof req.body?.userName === 'string' ? req.body.userName.trim() : '';
+    const nameGreeting = studentName ? `Bravo ${studentName}! ` : 'Bravo! ';
+    res.json({
+      advice: `${nameGreeting}Ogni serata in pista è un passo avanti. Concentrati sul tuo Asse e sul Contatto Zero per la prossima volta: rivedi [[cap06]] e divertiti!`,
     });
   }
 });

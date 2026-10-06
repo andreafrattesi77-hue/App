@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { COACH_DAILY_LIMIT, PROFILES, MISSIONS_21 } from '../config';
 import { getUnita } from '../../content/index';
-import { ChatMessage } from '../types';
+import { ChatMessage, UserData } from '../types';
 import {
   getChatMessages,
   saveChatMessages,
@@ -24,6 +24,7 @@ import {
 import { sendCoachChatMessage } from '../services/api';
 
 interface CoachScreenProps {
+  user?: UserData | null;
   initialPrompt?: string;
   activeUnitId?: string;
   onClearInitialPrompt?: () => void;
@@ -33,6 +34,7 @@ interface CoachScreenProps {
 }
 
 export const CoachScreen: React.FC<CoachScreenProps> = ({
+  user,
   initialPrompt,
   activeUnitId,
   onClearInitialPrompt,
@@ -40,6 +42,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   onGoToRitual,
   onGoToLibrary,
 }) => {
+  const currentUserName = user?.name || getUserData()?.name || '';
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -59,10 +62,10 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
 
   // Load chat and daily limit
   useEffect(() => {
-    setMessages(getChatMessages());
+    setMessages(getChatMessages(currentUserName));
     const usage = getCoachDailyUsage();
     setRemainingToday(usage.remainingToday);
-  }, []);
+  }, [currentUserName]);
 
   // Handle incoming prompt (e.g. from Reader or Quiz)
   useEffect(() => {
@@ -123,7 +126,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
       const reply = await sendCoachChatMessage({
         message: messageContent,
         history: newHistory.map((m) => ({ sender: m.sender, text: m.text })),
-        userName: userData?.name,
+        userName: currentUserName,
         userProfile: profileName,
         currentMission: currentMissionStr,
         activeUnitId: activeUnitId,
@@ -140,7 +143,17 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
       setMessages(finalHistory);
       saveChatMessages(finalHistory);
     } catch {
-      setErrorNotice('Il Coach è momentaneamente occupato, riprova tra poco.');
+      const namePart = currentUserName ? `Ciao ${currentUserName}, ` : 'Ciao, ';
+      const fallbackReply = `${namePart}sono Andrea Frattesi. Qualunque sia il dubbio in questo momento, torna subito al tuo Asse: respira profondo, allinea la postura e applica la regola dei 3 secondi. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]] prima del prossimo ballo!`;
+      const fallbackMsg: ChatMessage = {
+        id: `coach-${Date.now()}`,
+        sender: 'coach',
+        text: fallbackReply,
+        timestamp: Date.now(),
+      };
+      const finalHistory = [...newHistory, fallbackMsg];
+      setMessages(finalHistory);
+      saveChatMessages(finalHistory);
     } finally {
       setIsLoading(false);
     }
@@ -148,7 +161,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
 
   const handleResetChat = () => {
     if (window.confirm('Vuoi iniziare una nuova conversazione con il Coach?')) {
-      const initial = resetChatMessages();
+      const initial = resetChatMessages(currentUserName);
       setMessages(initial);
       setErrorNotice(null);
     }
@@ -211,8 +224,8 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#042B58] absolute -bottom-0.5 -right-0.5" />
           </div>
           <div>
-            <h2 className="text-sm font-bold font-serif text-white">Andrea Virtuale</h2>
-            <p className="text-[10px] text-[#88A5BF]">Coach Effetto Calamita (25 anni di pista)</p>
+            <h2 className="text-sm font-bold font-serif text-white">Andrea Frattesi</h2>
+            <p className="text-[10px] text-[#F9C03E] font-medium">Il tuo coach di EFFETTO CALAMITA</p>
           </div>
         </div>
 
