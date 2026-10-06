@@ -189,7 +189,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>I 6 Bonus Pratici:</strong> Parole del Filo, Rituale, Chat...</span>
+                        <span><strong>I 6 bonus pratici:</strong> Cosa dire e come chattare</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
