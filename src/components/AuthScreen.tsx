@@ -5,7 +5,10 @@ import {
   ShieldCheck,
   UserCheck,
   CreditCard,
+  Sparkles,
+  CheckCircle2,
   ExternalLink,
+  Lock,
 } from 'lucide-react';
 import { ACCESS_CODES, STRIPE_CHECKOUT_URL } from '../config';
 import { saveUserData, getUserData } from '../services/storage';
@@ -15,6 +18,7 @@ interface AuthScreenProps {
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
+  const [activeMode, setActiveMode] = useState<'checkout' | 'code'>('checkout');
   const [code, setCode] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [step, setStep] = useState<'auth' | 'name'>('auth');
@@ -154,80 +158,167 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
 
           {step === 'auth' ? (
             <div className="space-y-4">
-              {/* Pulsanti: Acquista ora vs Ho già il codice */}
-              <div className="grid grid-cols-2 gap-2 p-1 bg-[#021831]/80 rounded-xl border border-[#88A5BF]/25">
-                <a
-                  href={STRIPE_CHECKOUT_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-[#234C77]/60 hover:bg-[#234C77] text-white hover:text-[#F9C03E] border border-[#88A5BF]/30 cursor-pointer shadow-sm"
+              {/* Tab Selector: Acquista ora vs Ho già il codice */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#021831]/80 rounded-xl border border-[#88A5BF]/25">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeMode === 'checkout') {
+                      window.open(STRIPE_CHECKOUT_URL, '_blank');
+                    } else {
+                      setActiveMode('checkout');
+                    }
+                    setErrorMessage('');
+                  }}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    activeMode === 'checkout'
+                      ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
                 >
-                  <CreditCard className="w-3.5 h-3.5 text-[#F9C03E]" />
+                  <CreditCard className="w-3.5 h-3.5" />
                   <span>Acquista ora</span>
-                  <ExternalLink className="w-3 h-3 text-[#F9C03E]" />
-                </a>
-                <div
-                  className="py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-[#F9C03E] text-[#042B58] shadow-sm select-none"
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMode('code');
+                    setErrorMessage('');
+                  }}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    activeMode === 'code'
+                      ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
                 >
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Ho già il codice</span>
-                </div>
+                </button>
               </div>
 
-              {/* Inserimento Codice di Accesso */}
-              <form onSubmit={handleVerifyCode} className="space-y-4 animate-fadeIn">
-                <div className="text-left">
-                  <label
-                    htmlFor="accessCodeInput"
-                    className="block text-xs font-semibold text-[#88A5BF] uppercase tracking-wider mb-2"
-                  >
-                    Inserisci il tuo codice di accesso
-                  </label>
-                  <div className="relative">
-                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                    <input
-                      id="accessCodeInput"
-                      type="text"
-                      value={code}
-                      onChange={(e) => {
-                        setCode(e.target.value);
-                        if (errorMessage) setErrorMessage('');
-                      }}
-                      placeholder="inserisci codice"
-                      className="w-full pl-10 pr-4 py-3 bg-[#021831]/80 border border-[#88A5BF]/40 rounded-xl text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E]"
-                      autoCapitalize="characters"
-                      autoCorrect="off"
-                      autoFocus
-                    />
+              {/* MODE 1: Acquista ora (Lista completa di cosa ricevi) */}
+              {activeMode === 'checkout' && (
+                <div className="space-y-4 text-left animate-fadeIn">
+                  <div className="p-4 rounded-xl bg-[#021831]/60 border border-[#88A5BF]/25 space-y-2.5">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/50">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#F9C03E]" />
+                        <span>Cosa ricevi subito</span>
+                      </span>
+                      <span className="text-[11px] font-bold text-emerald-400">Accesso Immediato</span>
+                    </div>
+
+                    <ul className="space-y-1.5 text-xs text-slate-200">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
+                        <span><strong>Ebook Completo:</strong> Il Metodo in 5 parti</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
+                        <span><strong>I 6 bonus pratici:</strong> Cosa dire e come chattare</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
+                        <span><strong>Guida Ripartire:</strong> Separazione, età e stile</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
+                        <span><strong>Coach AI 24/7:</strong> Consigli su misura per te</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
+                        <span><strong>Piano 21 Serate & Diario</strong> con Reset anti-blocco</span>
+                      </li>
+                    </ul>
                   </div>
-                </div>
 
-                {errorMessage && (
-                  <div className="p-3 bg-red-950/70 border border-red-500/40 rounded-xl text-left text-xs text-red-200">
-                    <p className="font-medium">{errorMessage}</p>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-sm font-bold flex items-center justify-center gap-2 group cursor-pointer"
-                >
-                  <span>Verifica ed Entra</span>
-                  <ArrowRight className="w-4 h-4 text-[#042B58] group-hover:translate-x-1 transition-transform" />
-                </button>
-
-                <div className="text-center pt-2 border-t border-slate-700/50">
+                  {/* Pulsante Oro Stripe */}
                   <a
                     href={STRIPE_CHECKOUT_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors underline underline-offset-4"
+                    onClick={() => {
+                      window.open(STRIPE_CHECKOUT_URL, '_blank');
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer"
                   >
-                    <span>Non hai ancora acquistato? Clicca qui per acquistare</span>
-                    <ExternalLink className="w-3 h-3" />
+                    <span>Acquista e Accedi Subito</span>
+                    <ExternalLink className="w-4 h-4" />
                   </a>
+
+                  {/* Sicurezza e metodi */}
+                  <div className="flex items-center justify-center gap-2 text-[11px] text-[#88A5BF] pt-1">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    <span>Pagamento sicuro con Carta, Apple Pay e Google Pay</span>
+                  </div>
+
+                  {/* Switch rapido a inserimento codice */}
+                  <div className="text-center pt-1 border-t border-slate-700/50">
+                    <button
+                      type="button"
+                      onClick={() => setActiveMode('code')}
+                      className="text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors underline underline-offset-4 cursor-pointer"
+                    >
+                      Hai già completato l'acquisto? Inserisci il codice
+                    </button>
+                  </div>
                 </div>
-              </form>
+              )}
+
+              {/* MODE 2: Inserimento Codice di Accesso */}
+              {activeMode === 'code' && (
+                <form onSubmit={handleVerifyCode} className="space-y-4 animate-fadeIn">
+                  <div className="text-left">
+                    <label
+                      htmlFor="accessCodeInput"
+                      className="block text-xs font-semibold text-[#88A5BF] uppercase tracking-wider mb-2"
+                    >
+                      Inserisci il tuo codice di accesso
+                    </label>
+                    <div className="relative">
+                      <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                      <input
+                        id="accessCodeInput"
+                        type="text"
+                        value={code}
+                        onChange={(e) => {
+                          setCode(e.target.value);
+                          if (errorMessage) setErrorMessage('');
+                        }}
+                        placeholder="inserisci codice"
+                        className="w-full pl-10 pr-4 py-3 bg-[#021831]/80 border border-[#88A5BF]/40 rounded-xl text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E]"
+                        autoCapitalize="characters"
+                        autoCorrect="off"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {errorMessage && (
+                    <div className="p-3 bg-red-950/70 border border-red-500/40 rounded-xl text-left text-xs text-red-200">
+                      <p className="font-medium">{errorMessage}</p>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-sm font-bold flex items-center justify-center gap-2 group cursor-pointer"
+                  >
+                    <span>Verifica ed Entra</span>
+                    <ArrowRight className="w-4 h-4 text-[#042B58] group-hover:translate-x-1 transition-transform" />
+                  </button>
+
+                  <div className="text-center pt-2 border-t border-slate-700/50">
+                    <button
+                      type="button"
+                      onClick={() => setActiveMode('checkout')}
+                      className="text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors underline underline-offset-4 cursor-pointer"
+                    >
+                      Non hai ancora acquistato? Clicca qui per acquistare
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           ) : (
             /* STEP 2: Inserimento Nome Utente */

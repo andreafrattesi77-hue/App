@@ -3,8 +3,8 @@
  * Modifica qui codici di accesso, link ufficiali e parametri operativi.
  */
 
-// Codici di accesso validi per l'App principale
-export const ACCESS_CODES: string[] = ['CALAMITA2026', 'CALAMITA', 'FILOINVISIBILE', 'ANDREA2026'];
+// Codice di accesso valido per l'App principale (singola parola senza spazi)
+export const ACCESS_CODES: string[] = ['MAGNETICO', 'CALAMITA2026', 'CALAMITA'];
 
 // Link esterni ufficiali
 export const STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/aFadR84YobTbdYa6bkdwc0b';

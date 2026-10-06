@@ -37,6 +37,7 @@ export async function getEveningAdvice(params: {
   readingUnitId?: string;
   userProfile?: string;
   userName?: string;
+  previousAdvice?: string;
 }): Promise<string> {
   try {
     const res = await fetch('/api/coach/evening-advice', {

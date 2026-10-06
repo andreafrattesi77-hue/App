@@ -136,6 +136,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ user, onOpenUnita }) =
         readingUnitId: curMission.readingUnitId,
         userProfile: profileName,
         userName: userData?.name,
+        previousAdvice: target.coachAdvice,
       });
 
       const updatedEntry = { ...target, coachAdvice: advice };

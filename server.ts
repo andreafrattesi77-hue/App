@@ -27,17 +27,28 @@ const ai = new GoogleGenAI({
 });
 
 const COACH_SYSTEM_INSTRUCTION = `Sei Andrea Frattesi in persona, il coach del metodo Effetto Calamita. Balli Salsa e Bachata da 25 anni. Parli in italiano, da uomo a uomo, con tono caldo, diretto, pratico, amichevole ed empatico. Frasi incisive, niente gergo astratto, massimo 150 parole per risposta, chiudi spesso con un'azione concreta da provare alla prossima serata.
-Rispondi SOLO sulla base della SINTESI DEL METODO e dei TESTI DEL CAPITOLO che ricevi: usa i concetti e le parole del metodo (Filo Invisibile, Asse, Contatto Zero, Sguardo Ancora, Chiusura Calamita, termometro del filo, Parole del Filo, Radar dei Segnali…) e non inventare tecniche o frasi che non sono in quei testi.
-Quando è utile, indica dove approfondire scrivendo l'id tra doppie parentesi quadre, ad esempio [[cap04]] o [[bonus3]]: l'app lo trasformerà in un link. Usa solo id esistenti: intro, cap01…cap16, next, rip1, rip2, bonus1…bonus6.
+Rispondi sulla base della SINTESI DEL METODO e dei TESTI DEL CAPITOLO che ricevi.
+
+IMPORTANTE SULLA VARIETÀ E PERTINENZA (NON ESSERE RIPETITIVO):
+- Rispondi in modo SPECIFICO, FRESCO e MIRATO alla domanda precisa dell'allievo.
+- NON dare risposte generiche o fotocopia. NON ripetere a ogni singola risposta sempre le stesse identiche frasi o gli stessi concetti fissi (come "torna all'Asse", "Contatto Zero" o "la regola dei 3 secondi"), a meno che la domanda non sia specificamente su quello.
+- Adatta la risposta al tema sollevato:
+  * Se chiede cosa dire, come parlare o come chattare: concentrati sulle Parole del Filo, sulla calibrazione verbale, sul non fare interrogatori e sui complimenti giusti ([[cap13]], [[cap14]], [[bonus1]], [[bonus4]]).
+  * Se chiede del rifiuto o del no: insegna il No Elegante, a non prenderla sul personale e a ripartire leggeri ([[cap08]], [[bonus3]]).
+  * Se chiede del dopo-ballo o di prendere il numero/contatto: spiega la Chiusura Calamita e i tempi giusti ([[cap15]], [[cap16]], [[bonus5]]).
+  * Se chiede della Bachata o della vicinanza fisica: parla dei gradi di vicinanza e della Tensione Lenta, senza forzare ([[cap11]], [[cap12]], [[bonus6]]).
+  * Se chiede di insicurezza o ansia prima di invitare: parla dello sblocco in pista e dell'invito con il palmo verso l'alto ([[cap07]], [[cap10]], [[bonus2]]).
+- Quando è utile, indica dove approfondire scrivendo l'id tra doppie parentesi quadre, ad esempio [[cap04]] o [[bonus3]]: l'app lo trasformerà in un link. Usa solo id esistenti: intro, cap01…cap16, next, rip1, rip2, bonus1…bonus6.
+
 Regole:
 - NON presentarti mai più dicendo chi sei ("sono Andrea Frattesi...", "sono il tuo coach..."): ti sei già presentato nel messaggio di benvenuto. Nelle risposte devi SOLO rispondere alla domanda dell'allievo, senza preamboli ripetitivi.
 - Promuovi sempre rispetto e consenso; non suggerire mai manipolazione o insistenza; se lei non è interessata, insegna a capirlo e a salutare con eleganza. L'assenza di un no non è un sì. Non dare consigli medici o psicologici. Se la domanda è fuori tema rispetto a ballo, sicurezza e relazioni, riporta gentilmente la conversazione sul metodo.`;
 
 // Candidate models in order of priority (resilient to 503 spikes)
 const CANDIDATE_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
   'gemini-3.8-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
 ];
 
 // API: Coach Chat
@@ -144,7 +155,7 @@ ATTENZIONE: NON ri-presentarti MAI ("sono Andrea Frattesi...", "sono il tuo coac
 
     if (!replyText) {
       const nameGreeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
-      replyText = `${nameGreeting}sono Andrea Frattesi. Qualunque sia il dubbio in questo momento, torna subito all'Asse: respira profondo, allinea la postura e applica la regola dei 3 secondi. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]] prima del prossimo ballo!`;
+      replyText = `${nameGreeting}qualunque sia la situazione in pista, mantieni la calma e ascolta il ritmo. Metti a fuoco la connessione con la partner senza fretta e ripassa [[cap06]] o il Rituale Pre-Serata in [[bonus2]]!`;
     }
 
     res.json({ reply: replyText });
@@ -153,7 +164,7 @@ ATTENZIONE: NON ri-presentarti MAI ("sono Andrea Frattesi...", "sono il tuo coac
     const studentName = typeof req.body?.userName === 'string' ? req.body.userName.trim() : '';
     const nameGreeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
     res.json({
-      reply: `${nameGreeting}sono Andrea Frattesi. Continua a lavorare sul tuo Asse e sul Contatto Zero alla prossima serata: rivedi [[cap06]] e prova la regola dei 3 secondi!`,
+      reply: `${nameGreeting}qualunque sia il dubbio in questo momento, concentrati sulla presenza e sul respiro. Alla prossima serata applica i consigli di [[cap06]] e divertiti in pista!`,
     });
   }
 });
@@ -161,7 +172,7 @@ ATTENZIONE: NON ri-presentarti MAI ("sono Andrea Frattesi...", "sono il tuo coac
 // API: Advice on evening diary
 app.post('/api/coach/evening-advice', async (req, res) => {
   try {
-    const { evening, currentMission, readingUnitId, userProfile, userName } = req.body;
+    const { evening, currentMission, readingUnitId, userProfile, userName, previousAdvice } = req.body;
 
     const missionUnit = readingUnitId ? getUnita(readingUnitId) : undefined;
 
@@ -178,6 +189,16 @@ ${missionUnit.testo}`
 }
 `;
 
+    const previousAdviceInstruction = previousAdvice
+      ? `
+ATTENZIONE CRUCIALE: L'allievo ha già ricevuto questo consiglio per questa serata:
+"""${previousAdvice}"""
+Ha richiesto espressamente un NUOVO CONSIGLIO DIVERSO E COMPLEMENTARE!
+NON ripetere assolutamente gli stessi punti o le stesse osservazioni già date sopra.
+Analizza la sua serata da un'angolazione differente (ad esempio focalizzati sulla Tensione Lenta, sul dopo-ballo, sulla gestione dei no, sulla calibrazione verbale o sull'atteggiamento mentale).
+Fornisci 3 punti freschi, inediti e un'azione concreta diversa per la prossima serata!`
+      : '';
+
     const eveningContext = `
 Dati della serata di ${userName || 'questo allievo'}:
 - Locale: ${evening?.venue || 'Non specificato'}
@@ -190,6 +211,7 @@ Dati della serata di ${userName || 'questo allievo'}:
 - Cosa migliorare: ${evening?.whatToImprove || 'Nessuna nota'}
 ${userProfile ? `- Profilo allievo: ${userProfile}` : ''}
 ${currentMission ? `- Missione attuale: ${currentMission}` : ''}
+${previousAdviceInstruction}
     `.trim();
 
     let advice = '';
@@ -215,7 +237,7 @@ ${eveningContext}`,
           ],
           config: {
             systemInstruction: contextualPrompt,
-            temperature: 0.7,
+            temperature: previousAdvice ? 0.9 : 0.8,
           },
         });
 
@@ -230,7 +252,7 @@ ${eveningContext}`,
 
     if (!advice) {
       const nameGreeting = userName ? `Bravo ${userName}! ` : 'Bravo! ';
-      advice = `${nameGreeting}Scendere in pista è sempre la cosa più importante.\n\n1. Cosa è andato bene: Hai registrato la serata e mantenuto la continuità.\n2. Punto su cui concentrarsi: Il Contatto Zero e la calma all'invito.\n3. Azione per la prossima volta: Applica la regola dei 3 secondi entro i primi dieci minuti dall'arrivo!`;
+      advice = `${nameGreeting}Scendere in pista è sempre la cosa più importante.\n\n1. Cosa è andato bene: Hai registrato la serata e mantenuto la continuità.\n2. Punto su cui concentrarsi: La presenza rilassata e la gestione del ritmo tra un ballo e l'altro.\n3. Azione per la prossima volta: Prima del prossimo invito, fai due respiri profondi e guarda il sorriso di lei prima di muovere i piedi!`;
     }
 
     res.json({ advice });
@@ -239,7 +261,7 @@ ${eveningContext}`,
     const studentName = typeof req.body?.userName === 'string' ? req.body.userName.trim() : '';
     const nameGreeting = studentName ? `Bravo ${studentName}! ` : 'Bravo! ';
     res.json({
-      advice: `${nameGreeting}Ogni serata in pista è un passo avanti. Concentrati sul tuo Asse e sul Contatto Zero per la prossima volta: rivedi [[cap06]] e divertiti!`,
+      advice: `${nameGreeting}Ogni serata in pista è un tassello prezioso. Concentrati sulla leggerezza e sulla connessione per la prossima volta: rileggi [[cap06]] o [[cap11]] e divertiti!`,
     });
   }
 });
