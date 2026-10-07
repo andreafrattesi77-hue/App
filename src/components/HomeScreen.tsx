@@ -11,6 +11,7 @@ import {
   Calendar,
   Video,
   ExternalLink,
+  Music,
 } from 'lucide-react';
 import { MISSIONS_21, PROFILES, OFFICIAL_SIGNATURE, VIDEOCORSO_URL } from '../config';
 import { getUnita } from '../../content/index';
@@ -24,6 +25,7 @@ interface HomeScreenProps {
   onOpenReset: () => void;
   onOpenQuiz: () => void;
   onOpenRitual: () => void;
+  onOpenRhythm: () => void;
   onOpenUnita: (id: string) => void;
   onOpenVideocorsoTab: () => void;
 }
@@ -36,6 +38,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenReset,
   onOpenQuiz,
   onOpenRitual,
+  onOpenRhythm,
   onOpenUnita,
   onOpenVideocorsoTab,
 }) => {
@@ -225,6 +228,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <span>Scopri il videocorso</span>
           <ExternalLink className="w-3.5 h-3.5" />
         </a>
+      </div>
+
+      {/* Card "Allenatore di Ritmo (Salsa & Bachata)" */}
+      <div className="glass-card p-4 border border-[#F9C03E]/40 flex items-center justify-between gap-3 bg-gradient-to-r from-[#021831] via-[#234C77]/40 to-[#021831] shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#234C77] border border-[#F9C03E]/40 flex items-center justify-center text-[#F9C03E] shadow-sm">
+            <Music className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-[#F9C03E]">
+              <span>Nuovo • Audio Interattivo</span>
+            </div>
+            <h4 className="text-xs font-bold text-white">
+              Allenatore di Ritmo & Clave (Salsa & Bachata)
+            </h4>
+            <p className="text-[10px] text-slate-300">
+              Impara a trovare il tempo 1, la clave e il tap
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onOpenRhythm}
+          className="py-2.5 px-3 rounded-xl gold-gradient-btn text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer"
+        >
+          <span>Allena il Tempo</span>
+          <ArrowRight className="w-3.5 h-3.5 text-[#042B58]" />
+        </button>
       </div>
 
       {/* Quick Actions Grid */}

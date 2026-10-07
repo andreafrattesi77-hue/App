@@ -12,6 +12,7 @@ import {
   Mail,
   Video,
   FileText,
+  Music,
 } from 'lucide-react';
 import { wipeAllAppData, saveUserData } from '../services/storage';
 import { exportAndPrintReport } from '../services/reportExport';
@@ -25,6 +26,7 @@ interface SettingsModalProps {
   user: UserData;
   onNameUpdate: (newName: string) => void;
   onRetakeQuiz: () => void;
+  onOpenRhythm?: () => void;
   onLogout: () => void;
   onDataReset: () => void;
 }
@@ -35,6 +37,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   user,
   onNameUpdate,
   onRetakeQuiz,
+  onOpenRhythm,
   onLogout,
   onDataReset,
 }) => {
@@ -136,8 +139,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* Link Utili Section */}
           <div className="glass-card p-4 space-y-2.5">
             <span className="text-xs font-semibold text-[#88A5BF] uppercase tracking-wider block">
-              Link Utili
+              Strumenti & Link Utili
             </span>
+
+            {/* Allenatore di Ritmo */}
+            {onOpenRhythm && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenRhythm();
+                }}
+                className="w-full p-2.5 rounded-xl bg-[#021831] hover:bg-[#234C77]/60 border border-[#F9C03E]/40 text-xs text-white flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Music className="w-4 h-4 text-[#F9C03E]" />
+                  <span className="font-semibold text-[#F9C03E]">Allenatore di Ritmo (Salsa & Bachata)</span>
+                </div>
+                <span className="text-[10px] text-slate-300">Apri →</span>
+              </button>
+            )}
 
             {/* Videocorso link */}
             <a

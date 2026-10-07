@@ -22,6 +22,7 @@ import { DiaryScreen } from './components/DiaryScreen';
 import { QuizScreen } from './components/QuizScreen';
 import { ResetModal } from './components/ResetModal';
 import { SettingsModal } from './components/SettingsModal';
+import { RhythmModal } from './components/RhythmModal';
 
 export default function App() {
   const [user, setUser] = useState<UserData | null>(null);
@@ -39,6 +40,7 @@ export default function App() {
   const [isRitualView, setIsRitualView] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRhythmOpen, setIsRhythmOpen] = useState(false);
 
   // Cross-screen data
   const [missionsProgress, setMissionsProgress] = useState<Record<number, MissionProgress>>({});
@@ -192,6 +194,7 @@ export default function App() {
                 onOpenReset={() => setIsResetOpen(true)}
                 onOpenQuiz={() => setIsQuizView(true)}
                 onOpenRitual={() => setIsRitualView(true)}
+                onOpenRhythm={() => setIsRhythmOpen(true)}
                 onOpenUnita={handleOpenUnita}
                 onOpenVideocorsoTab={() => setCurrentTab('libreria')}
               />
@@ -248,6 +251,11 @@ export default function App() {
         onClose={() => setIsResetOpen(false)}
       />
 
+      <RhythmModal
+        isOpen={isRhythmOpen}
+        onClose={() => setIsRhythmOpen(false)}
+      />
+
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -259,6 +267,7 @@ export default function App() {
           setIsSettingsOpen(false);
           setIsQuizView(true);
         }}
+        onOpenRhythm={() => setIsRhythmOpen(true)}
         onLogout={handleLogout}
         onDataReset={handleDataReset}
       />

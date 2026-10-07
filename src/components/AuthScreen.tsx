@@ -36,6 +36,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [registerName, setRegisterName] = useState('');
+  const [registerCode, setRegisterCode] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -84,6 +85,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           } else {
             // Codice valido riconosciuto dal link, chiede subito il nome
             setValidCode(queryCode);
+            setRegisterCode(queryCode);
             setIsAutoUnlocked(true);
             setStep('name');
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -103,7 +105,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     const cleanCode = code.trim().toUpperCase();
 
     if (!cleanCode) {
-      setErrorMessage('Inserisci il codice di accesso ricevuto o "MAGNETICO".');
+      setErrorMessage('Inserisci il codice di accesso ricevuto via email.');
       return;
     }
 
@@ -127,7 +129,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
       setValidCode(cleanCode);
       setStep('name');
     } else {
-      setErrorMessage("Codice non valido. Controlla l'email di acquisto o inserisci MAGNETICO.");
+      setErrorMessage("Codice non valido. Inserisci il codice ricevuto dopo l'acquisto o contatta l'assistenza.");
     }
   };
 
@@ -140,12 +142,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
       return;
     }
 
+    const resolvedCode = validCode || 'ACQUISTO_CONFERMATO';
     saveUserData({
-      accessCode: validCode || 'MAGNETICO',
+      accessCode: resolvedCode,
       name: cleanName,
     });
 
-    onSuccess(cleanName, validCode || 'MAGNETICO');
+    onSuccess(cleanName, resolvedCode);
   };
 
   // Handle Email Auth (Registration or Login)
@@ -159,9 +162,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
       return;
     }
 
-    if (emailMode === 'register' && !registerName.trim()) {
-      setErrorMessage('Inserisci il tuo nome per completare la registrazione.');
-      return;
+    // CONTROLLO DI SICUREZZA: Per registrarsi è OBBLIGATORIO avere il codice di acquisto
+    let validatedCode = 'ACQUISTO_CONFERMATO';
+    if (emailMode === 'register') {
+      if (!registerName.trim()) {
+        setErrorMessage('Inserisci il tuo nome per completare la registrazione.');
+        return;
+      }
+
+      const cleanRegCode = registerCode.trim().toUpperCase();
+      if (!cleanRegCode) {
+        setErrorMessage("Per creare un account devi inserire il codice di accesso ricevuto via email dopo l'acquisto. Se non hai acquistato, clicca su 'Acquista ora'.");
+        return;
+      }
+
+      const isCodeValid = ACCESS_CODES.some(
+        (valid) => valid.toUpperCase() === cleanRegCode
+      );
+
+      if (!isCodeValid) {
+        setErrorMessage("Codice di accesso non valido. Controlla l'email di conferma acquisto oppure acquista l'accesso.");
+        return;
+      }
+
+      validatedCode = cleanRegCode;
     }
 
     setIsAuthenticating(true);
@@ -182,7 +206,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         fbUser.displayName ||
         registerName.trim() ||
         cleanEmail.split('@')[0];
-      const resolvedCode = cloudData?.accessCode || 'MAGNETICO';
+      const resolvedCode = cloudData?.accessCode || validatedCode;
 
       // Salva nel local storage dell'app
       saveUserData({
@@ -205,7 +229,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
       const errCode = (err as { code?: string })?.code || '';
 
       if (errCode === 'auth/email-already-in-use') {
-        setErrorMessage('Questa email è già registrata. Clicca su "Accedi al tuo account" in alto.');
+        setErrorMessage('Questa email è già registrata. Clicca su "Accedi con Email" in alto.');
       } else if (errCode === 'auth/weak-password') {
         setErrorMessage('La password deve contenere almeno 6 caratteri.');
       } else if (errCode === 'auth/invalid-email') {
@@ -215,7 +239,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         errCode === 'auth/wrong-password' ||
         errCode === 'auth/invalid-credential'
       ) {
-        setErrorMessage('Email o password errati. Controlla i dati o registrati come nuovo utente.');
+        setErrorMessage('Email o password errati. Se non ti sei ancora registrato, clicca su "Crea Account (Registrati)".');
       } else {
         setErrorMessage(
           emailMode === 'register'
@@ -238,7 +262,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
       <div className="w-full pt-2 sm:pt-4 flex justify-center z-10">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#234C77]/70 border border-[#88A5BF]/30 text-[#88A5BF] text-xs font-medium">
           <ShieldCheck className="w-3.5 h-3.5 text-[#F9C03E]" />
-          <span>Accesso Ufficiale • Effetto Calamita</span>
+          <span>Accesso Riservato • Effetto Calamita</span>
         </div>
       </div>
 
@@ -376,7 +400,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
 
                   {/* Spiegazione post-acquisto */}
                   <div className="p-2.5 rounded-lg bg-[#021831]/50 border border-[#88A5BF]/20 text-[11px] text-slate-300 leading-relaxed text-center">
-                    💡 <span className="font-semibold text-white">Come funziona dopo l'acquisto?</span> Ricevi subito il codice di accesso via email oppure puoi registrarti subito con la tua email per accedere all'istante.
+                    💡 <span className="font-semibold text-white">Come funziona dopo l'acquisto?</span> Ricevi subito il codice di accesso via email per entrare istantaneamente o per creare il tuo account personale.
                   </div>
 
                   {/* Sicurezza e metodi */}
@@ -452,7 +476,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                           />
                         </div>
                         <p className="text-[11px] text-slate-400 mt-1.5">
-                          Inserisci il codice ricevuto dopo l'acquisto (oppure <span className="text-[#F9C03E] font-mono font-bold">MAGNETICO</span>).
+                          Inserisci il codice di accesso ricevuto via email dopo l'acquisto.
                         </p>
                       </div>
 
@@ -530,8 +554,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                         </p>
                         <p className="text-[11px] text-slate-300 mt-0.5">
                           {emailMode === 'register'
-                            ? 'I tuoi progressi e diario saranno salvati al sicuro.'
-                            : 'Inserisci le credenziali del tuo account.'}
+                            ? 'Per registrarti inserisci i tuoi dati e il codice di acquisto.'
+                            : 'Inserisci email e password per accedere ai tuoi dati.'}
                         </p>
                       </div>
 
@@ -554,6 +578,32 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                               className="w-full pl-9 pr-3 py-2.5 bg-[#021831]/80 border border-[#88A5BF]/30 rounded-lg text-white placeholder-slate-500 text-xs focus:outline-none focus:border-[#F9C03E]"
                             />
                           </div>
+                        </div>
+                      )}
+
+                      {/* Campo Codice di Acquisto (solo se registrazione: BLOCCO ANTI-INTRUSIONE) */}
+                      {emailMode === 'register' && (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#88A5BF] uppercase tracking-wider mb-1">
+                            Codice di acquisto (ricevuto via email)
+                          </label>
+                          <div className="relative">
+                            <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                            <input
+                              type="text"
+                              value={registerCode}
+                              onChange={(e) => {
+                                setRegisterCode(e.target.value);
+                                if (errorMessage) setErrorMessage('');
+                              }}
+                              placeholder="Codice ricevuto dopo l'acquisto"
+                              className="w-full pl-9 pr-3 py-2.5 bg-[#021831]/80 border border-[#88A5BF]/30 rounded-lg text-white placeholder-slate-500 text-xs font-mono uppercase focus:outline-none focus:border-[#F9C03E]"
+                              autoCapitalize="characters"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Richiesto per verificare l'acquisto e sbloccare l'account.
+                          </p>
                         </div>
                       )}
 
