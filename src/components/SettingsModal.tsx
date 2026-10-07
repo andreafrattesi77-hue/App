@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   X,
   User,
-  Download,
   Trash2,
   LogOut,
   Check,
@@ -12,8 +11,11 @@ import {
   Instagram,
   Mail,
   Video,
+  FileText,
 } from 'lucide-react';
-import { exportAllData, wipeAllAppData, saveUserData } from '../services/storage';
+import { wipeAllAppData, saveUserData } from '../services/storage';
+import { exportAndPrintReport } from '../services/reportExport';
+import { logoutFirebase } from '../services/firebase';
 import { VIDEOCORSO_URL, AREA_RISERVATA_URL, INSTAGRAM_URL, SUPPORT_EMAIL } from '../config';
 import { UserData } from '../types';
 
@@ -52,16 +54,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleExport = () => {
-    const jsonStr = exportAllData();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `effetto-calamita-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    exportAndPrintReport();
   };
 
   const handleConfirmWipe = () => {
@@ -201,18 +194,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </a>
           </div>
 
-          {/* Export Data */}
+          {/* Export Data as PDF */}
           <div className="glass-card p-4 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-white">Esporta i miei dati</h3>
-              <p className="text-xs text-[#88A5BF]">Scarica copia JSON di diario, note e chat</p>
+              <h3 className="text-sm font-semibold text-white">Esporta i miei dati (PDF)</h3>
+              <p className="text-xs text-[#88A5BF]">Scarica o stampa il report completo in PDF (profilo e diario)</p>
             </div>
             <button
               onClick={handleExport}
-              className="py-2 px-3 rounded-xl bg-[#234C77] hover:bg-[#88A5BF]/30 text-white text-xs font-medium border border-[#88A5BF]/30 transition-colors flex items-center gap-1.5"
+              className="py-2 px-3 rounded-xl bg-[#234C77] hover:bg-[#88A5BF]/30 text-white text-xs font-medium border border-[#88A5BF]/30 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
-              <Download className="w-3.5 h-3.5 text-[#88A5BF]" />
-              <span>Esporta</span>
+              <FileText className="w-3.5 h-3.5 text-[#F9C03E]" />
+              <span>Scarica PDF</span>
             </button>
           </div>
 
@@ -261,11 +254,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* Logout */}
           <div className="pt-2">
             <button
-              onClick={onLogout}
-              className="w-full py-3 px-4 rounded-xl bg-[#021831] border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+              onClick={() => {
+                logoutFirebase();
+                onLogout();
+              }}
+              className="w-full py-3 px-4 rounded-xl bg-[#021831] border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4 text-slate-400" />
-              <span>Esci (cancella codice di accesso da questo dispositivo)</span>
+              <span>Esci (disconnetti da questo dispositivo)</span>
             </button>
           </div>
         </div>

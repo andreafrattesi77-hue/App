@@ -1,6 +1,8 @@
 import { ProfileType } from './config';
 
 export interface UserData {
+  id?: string;
+  email?: string;
   accessCode: string;
   name: string;
   profile: ProfileType | null;

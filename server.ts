@@ -117,20 +117,52 @@ ATTENZIONE: NON ri-presentarti MAI ("sono Andrea Frattesi...", "sono il tuo coac
       contextualPrompt += `\nMissione corrente nel Piano 21 Serate: "${currentMission}".`;
     }
 
-    // Prepare history: only last 10 messages
-    const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+    // Prepare history: ensure strict alternation and valid starting role for Gemini
+    const rawTurns: Array<{ role: 'user' | 'model'; text: string }> = [];
 
     if (Array.isArray(history) && history.length > 0) {
-      for (const h of history.slice(-10)) {
-        if (h.sender === 'user') {
-          contents.push({ role: 'user', parts: [{ text: h.text }] });
-        } else if (h.sender === 'coach') {
-          contents.push({ role: 'model', parts: [{ text: h.text }] });
+      // Exclude messages that duplicate the current message at the end
+      const trimmedHistory = history.filter((h, idx) => {
+        if (idx === history.length - 1 && h.sender === 'user' && h.text?.trim() === message.trim()) {
+          return false;
+        }
+        return true;
+      });
+
+      for (const h of trimmedHistory.slice(-10)) {
+        if (h.sender === 'user' && h.text?.trim()) {
+          rawTurns.push({ role: 'user', text: h.text.trim() });
+        } else if (h.sender === 'coach' && h.text?.trim()) {
+          rawTurns.push({ role: 'model', text: h.text.trim() });
         }
       }
     }
 
-    contents.push({ role: 'user', parts: [{ text: message }] });
+    // Add current user message
+    rawTurns.push({ role: 'user', text: message.trim() });
+
+    // Clean up turns so they start with 'user' and alternate strictly
+    const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+    let lastRole: 'user' | 'model' | null = null;
+
+    for (const turn of rawTurns) {
+      // Gemini conversation must start with 'user'
+      if (contents.length === 0 && turn.role === 'model') {
+        continue;
+      }
+      if (turn.role === lastRole) {
+        if (contents.length > 0) {
+          contents[contents.length - 1].parts[0].text += `\n${turn.text}`;
+        }
+      } else {
+        contents.push({ role: turn.role, parts: [{ text: turn.text }] });
+        lastRole = turn.role;
+      }
+    }
+
+    if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
+      contents.push({ role: 'user', parts: [{ text: message.trim() }] });
+    }
 
     let replyText = '';
     for (const modelName of CANDIDATE_MODELS) {

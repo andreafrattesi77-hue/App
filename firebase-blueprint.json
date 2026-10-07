@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Profilo utente autenticato dell'app Effetto Calamita",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "accessCode": { "type": "string" },
+        "profile": { "type": "string" },
+        "readUnits": { "type": "array" },
+        "favorites": { "type": "array" },
+        "watchedVideos": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "DiaryEntry": {
+      "title": "DiaryEntry",
+      "description": "Registrazione di una serata nel diario dell'allievo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "venue": { "type": "string" },
+        "rating": { "type": "number" },
+        "invitesCount": { "type": "number" },
+        "elegantNoCount": { "type": "number" },
+        "calamitaClosuresCount": { "type": "number" },
+        "missionCompleted": { "type": "boolean" },
+        "whatWorked": { "type": "string" },
+        "whatToImprove": { "type": "string" },
+        "coachAdvice": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "venue", "rating"]
+    },
+    "MissionProgress": {
+      "title": "MissionProgress",
+      "description": "Stato di avanzamento di una missione del Piano 21 Serate",
+      "type": "object",
+      "properties": {
+        "missionId": { "type": "number" },
+        "completed": { "type": "boolean" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["missionId", "completed"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Messaggio di conversazione tra allievo e Coach AI",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sender": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "sender", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Documento profilo per ciascun utente"
+    },
+    "/users/{userId}/diary/{entryId}": {
+      "schema": { "$ref": "#/entities/DiaryEntry" },
+      "description": "Voci del diario di bordo per l'utente"
+    },
+    "/users/{userId}/missions/{missionId}": {
+      "schema": { "$ref": "#/entities/MissionProgress" },
+      "description": "Stato missioni 21 serate per l'utente"
+    },
+    "/users/{userId}/chat/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Messaggi di chat con il Coach per l'utente"
+    }
+  }
+}

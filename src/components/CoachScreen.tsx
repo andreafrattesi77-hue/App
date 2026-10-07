@@ -125,7 +125,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     try {
       const reply = await sendCoachChatMessage({
         message: messageContent,
-        history: newHistory.map((m) => ({ sender: m.sender, text: m.text })),
+        history: messages.map((m) => ({ sender: m.sender, text: m.text })),
         userName: currentUserName,
         userProfile: profileName,
         currentMission: currentMissionStr,

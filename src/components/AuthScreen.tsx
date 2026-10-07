@@ -9,9 +9,18 @@ import {
   CheckCircle2,
   ExternalLink,
   Lock,
+  Mail,
+  Loader2,
 } from 'lucide-react';
 import { ACCESS_CODES, STRIPE_CHECKOUT_URL } from '../config';
 import { saveUserData, getUserData } from '../services/storage';
+import {
+  signInWithGoogle,
+  loginWithEmail,
+  registerWithEmail,
+  saveUserToFirestore,
+  loadUserFromFirestore,
+} from '../services/firebase';
 
 interface AuthScreenProps {
   onSuccess: (name: string, accessCode: string) => void;
@@ -25,6 +34,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   const [validCode, setValidCode] = useState('');
   const [name, setName] = useState('');
   const [isAutoUnlocked, setIsAutoUnlocked] = useState(false);
+
+  // Email / Firebase Auth states
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isEmailRegister, setIsEmailRegister] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Initialize stored name if already saved previously
   useEffect(() => {
@@ -119,11 +135,90 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     }
 
     saveUserData({
-      accessCode: validCode || 'CALAMITA2026',
+      accessCode: validCode || 'MAGNETICO',
       name: cleanName,
     });
 
-    onSuccess(cleanName, validCode || 'CALAMITA2026');
+    onSuccess(cleanName, validCode || 'MAGNETICO');
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsAuthenticating(true);
+    setErrorMessage('');
+    try {
+      const fbUser = await signInWithGoogle();
+      const cloudData = await loadUserFromFirestore(fbUser.uid);
+      const resolvedName =
+        cloudData?.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'Allievo';
+      const resolvedCode = cloudData?.accessCode || 'MAGNETICO';
+
+      saveUserData({
+        name: resolvedName,
+        accessCode: resolvedCode,
+        ...(cloudData || {}),
+      });
+
+      await saveUserToFirestore(fbUser.uid, {
+        id: fbUser.uid,
+        name: resolvedName,
+        email: fbUser.email || '',
+        accessCode: resolvedCode,
+      });
+
+      onSuccess(resolvedName, resolvedCode);
+    } catch (err: unknown) {
+      console.error('Google Sign-In failed:', err);
+      setErrorMessage('Accesso con Google non completato. Riprova o usa il codice di accesso.');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = emailInput.trim();
+    if (!cleanEmail || !passwordInput) {
+      setErrorMessage('Inserisci sia email che password.');
+      return;
+    }
+    setIsAuthenticating(true);
+    setErrorMessage('');
+    try {
+      let fbUser;
+      if (isEmailRegister) {
+        fbUser = await registerWithEmail(cleanEmail, passwordInput, name || 'Allievo');
+      } else {
+        fbUser = await loginWithEmail(cleanEmail, passwordInput);
+      }
+      const cloudData = await loadUserFromFirestore(fbUser.uid);
+      const resolvedName =
+        cloudData?.name || fbUser.displayName || name.trim() || cleanEmail.split('@')[0];
+      const resolvedCode = cloudData?.accessCode || 'MAGNETICO';
+
+      saveUserData({
+        name: resolvedName,
+        accessCode: resolvedCode,
+        ...(cloudData || {}),
+      });
+
+      await saveUserToFirestore(fbUser.uid, {
+        id: fbUser.uid,
+        name: resolvedName,
+        email: cleanEmail,
+        accessCode: resolvedCode,
+      });
+
+      onSuccess(resolvedName, resolvedCode);
+    } catch (err: unknown) {
+      console.error('Email Auth failed:', err);
+      setErrorMessage(
+        isEmailRegister
+          ? 'Registrazione non riuscita (la password deve avere almeno 6 caratteri).'
+          : 'Email o password non corretti. Controlla e riprova.'
+      );
+    } finally {
+      setIsAuthenticating(false);
+    }
   };
 
   return (
@@ -199,7 +294,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
               {/* MODE 1: Acquista ora (Lista completa di cosa ricevi) */}
               {activeMode === 'checkout' && (
                 <div className="space-y-4 text-left animate-fadeIn">
-                  <div className="p-4 rounded-xl bg-[#021831]/60 border border-[#88A5BF]/25 space-y-2.5">
+                  <div className="p-4 rounded-xl bg-[#021831]/60 border border-[#88A5BF]/25 space-y-3">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/50">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-[#F9C03E]" />
@@ -208,26 +303,52 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                       <span className="text-[11px] font-bold text-emerald-400">Accesso Immediato</span>
                     </div>
 
-                    <ul className="space-y-1.5 text-xs text-slate-200">
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>Ebook Completo:</strong> Il Metodo in 5 parti</span>
+                    <ul className="space-y-2.5 text-xs text-slate-200">
+                      {/* Coach AI in forte evidenza */}
+                      <li className="flex items-start gap-2.5 p-2 rounded-lg bg-[#234C77]/40 border border-[#F9C03E]/30">
+                        <Sparkles className="w-4 h-4 text-[#F9C03E] shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-[#F9C03E] block font-semibold">Coach AI 24/7 (Il tuo mentore in tasca)</strong>
+                          <span className="text-slate-300 text-[11px] leading-tight block mt-0.5">
+                            Chiedi consiglio in qualsiasi momento prima, durante o dopo la serata. Risponde all'istante con il vero metodo pratico di Andrea Frattesi per sbloccare ogni situazione.
+                          </span>
+                        </div>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>I 6 bonus pratici:</strong> Cosa dire e come chattare</span>
+
+                      {/* Test personalizzato */}
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
+                        <div>
+                          <strong>Test personalizzato:</strong>
+                          <span className="text-slate-300 ml-1">in base alla tua situazione personale (Tecnico, Congelato, Bravo Ragazzo, Collezionista) con piano d'azione mirato.</span>
+                        </div>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>Guida Ripartire:</strong> Separazione, età e stile</span>
+
+                      {/* Ebook e bonus */}
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
+                        <div>
+                          <strong>Ebook Completo & 6 Bonus Pratici:</strong>
+                          <span className="text-slate-300 ml-1">il Metodo in 5 parti, cosa dire, come chattare e la Guida Ripartire.</span>
+                        </div>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>Coach AI 24/7:</strong> Consigli su misura per te</span>
+
+                      {/* Piano 21 Serate */}
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
+                        <div>
+                          <strong>Piano 21 Serate & Diario:</strong>
+                          <span className="text-slate-300 ml-1">monitora i progressi e ricevi il feedback del Coach dopo ogni serata.</span>
+                        </div>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                        <span><strong>Piano 21 Serate & Diario</strong> con Reset anti-blocco</span>
+
+                      {/* Aggiornamenti continui */}
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
+                        <div>
+                          <strong>Aggiornamenti continui:</strong>
+                          <span className="text-slate-300 ml-1">nuove lezioni e aggiornamenti ricevuti direttamente in App.</span>
+                        </div>
                       </li>
                     </ul>
                   </div>
@@ -247,20 +368,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                   </a>
 
                   {/* Sicurezza e metodi */}
-                  <div className="flex items-center justify-center gap-2 text-[11px] text-[#88A5BF] pt-1">
+                  <div className="flex items-center justify-center gap-2 text-[11px] text-[#88A5BF] pt-0.5">
                     <Lock className="w-3 h-3 text-slate-400" />
                     <span>Pagamento sicuro con Carta, Apple Pay e Google Pay</span>
-                  </div>
-
-                  {/* Switch rapido a inserimento codice */}
-                  <div className="text-center pt-1 border-t border-slate-700/50">
-                    <button
-                      type="button"
-                      onClick={() => setActiveMode('code')}
-                      className="text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors underline underline-offset-4 cursor-pointer"
-                    >
-                      Hai già completato l'acquisto? Inserisci il codice
-                    </button>
                   </div>
                 </div>
               )}
@@ -308,15 +418,104 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                     <ArrowRight className="w-4 h-4 text-[#042B58] group-hover:translate-x-1 transition-transform" />
                   </button>
 
-                  <div className="text-center pt-2 border-t border-slate-700/50">
+                  {/* Divisore con testo */}
+                  <div className="relative py-2 text-center">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-[#88A5BF]/20" />
+                    </div>
+                    <span className="relative px-3 bg-[#042B58] text-[11px] text-[#88A5BF] uppercase tracking-wider font-medium">
+                      Oppure accedi con account personale
+                    </span>
+                  </div>
+
+                  {/* Pulsante Google */}
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isAuthenticating}
+                    className="w-full py-3 px-4 rounded-xl bg-[#021831] hover:bg-[#234C77]/60 border border-[#88A5BF]/30 text-white text-xs font-semibold flex items-center justify-center gap-2.5 transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    {isAuthenticating ? (
+                      <Loader2 className="w-4 h-4 text-[#F9C03E] animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                    )}
+                    <span>Continua con Google</span>
+                  </button>
+
+                  {/* Pulsante Toggle Email */}
+                  {!showEmailForm ? (
                     <button
                       type="button"
-                      onClick={() => setActiveMode('checkout')}
-                      className="text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors underline underline-offset-4 cursor-pointer"
+                      onClick={() => setShowEmailForm(true)}
+                      className="w-full py-2.5 px-3 rounded-xl bg-transparent hover:bg-[#234C77]/30 border border-[#88A5BF]/25 text-slate-300 hover:text-white text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
                     >
-                      Non hai ancora acquistato? Clicca qui per acquistare
+                      <Mail className="w-3.5 h-3.5 text-[#88A5BF]" />
+                      <span>Accedi con Email e Password</span>
                     </button>
-                  </div>
+                  ) : (
+                    <div className="p-3.5 bg-[#021831]/90 rounded-xl border border-[#88A5BF]/30 space-y-2.5 text-left animate-fadeIn">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-700/50">
+                        <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+                          {isEmailRegister ? 'Crea Account' : 'Accedi con Email'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEmailRegister(!isEmailRegister)}
+                          className="text-[10px] text-[#F9C03E] hover:underline cursor-pointer"
+                        >
+                          {isEmailRegister ? 'Hai già un account? Accedi' : 'Nuovo account? Registrati'}
+                        </button>
+                      </div>
+
+                      <div>
+                        <input
+                          type="email"
+                          value={emailInput}
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          placeholder="La tua email"
+                          className="w-full px-3 py-2 bg-[#042B58] border border-[#88A5BF]/30 rounded-lg text-white placeholder-slate-500 text-xs focus:outline-none focus:border-[#F9C03E]"
+                        />
+                      </div>
+
+                      <div>
+                        <input
+                          type="password"
+                          value={passwordInput}
+                          onChange={(e) => setPasswordInput(e.target.value)}
+                          placeholder="Password (min. 6 caratteri)"
+                          className="w-full px-3 py-2 bg-[#042B58] border border-[#88A5BF]/30 rounded-lg text-white placeholder-slate-500 text-xs focus:outline-none focus:border-[#F9C03E]"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleEmailAuth}
+                        disabled={isAuthenticating}
+                        className="w-full py-2.5 px-3 rounded-lg bg-[#F9C03E] text-[#042B58] font-bold text-xs flex items-center justify-center gap-1.5 hover:brightness-105 cursor-pointer disabled:opacity-50"
+                      >
+                        {isAuthenticating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        <span>{isEmailRegister ? 'Registrati ed Entra' : 'Accedi'}</span>
+                      </button>
+                    </div>
+                  )}
                 </form>
               )}
             </div>
