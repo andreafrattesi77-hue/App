@@ -1,8 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -31,7 +29,6 @@ export const db = getFirestore(
   app,
   firebaseConfig.firestoreDatabaseId || '(default)'
 );
-export const googleProvider = new GoogleAuthProvider();
 
 // Test connection on boot
 export async function testConnection(): Promise<boolean> {
@@ -48,11 +45,6 @@ export async function testConnection(): Promise<boolean> {
 testConnection();
 
 // Authentication Helpers
-export async function signInWithGoogle(): Promise<FirebaseUser> {
-  const result = await signInWithPopup(auth, googleProvider);
-  return result.user;
-}
-
 export async function loginWithEmail(email: string, pass: string): Promise<FirebaseUser> {
   const result = await signInWithEmailAndPassword(auth, email.trim(), pass);
   return result.user;
