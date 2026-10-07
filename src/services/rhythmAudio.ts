@@ -1,41 +1,142 @@
 /**
- * Motore audio Web Audio API per l'Allenatore di Ritmo (Salsa & Bachata).
- * Funziona 100% offline nel browser, a bassissima latenza, senza costi API.
+ * Motore audio armonico per Salsa e Bachata.
+ * Sintetizza band complete (Pianoforte, Chitarra, Basso, Clave, Congas, Bongò, Güira)
+ * e supporta anche la riproduzione di file audio MP3/audio personalizzati.
  */
 
 export type DanceGenre = 'salsa' | 'bachata';
 
-export interface RhythmInstruments {
-  countVoice: boolean; // Metronomo / Conteggio tempi
-  clave: boolean;      // Clave (Son Clave per Salsa)
-  congas: boolean;     // Tumbao Congas (Salsa)
-  cowbell: boolean;    // Campana (Salsa & Bachata)
-  bongo: boolean;      // Martillo Bongò
-  guira: boolean;      // Güira / Shaker (Bachata)
+export interface MusicTrack {
+  id: string;
+  title: string;
+  genre: DanceGenre;
+  bpm: number;
+  description: string;
+  mood: string;
+  chords: Array<{ name: string; notes: number[]; bass: number }>;
 }
 
-class RhythmAudioEngine {
+// 6 Brani musicali armonici pre-impostati
+export const MUSIC_TRACKS: MusicTrack[] = [
+  // SALSA
+  {
+    id: 'salsa-romantica',
+    title: 'Salsa Romantica – Noche Suave',
+    genre: 'salsa',
+    bpm: 165,
+    mood: 'Armonica e melodica, perfetta per imparare',
+    description: 'Pianoforte latino dolce, basso morbido e congas avvolgenti.',
+    chords: [
+      { name: 'Lam', notes: [220, 261.63, 329.63], bass: 110 },
+      { name: 'Rem', notes: [146.83, 220, 293.66], bass: 146.83 },
+      { name: 'Sol', notes: [196, 246.94, 293.66], bass: 98 },
+      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+    ],
+  },
+  {
+    id: 'salsa-dura',
+    title: 'Salsa Dura – Fuego en la Pista',
+    genre: 'salsa',
+    bpm: 195,
+    mood: 'Energica, incalzante, da vera pista',
+    description: 'Montuno brillante, clave 3-2 scandita, campana e tumbao vivace.',
+    chords: [
+      { name: 'Rem', notes: [293.66, 349.23, 440], bass: 146.83 },
+      { name: 'Solm', notes: [196, 233.08, 293.66], bass: 98 },
+      { name: 'La7',  notes: [220, 277.18, 329.63], bass: 110 },
+      { name: 'Rem',  notes: [293.66, 349.23, 440], bass: 146.83 },
+    ],
+  },
+  {
+    id: 'salsa-montuno',
+    title: 'Son Montuno – Primi Passi',
+    genre: 'salsa',
+    bpm: 150,
+    mood: 'Tempo comodo e chiaro per principianti',
+    description: 'Stacco netto tra tempo 1 e 5, ritmo spazioso per contare senza fretta.',
+    chords: [
+      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+      { name: 'Fa',  notes: [174.61, 220, 261.63], bass: 87.31 },
+      { name: 'Sol', notes: [196, 246.94, 293.66], bass: 98 },
+      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+    ],
+  },
+
+  // BACHATA
+  {
+    id: 'bachata-sensual',
+    title: 'Bachata Sensual – Tensión Lenta',
+    genre: 'bachata',
+    bpm: 116,
+    mood: 'Dolce, avvolgente, chitarra acustica',
+    description: 'Arpeggi romantici in La minore, basso profondo e tap vellutato.',
+    chords: [
+      { name: 'Lam', notes: [220, 261.63, 329.63], bass: 110 },
+      { name: 'Fa',  notes: [174.61, 220, 261.63], bass: 87.31 },
+      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+      { name: 'Sol', notes: [196, 246.94, 293.66], bass: 98 },
+    ],
+  },
+  {
+    id: 'bachata-moderna',
+    title: 'Bachata Moderna – Flirt Invisibile',
+    genre: 'bachata',
+    bpm: 125,
+    mood: 'Groove moderno e coinvolgente',
+    description: 'Chitarra ritmica, bongò sincopato e tap marcato su 4 e 8.',
+    chords: [
+      { name: 'Mim', notes: [164.81, 196, 246.94], bass: 82.41 },
+      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+      { name: 'Sol', notes: [196, 246.94, 293.66], bass: 98 },
+      { name: 'Re',  notes: [146.83, 220, 293.66], bass: 73.42 },
+    ],
+  },
+  {
+    id: 'bachata-dominicana',
+    title: 'Bachata Dominicana – Fiesta Tradizionale',
+    genre: 'bachata',
+    bpm: 134,
+    mood: 'Vivace e dinamica',
+    description: 'Requinto brillante, bongò martellato e güira rapida.',
+    chords: [
+      { name: 'La',  notes: [220, 277.18, 329.63], bass: 110 },
+      { name: 'Mi',  notes: [164.81, 207.65, 246.94], bass: 82.41 },
+      { name: 'Fa#m',notes: [185, 220, 277.18], bass: 92.5 },
+      { name: 'Re',  notes: [146.83, 220, 293.66], bass: 73.42 },
+    ],
+  },
+];
+
+export interface RhythmMixer {
+  harmony: boolean;    // Pianoforte / Chitarra armonica
+  bass: boolean;       // Basso latino
+  countVoice: boolean; // Voce/Click guida del tempo
+  percussion: boolean; // Clave, Congas, Bongò, Güira
+}
+
+class HarmonizedRhythmAudioEngine {
   private ctx: AudioContext | null = null;
   private isRunning: boolean = false;
-  private bpm: number = 180;
-  private genre: DanceGenre = 'salsa';
-  private currentBeat: number = 0; // 0 to 7 (tempi 1 a 8)
+  private currentTrack: MusicTrack = MUSIC_TRACKS[0];
+  private bpm: number = 165;
+  private currentBeat: number = 0; // 0 to 7
+  private currentMeasure: number = 0; // 0 to chords.length - 1
   private nextBeatTime: number = 0;
   private timerId: number | null = null;
-  private onBeatCallback: ((beat: number) => void) | null = null;
+  private onBeatCallback: ((beat: number, chordName: string) => void) | null = null;
 
-  public instruments: RhythmInstruments = {
+  public mixer: RhythmMixer = {
+    harmony: true,
+    bass: true,
     countVoice: true,
-    clave: true,
-    congas: true,
-    cowbell: false,
-    bongo: true,
-    guira: true,
+    percussion: true,
   };
 
   private initContext() {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
     }
     if (this.ctx.state === 'suspended') {
@@ -43,20 +144,18 @@ class RhythmAudioEngine {
     }
   }
 
-  public setGenre(genre: DanceGenre) {
-    this.genre = genre;
-    // Set appropriate default BPM
-    if (genre === 'salsa') {
-      this.bpm = 180;
-      this.instruments.congas = true;
-      this.instruments.clave = true;
-      this.instruments.guira = false;
-    } else {
-      this.bpm = 125;
-      this.instruments.congas = false;
-      this.instruments.clave = false;
-      this.instruments.guira = true;
+  public selectTrack(trackId: string) {
+    const found = MUSIC_TRACKS.find((t) => t.id === trackId);
+    if (found) {
+      this.currentTrack = found;
+      this.bpm = found.bpm;
+      this.currentMeasure = 0;
+      this.currentBeat = 0;
     }
+  }
+
+  public getTrack(): MusicTrack {
+    return this.currentTrack;
   }
 
   public setBpm(bpm: number) {
@@ -67,7 +166,7 @@ class RhythmAudioEngine {
     return this.bpm;
   }
 
-  public setOnBeat(cb: (beat: number) => void) {
+  public setOnBeat(cb: (beat: number, chordName: string) => void) {
     this.onBeatCallback = cb;
   }
 
@@ -77,6 +176,7 @@ class RhythmAudioEngine {
 
     this.isRunning = true;
     this.currentBeat = 0;
+    this.currentMeasure = 0;
     this.nextBeatTime = this.ctx!.currentTime + 0.05;
     this.scheduleLoop();
   }
@@ -93,138 +193,228 @@ class RhythmAudioEngine {
     return this.isRunning;
   }
 
-  // Lookahead scheduler standard Web Audio API (evita lag e sfasamenti ritmici)
   private scheduleLoop = () => {
     if (!this.isRunning || !this.ctx) return;
 
     const secondsPerBeat = 60.0 / this.bpm;
-    const lookahead = 0.1; // 100ms guardahead
+    const lookahead = 0.12;
 
     while (this.nextBeatTime < this.ctx.currentTime + lookahead) {
-      this.scheduleBeat(this.currentBeat, this.nextBeatTime);
+      const chord = this.currentTrack.chords[this.currentMeasure % this.currentTrack.chords.length];
 
-      // Notifica l'interfaccia grafica in modo sincronizzato
+      this.scheduleMusicalBeat(this.currentBeat, this.nextBeatTime, chord);
+
       const beatNum = this.currentBeat;
+      const cName = chord.name;
       const delayMs = Math.max(0, (this.nextBeatTime - this.ctx.currentTime) * 1000);
+
       window.setTimeout(() => {
         if (this.isRunning && this.onBeatCallback) {
-          this.onBeatCallback(beatNum);
+          this.onBeatCallback(beatNum, cName);
         }
       }, delayMs);
 
       this.nextBeatTime += secondsPerBeat;
       this.currentBeat = (this.currentBeat + 1) % 8;
+      if (this.currentBeat === 0) {
+        this.currentMeasure = (this.currentMeasure + 1) % this.currentTrack.chords.length;
+      }
     }
 
     this.timerId = window.setTimeout(this.scheduleLoop, 25);
   };
 
-  private scheduleBeat(beat: number, time: number) {
+  private scheduleMusicalBeat(
+    beat: number,
+    time: number,
+    chord: { name: string; notes: number[]; bass: number }
+  ) {
     if (!this.ctx) return;
+    const isSalsa = this.currentTrack.genre === 'salsa';
+    const halfBeat = (60.0 / this.bpm) * 0.5;
 
-    // 1. GUIDA DEL CONTEGGIO (Beep / Audio Clicks differenziati)
-    if (this.instruments.countVoice) {
-      this.playCountClick(time, beat);
+    // 1. GUIDA DEL TEMPO (Click musicale morbido o accentato)
+    if (this.mixer.countVoice) {
+      this.playGuideClick(time, beat, isSalsa);
     }
 
-    if (this.genre === 'salsa') {
-      // SALSA PATTERNS (8 tempi)
-      // Clave Son 3-2 (Tempi: 1, 2.5, 4, 6, 7)
-      if (this.instruments.clave) {
-        if (beat === 0) this.playClave(time);                     // 1
-        if (beat === 1) this.playClave(time + (60/this.bpm)*0.5); // 2&
-        if (beat === 3) this.playClave(time);                     // 4
-        if (beat === 5) this.playClave(time);                     // 6
-        if (beat === 6) this.playClave(time);                     // 7
-      }
-
-      // Congas (Tumbao classico: Slap su 2 e 6, Open tones su 4 e 4&, 8 e 8&)
-      if (this.instruments.congas) {
-        const halfBeat = (60 / this.bpm) * 0.5;
+    // 2. ARMONIA (Pianoforte Salsa o Chitarra Bachata)
+    if (this.mixer.harmony) {
+      if (isSalsa) {
+        // Montuno sincopato Salsa (accordi su beat 0, 1.5, 3, 4, 5.5, 7)
+        if (beat === 0 || beat === 3 || beat === 4 || beat === 7) {
+          this.playPianoChord(time, chord.notes, 0.25);
+        }
         if (beat === 1 || beat === 5) {
-          this.playCongaSlap(time); // Slap deciso su 2 e 6
+          this.playPianoChord(time + halfBeat, chord.notes, 0.28);
+        }
+      } else {
+        // Arpeggio chitarra Bachata (plucked arpeggio su 1-2-3-4 e 5-6-7-8)
+        const noteIdx = beat % chord.notes.length;
+        const note = chord.notes[noteIdx];
+        const isTap = beat === 3 || beat === 7;
+        this.playGuitarPluck(time, note, isTap ? 0.35 : 0.28, isTap);
+      }
+    }
+
+    // 3. BASSO LATINO
+    if (this.mixer.bass) {
+      if (isSalsa) {
+        // Tumbao Bass (suona sul beat 2.5 e 4; 6.5 e 8)
+        if (beat === 1 || beat === 5) {
+          this.playBassNote(time + halfBeat, chord.bass, 0.45);
         }
         if (beat === 3 || beat === 7) {
-          this.playCongaOpen(time); // Suono aperto su 4 e 8
-          this.playCongaOpen(time + halfBeat); // Suono aperto su &
+          this.playBassNote(time, chord.bass, 0.5);
+        }
+      } else {
+        // Bachata Bass (battere 0 e 2, 4 e 6)
+        if (beat === 0 || beat === 4) {
+          this.playBassNote(time, chord.bass, 0.5);
+        } else if (beat === 2 || beat === 6) {
+          this.playBassNote(time, chord.bass * 1.5, 0.38);
         }
       }
+    }
 
-      // Campana / Cowbell (Salsa martello sul battere)
-      if (this.instruments.cowbell) {
-        if (beat === 0 || beat === 2 || beat === 4 || beat === 6) {
-          this.playCowbell(time, beat === 0 || beat === 4);
+    // 4. PERCUSSIONI (Congas, Clave, Güira, Bongò)
+    if (this.mixer.percussion) {
+      if (isSalsa) {
+        // Clave Son 3-2
+        if (beat === 0 || beat === 3 || beat === 5 || beat === 6) {
+          this.playClave(time);
         }
-      }
+        if (beat === 1) {
+          this.playClave(time + halfBeat);
+        }
 
-      // Bongò Martillo
-      if (this.instruments.bongo) {
-        const half = (60 / this.bpm) * 0.5;
-        if (beat % 2 === 0) {
-          this.playBongo(time, 460);
+        // Congas (Tumbao slap su 1 e 5; open su 3 e 7)
+        if (beat === 1 || beat === 5) {
+          this.playCongaSlap(time);
+        }
+        if (beat === 3 || beat === 7) {
+          this.playCongaOpen(time);
+          this.playCongaOpen(time + halfBeat);
+        }
+
+        // Bongò
+        this.playBongo(time, beat % 2 === 0 ? 460 : 320);
+      } else {
+        // Bachata Güira (Raschio continuo sui 16esimi)
+        const qtr = (60.0 / this.bpm) * 0.25;
+        this.playGuira(time, 0.25);
+        this.playGuira(time + qtr, 0.2);
+        this.playGuira(time + qtr * 2, 0.35);
+
+        // Bongò Bachata (Marcato sul Tap 3 e 7)
+        if (beat === 3 || beat === 7) {
+          this.playBongo(time, 560, 0.5); // Accento deciso sul Tap
         } else {
-          this.playBongo(time + half, 310);
-        }
-      }
-
-    } else {
-      // BACHATA PATTERNS (8 tempi: 1-2-3-[4 TAP], 5-6-7-[8 TAP])
-      // Güira dominicana (Raschio continuo tipico di Bachata)
-      if (this.instruments.guira) {
-        const quarter = (60 / this.bpm) * 0.25;
-        this.playGuira(time, 0.3);
-        this.playGuira(time + quarter, 0.2);
-        this.playGuira(time + quarter * 2, 0.4);
-      }
-
-      // Bongò Bachata (Marcato con syncopato)
-      if (this.instruments.bongo) {
-        if (beat === 3 || beat === 7) {
-          // Accentato sul 4 e sull'8 (tempo del TAP)
-          this.playBongo(time, 520, 0.7);
-        } else {
-          this.playBongo(time, 340, 0.4);
-        }
-      }
-
-      // Campana leggera per Bachata tradizionale
-      if (this.instruments.cowbell) {
-        if (beat === 3 || beat === 7) {
-          this.playCowbell(time, true);
+          this.playBongo(time, 350, 0.28);
         }
       }
     }
   }
 
-  // --- SINTETIZZATORI STRUMENTI CON WEB AUDIO API ---
+  // --- SINTESI STRUMENTI ARMONICI ---
 
-  // 1. Suono guida tempi (Pitch differenziato)
-  private playCountClick(time: number, beat: number) {
+  // Piano latino con filtro caldo e inviluppo dolce
+  private playPianoChord(time: number, notes: number[], volume = 0.3) {
+    if (!this.ctx) return;
+    notes.forEach((freq) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      const filter = this.ctx!.createBiquadFilter();
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2600, time);
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, time);
+
+      gain.gain.setValueAtTime(volume / notes.length, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.38);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx!.destination);
+
+      osc.start(time);
+      osc.stop(time + 0.4);
+    });
+  }
+
+  // Chitarra acustica Bachata pizzicata
+  private playGuitarPluck(time: number, freq: number, volume = 0.3, isAccent = false) {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(isAccent ? 1800 : 1200, time);
+    filter.Q.setValueAtTime(2, time);
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, time);
+
+    gain.gain.setValueAtTime(volume, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + (isAccent ? 0.35 : 0.22));
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(time);
+    osc.stop(time + 0.36);
+  }
+
+  // Basso profondo latino
+  private playBassNote(time: number, freq: number, volume = 0.45) {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(450, time);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+
+    gain.gain.setValueAtTime(volume, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.35);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(time);
+    osc.stop(time + 0.36);
+  }
+
+  // Guida Conteggio tempi (Pitch chiaro)
+  private playGuideClick(time: number, beat: number, isSalsa: boolean) {
     if (!this.ctx) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
     let freq = 440;
-    let vol = 0.25;
+    let vol = 0.2;
 
     if (beat === 0) {
-      // TEMPO 1: Tono alto e chiaro (A5 880Hz)
-      freq = 880;
-      vol = 0.55;
-    } else if (beat === 4) {
-      // TEMPO 5: Tono medio-alto (E5 660Hz)
-      freq = 660;
+      freq = 880; // Tempo 1 (Forte)
       vol = 0.45;
+    } else if (beat === 4) {
+      freq = 660; // Tempo 5 (Medio)
+      vol = 0.35;
     } else if (beat === 3 || beat === 7) {
-      // TEMPI 4 e 8:
-      if (this.genre === 'salsa') {
-        // Pausa salsa: click molto morbido per sentire la sospensione
-        freq = 330;
-        vol = 0.12;
+      if (isSalsa) {
+        freq = 330; // Pausa Salsa morbida
+        vol = 0.08;
       } else {
-        // Tap Bachata: pop secco per marcare il cambio anca
-        freq = 920;
-        vol = 0.5;
+        freq = 950; // Tap Bachata brillante
+        vol = 0.4;
       }
     }
 
@@ -232,16 +422,16 @@ class RhythmAudioEngine {
     osc.frequency.setValueAtTime(freq, time);
 
     gain.gain.setValueAtTime(vol, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
 
     osc.connect(gain);
     gain.connect(this.ctx.destination);
 
     osc.start(time);
-    osc.stop(time + 0.09);
+    osc.stop(time + 0.07);
   }
 
-  // 2. Clave Cubana (Impulso legnoso risonante)
+  // Clave Cubana
   private playClave(time: number) {
     if (!this.ctx) return;
     const osc = this.ctx.createOscillator();
@@ -249,14 +439,14 @@ class RhythmAudioEngine {
     const filter = this.ctx.createBiquadFilter();
 
     filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(2400, time);
+    filter.frequency.setValueAtTime(2500, time);
     filter.Q.setValueAtTime(12, time);
 
     osc.type = 'square';
-    osc.frequency.setValueAtTime(2400, time);
+    osc.frequency.setValueAtTime(2500, time);
 
-    gain.gain.setValueAtTime(0.5, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.045);
+    gain.gain.setValueAtTime(0.35, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
 
     osc.connect(filter);
     filter.connect(gain);
@@ -266,50 +456,57 @@ class RhythmAudioEngine {
     osc.stop(time + 0.05);
   }
 
-  // 3. Campana / Cowbell latina
-  private playCowbell(time: number, isAccent: boolean = false) {
-    if (!this.ctx) return;
-    const osc1 = this.ctx.createOscillator();
-    const osc2 = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const filter = this.ctx.createBiquadFilter();
-
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(800, time);
-    filter.Q.setValueAtTime(3, time);
-
-    osc1.type = 'square';
-    osc1.frequency.setValueAtTime(800, time);
-
-    osc2.type = 'square';
-    osc2.frequency.setValueAtTime(540, time);
-
-    const vol = isAccent ? 0.35 : 0.2;
-    gain.gain.setValueAtTime(vol, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
-
-    osc1.connect(filter);
-    osc2.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc1.start(time);
-    osc2.start(time);
-    osc1.stop(time + 0.13);
-    osc2.stop(time + 0.13);
-  }
-
-  // 4. Conga Slap (Tumbao Salsa)
+  // Conga Slap
   private playCongaSlap(time: number) {
     if (!this.ctx) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(450, time);
-    osc.frequency.exponentialRampToValueAtTime(120, time + 0.06);
+    osc.frequency.setValueAtTime(440, time);
+    osc.frequency.exponentialRampToValueAtTime(110, time + 0.05);
 
-    gain.gain.setValueAtTime(0.4, time);
+    gain.gain.setValueAtTime(0.35, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(time);
+    osc.stop(time + 0.07);
+  }
+
+  // Conga Open
+  private playCongaOpen(time: number) {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, time);
+    osc.frequency.exponentialRampToValueAtTime(180, time + 0.16);
+
+    gain.gain.setValueAtTime(0.3, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.17);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(time);
+    osc.stop(time + 0.18);
+  }
+
+  // Bongò
+  private playBongo(time: number, freq = 440, vol = 0.25) {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, time);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.7, time + 0.07);
+
+    gain.gain.setValueAtTime(vol, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.07);
 
     osc.connect(gain);
@@ -319,51 +516,10 @@ class RhythmAudioEngine {
     osc.stop(time + 0.08);
   }
 
-  // 5. Conga Suono Aperto
-  private playCongaOpen(time: number) {
+  // Güira
+  private playGuira(time: number, vol = 0.2) {
     if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(225, time);
-    osc.frequency.exponentialRampToValueAtTime(195, time + 0.18);
-
-    gain.gain.setValueAtTime(0.35, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.19);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start(time);
-    osc.stop(time + 0.2);
-  }
-
-  // 6. Bongò
-  private playBongo(time: number, freq: number = 440, vol: number = 0.3) {
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq, time);
-    osc.frequency.exponentialRampToValueAtTime(freq * 0.7, time + 0.08);
-
-    gain.gain.setValueAtTime(vol, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start(time);
-    osc.stop(time + 0.09);
-  }
-
-  // 7. Güira dominicana (Rumore bianco filtrato passa-alto)
-  private playGuira(time: number, vol: number = 0.25) {
-    if (!this.ctx) return;
-    // Buffer di rumore bianco sintetizzato al volo
-    const bufferSize = Math.floor(this.ctx.sampleRate * 0.05);
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.04);
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -379,15 +535,15 @@ class RhythmAudioEngine {
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.045);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.038);
 
     noise.connect(filter);
     filter.connect(gain);
     gain.connect(this.ctx.destination);
 
     noise.start(time);
-    noise.stop(time + 0.05);
+    noise.stop(time + 0.04);
   }
 }
 
-export const rhythmEngine = new RhythmAudioEngine();
+export const harmonizedEngine = new HarmonizedRhythmAudioEngine();

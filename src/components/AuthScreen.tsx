@@ -192,61 +192,59 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     setErrorMessage('');
 
     try {
-      let fbUser;
       if (emailMode === 'register') {
-        fbUser = await registerWithEmail(cleanEmail, cleanPass, registerName.trim());
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password: cleanPass,
+            name: registerName.trim(),
+            accessCode: validatedCode,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Errore nella registrazione.');
+        }
+
+        const resolvedUser = data.user;
+        saveUserData({
+          name: resolvedUser.name,
+          accessCode: resolvedUser.accessCode,
+        });
+        onSuccess(resolvedUser.name, resolvedUser.accessCode);
       } else {
-        fbUser = await loginWithEmail(cleanEmail, cleanPass);
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password: cleanPass,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Email o password non corretti.');
+        }
+
+        const resolvedUser = data.user;
+        saveUserData({
+          name: resolvedUser.name,
+          accessCode: resolvedUser.accessCode || 'MAGNETICO',
+          ...(resolvedUser.profile ? { profile: resolvedUser.profile } : {}),
+        });
+        onSuccess(resolvedUser.name, resolvedUser.accessCode || 'MAGNETICO');
       }
-
-      // Sincronizzazione con Firestore Cloud Database
-      const cloudData = await loadUserFromFirestore(fbUser.uid);
-      const resolvedName =
-        cloudData?.name ||
-        fbUser.displayName ||
-        registerName.trim() ||
-        cleanEmail.split('@')[0];
-      const resolvedCode = cloudData?.accessCode || validatedCode;
-
-      // Salva nel local storage dell'app
-      saveUserData({
-        name: resolvedName,
-        accessCode: resolvedCode,
-        ...(cloudData || {}),
-      });
-
-      // Salva profilo su Firestore per persistenza tra dispositivi
-      await saveUserToFirestore(fbUser.uid, {
-        id: fbUser.uid,
-        name: resolvedName,
-        email: cleanEmail,
-        accessCode: resolvedCode,
-      });
-
-      onSuccess(resolvedName, resolvedCode);
     } catch (err: unknown) {
       console.error('Email Auth error:', err);
-      const errCode = (err as { code?: string })?.code || '';
-
-      if (errCode === 'auth/email-already-in-use') {
-        setErrorMessage('Questa email è già registrata. Clicca su "Accedi con Email" in alto.');
-      } else if (errCode === 'auth/weak-password') {
-        setErrorMessage('La password deve contenere almeno 6 caratteri.');
-      } else if (errCode === 'auth/invalid-email') {
-        setErrorMessage('Inserisci un indirizzo email valido.');
-      } else if (
-        errCode === 'auth/user-not-found' ||
-        errCode === 'auth/wrong-password' ||
-        errCode === 'auth/invalid-credential'
-      ) {
-        setErrorMessage('Email o password errati. Se non ti sei ancora registrato, clicca su "Crea Account (Registrati)".');
-      } else {
-        setErrorMessage(
-          emailMode === 'register'
-            ? 'Errore nella registrazione. Controlla la connessione e riprova.'
-            : 'Accesso non riuscito. Controlla email e password o crea un nuovo account.'
-        );
-      }
+      const msg = (err as Error)?.message || '';
+      setErrorMessage(
+        msg ||
+          (emailMode === 'register'
+            ? 'Errore nella registrazione. Controlla i dati e riprova.'
+            : 'Accesso non riuscito. Controlla email e password.')
+      );
     } finally {
       setIsAuthenticating(false);
     }

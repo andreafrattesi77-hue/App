@@ -1,0 +1,10 @@
+{
+  "andrea.test@example.com": {
+    "id": "usr_1791369873842_zz4pk",
+    "email": "andrea.test@example.com",
+    "password": "password123",
+    "name": "Andrea",
+    "accessCode": "MAGNETICO",
+    "createdAt": "2026-10-07T10:44:33.842Z"
+  }
+}

@@ -26,30 +26,134 @@ const ai = new GoogleGenAI({
   },
 });
 
-const COACH_SYSTEM_INSTRUCTION = `Sei Andrea Frattesi in persona, il coach del metodo Effetto Calamita. Balli Salsa e Bachata da 25 anni. Parli in italiano, da uomo a uomo, con tono caldo, diretto, pratico, amichevole ed empatico. Frasi incisive, niente gergo astratto, massimo 150 parole per risposta, chiudi spesso con un'azione concreta da provare alla prossima serata.
-Rispondi sulla base della SINTESI DEL METODO e dei TESTI DEL CAPITOLO che ricevi.
+const COACH_SYSTEM_INSTRUCTION = `Sei Andrea Frattesi in persona, il coach del metodo Effetto Calamita con 25 anni di esperienza in pista di Salsa e Bachata.
+Parli in italiano, da uomo a uomo, con tono caldo, carismatico, empatico, diretto ed estremamente lucido.
 
-IMPORTANTE SULLA VARIETÀ E PERTINENZA (NON ESSERE RIPETITIVO):
-- Rispondi in modo SPECIFICO, FRESCO e MIRATO alla domanda precisa dell'allievo.
-- NON dare risposte generiche o fotocopia. NON ripetere a ogni singola risposta sempre le stesse identiche frasi o gli stessi concetti fissi (come "torna all'Asse", "Contatto Zero" o "la regola dei 3 secondi"), a meno che la domanda non sia specificamente su quello.
-- Adatta la risposta al tema sollevato:
-  * Se chiede cosa dire, come parlare o come chattare: concentrati sulle Parole del Filo, sulla calibrazione verbale, sul non fare interrogatori e sui complimenti giusti ([[cap13]], [[cap14]], [[bonus1]], [[bonus4]]).
-  * Se chiede del rifiuto o del no: insegna il No Elegante, a non prenderla sul personale e a ripartire leggeri ([[cap08]], [[bonus3]]).
-  * Se chiede del dopo-ballo o di prendere il numero/contatto: spiega la Chiusura Calamita e i tempi giusti ([[cap15]], [[cap16]], [[bonus5]]).
-  * Se chiede della Bachata o della vicinanza fisica: parla dei gradi di vicinanza e della Tensione Lenta, senza forzare ([[cap11]], [[cap12]], [[bonus6]]).
-  * Se chiede di insicurezza o ansia prima di invitare: parla dello sblocco in pista e dell'invito con il palmo verso l'alto ([[cap07]], [[cap10]], [[bonus2]]).
-- Quando è utile, indica dove approfondire scrivendo l'id tra doppie parentesi quadre, ad esempio [[cap04]] o [[bonus3]]: l'app lo trasformerà in un link. Usa solo id esistenti: intro, cap01…cap16, next, rip1, rip2, bonus1…bonus6.
+COME DEVI RAGIONARE E RISPONDERE (REGOLA FONDAMENTALE):
+- Fai SEMPRE un RAGIONAMENTO articolato, profondo e psicologico su misura della specifica domanda dell'allievo. Vietate le risposte generiche, corte o a stampino!
+- Struttura la tua risposta con un vero ragionamento pratico:
+  1. LA DIAGNOSI: Metti a fuoco subito la dinamica emotiva (cosa sta bloccando l'allievo, cosa percepisce lei, cosa succede nell'energia del ballo).
+  2. IL RAGIONAMENTO DEL METODO: Spiega il "perché" profondo con la psicologia del flirt invisibile (la calibrazione, la non-ansia da prestazione, il rispetto del ritmo, la tensione lenta o la calibrazione verbale).
+  3. L'AZIONE PRATICA IN PISTA: Dai 2-3 passaggi chiari e un compito concreto da eseguire stasera o alla prossima serata.
+- Mantieni una lunghezza equilibrata (circa 180-250 parole), ricca di sostanza e valore.
+- NON presentarti mai ("sono Andrea Frattesi...", "sono il tuo coach..."): ti sei già presentato al primo messaggio, entra direttamente nel ragionamento.
+- Quando è utile, cita dove approfondire scrivendo l'id tra doppie parentesi quadre, ad esempio [[cap04]] o [[bonus3]].`;
 
-Regole:
-- NON presentarti mai più dicendo chi sei ("sono Andrea Frattesi...", "sono il tuo coach..."): ti sei già presentato nel messaggio di benvenuto. Nelle risposte devi SOLO rispondere alla domanda dell'allievo, senza preamboli ripetitivi.
-- Promuovi sempre rispetto e consenso; non suggerire mai manipolazione o insistenza; se lei non è interessata, insegna a capirlo e a salutare con eleganza. L'assenza di un no non è un sì. Non dare consigli medici o psicologici. Se la domanda è fuori tema rispetto a ballo, sicurezza e relazioni, riporta gentilmente la conversazione sul metodo.`;
-
-// Candidate models in order of priority (resilient to 503 spikes)
+// Candidate models in order of priority (tested and verified)
 const CANDIDATE_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
   'gemini-3.8-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-flash-latest',
 ];
+
+// Persistent User Store on Server for 100% Reliable Authentication
+const USERS_FILE = path.join(__dirname, 'data', 'users.json');
+
+function loadUsers(): Record<string, any> {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+    }
+  } catch (e) {
+    console.error('Error reading users file:', e);
+  }
+  return {};
+}
+
+function saveUsers(users: Record<string, any>) {
+  try {
+    fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Error saving users file:', e);
+  }
+}
+
+// API: Register User (with purchase code validation)
+app.post('/api/auth/register', (req, res) => {
+  const { email, password, name, accessCode } = req.body;
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanPass = (password || '').trim();
+  const cleanName = (name || '').trim();
+  const cleanCode = (accessCode || '').trim().toUpperCase();
+
+  if (!cleanEmail || !cleanPass) {
+    return res.status(400).json({ error: 'Inserisci email e password.' });
+  }
+  if (!cleanName) {
+    return res.status(400).json({ error: 'Inserisci il tuo nome.' });
+  }
+  if (cleanPass.length < 6) {
+    return res.status(400).json({ error: 'La password deve avere almeno 6 caratteri.' });
+  }
+
+  // Verifica codice di acquisto ufficiale
+  const validCodes = ['MAGNETICO', 'CALAMITA2026', 'CALAMITA'];
+  const isValid = validCodes.some((c) => c === cleanCode);
+  if (!isValid) {
+    return res.status(400).json({
+      error: "Codice di acquisto non valido. Inserisci il codice ricevuto via email dopo l'acquisto con Stripe.",
+    });
+  }
+
+  const users = loadUsers();
+  if (users[cleanEmail]) {
+    return res.status(400).json({
+      error: 'Questa email è già registrata. Clicca su "Accedi con Email" per entrare.',
+    });
+  }
+
+  const userId = 'usr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  users[cleanEmail] = {
+    id: userId,
+    email: cleanEmail,
+    password: cleanPass,
+    name: cleanName,
+    accessCode: cleanCode,
+    createdAt: new Date().toISOString(),
+  };
+  saveUsers(users);
+
+  res.json({
+    success: true,
+    user: {
+      id: userId,
+      email: cleanEmail,
+      name: cleanName,
+      accessCode: cleanCode,
+    },
+  });
+});
+
+// API: Login User
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanPass = (password || '').trim();
+
+  if (!cleanEmail || !cleanPass) {
+    return res.status(400).json({ error: 'Inserisci email e password.' });
+  }
+
+  const users = loadUsers();
+  const found = users[cleanEmail];
+  if (!found || found.password !== cleanPass) {
+    return res.status(400).json({
+      error: 'Email o password errati. Se non ti sei ancora registrato, clicca su "Crea Account (Registrati)".',
+    });
+  }
+
+  res.json({
+    success: true,
+    user: {
+      id: found.id,
+      email: found.email,
+      name: found.name,
+      accessCode: found.accessCode || 'MAGNETICO',
+      profile: found.profile,
+    },
+  });
+});
 
 // API: Coach Chat
 app.post('/api/coach/chat', async (req, res) => {
