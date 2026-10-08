@@ -29,14 +29,19 @@ import {
   DanceGenre,
   RhythmMixer,
 } from '../services/rhythmAudio';
+import { analyzeAudioFile, AudioRecognitionResult } from '../services/audioAnalyzer';
 
 export interface CustomTrack {
   id: string;
   name: string;
+  artist?: string;
   url: string;
   genre: DanceGenre;
   bpm: number;
   beatOffset: number; // Downbeat (Tempo 1) offset in seconds
+  isAnalyzing?: boolean;
+  recognitionSource?: 'catalog' | 'dsp_waveform' | 'heuristic';
+  details?: string;
 }
 
 interface RhythmModalProps {
@@ -94,82 +99,6 @@ function playCustomClickSound(beat: number, isSalsa: boolean) {
   }
 }
 
-// Background BPM Analyzer using Web Audio peak autocorrelation
-async function estimateBpmFromBlob(blob: Blob): Promise<number | null> {
-  try {
-    const AudioCtx =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const tempCtx = new AudioCtx();
-    // Prendi i primi 2.5MB per velocità
-    const slice = blob.slice(0, 2.5 * 1024 * 1024);
-    const arrayBuffer = await slice.arrayBuffer();
-    const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
-    tempCtx.close().catch(() => {});
-
-    const channelData = audioBuffer.getChannelData(0);
-    const sampleRate = audioBuffer.sampleRate;
-
-    // Finestre di 50ms
-    const windowSize = Math.floor(sampleRate * 0.05);
-    const numWindows = Math.floor(channelData.length / windowSize);
-    const energies: number[] = [];
-
-    for (let i = 0; i < numWindows; i++) {
-      let sum = 0;
-      const start = i * windowSize;
-      for (let j = 0; j < windowSize; j += 4) {
-        const val = channelData[start + j];
-        sum += val * val;
-      }
-      energies.push(sum);
-    }
-
-    const mean = energies.reduce((a, b) => a + b, 0) / (energies.length || 1);
-    const threshold = mean * 1.35;
-    const peaks: number[] = [];
-
-    for (let i = 1; i < energies.length - 1; i++) {
-      if (energies[i] > threshold && energies[i] > energies[i - 1] && energies[i] > energies[i + 1]) {
-        peaks.push(i);
-      }
-    }
-
-    const intervals: number[] = [];
-    for (let i = 1; i < peaks.length; i++) {
-      const diffWindows = peaks[i] - peaks[i - 1];
-      const diffSeconds = (diffWindows * windowSize) / sampleRate;
-      let bpm = 60.0 / diffSeconds;
-      while (bpm < 100) bpm *= 2;
-      while (bpm > 220) bpm /= 2;
-      if (bpm >= 100 && bpm <= 220) {
-        intervals.push(Math.round(bpm));
-      }
-    }
-
-    if (intervals.length === 0) return null;
-
-    const buckets: Record<number, number> = {};
-    intervals.forEach((b) => {
-      const bucket = Math.round(b / 4) * 4;
-      buckets[bucket] = (buckets[bucket] || 0) + 1;
-    });
-
-    let bestBpm = 0;
-    let maxVotes = 0;
-    for (const [bpmStr, count] of Object.entries(buckets)) {
-      if (count > maxVotes) {
-        maxVotes = count;
-        bestBpm = Number(bpmStr);
-      }
-    }
-
-    return bestBpm > 0 ? bestBpm : null;
-  } catch (err) {
-    console.warn('Auto BPM estimation failed:', err);
-    return null;
-  }
-}
 
 export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => {
   // Source selector: 'catalog' (Brani del Metodo) vs 'custom' (Le mie canzoni)
@@ -257,16 +186,22 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           const currentSec = customAudioRef.current.currentTime;
           const bpm = currentCustomTrack.bpm || 160;
           const secondsPerBeat = 60.0 / bpm;
-          const elapsed = currentSec - (currentCustomTrack.beatOffset || 0);
-          const totalBeats = Math.floor(elapsed / secondsPerBeat);
-          const beat = ((totalBeats % 8) + 8) % 8;
+          const offset = currentCustomTrack.beatOffset || 0;
 
-          setActiveBeat(beat);
+          if (currentSec < offset) {
+            setActiveBeat(-1);
+          } else {
+            const elapsed = currentSec - offset;
+            const totalBeats = Math.floor(elapsed / secondsPerBeat);
+            const beat = totalBeats % 8;
 
-          // Audio click guide on custom track if enabled
-          if (customClickEnabled && lastCustomBeatRef.current !== beat) {
-            lastCustomBeatRef.current = beat;
-            playCustomClickSound(beat, currentCustomTrack.genre === 'salsa');
+            setActiveBeat(beat);
+
+            // Audio click guide on custom track if enabled
+            if (customClickEnabled && lastCustomBeatRef.current !== beat) {
+              lastCustomBeatRef.current = beat;
+              playCustomClickSound(beat, currentCustomTrack.genre === 'salsa');
+            }
           }
         }
       } else {
@@ -304,6 +239,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     setActiveGenre(track.genre);
     if (customAudioRef.current) {
       customAudioRef.current.src = track.url;
+      customAudioRef.current.currentTime = 0;
       customAudioRef.current.load();
     }
   };
@@ -334,6 +270,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         if (customAudioRef.current && currentCustomTrack) {
           if (!customAudioRef.current.src || !customAudioRef.current.src.includes(currentCustomTrack.url)) {
             customAudioRef.current.src = currentCustomTrack.url;
+            customAudioRef.current.load();
           }
           customAudioRef.current
             .play()
@@ -343,6 +280,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             })
             .catch((err) => {
               console.error('Audio play error:', err);
+              setSyncNotice('Tocca di nuovo Riproduci per avviare il file audio.');
+              setTimeout(() => setSyncNotice(null), 3000);
               stopAllPlayback();
             });
         }
@@ -360,13 +299,13 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     harmonizedEngine.mixer = updated;
   };
 
-  // Handle uploading a new custom MP3/audio file
+  // Handle uploading a new custom MP3/audio file with automatic rhythm & genre recognition
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       stopAllPlayback();
       const url = URL.createObjectURL(file);
-      const defaultBpm = activeGenre === 'salsa' ? 165 : 125;
+      const defaultBpm = activeGenre === 'salsa' ? 168 : 126;
       const cleanName = file.name.replace(/\.[^/.]+$/, '');
 
       const newTrack: CustomTrack = {
@@ -375,7 +314,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         url,
         genre: activeGenre,
         bpm: defaultBpm,
-        beatOffset: 0,
+        beatOffset: 0.3,
+        isAnalyzing: true,
       };
 
       setCustomTracks((prev) => [newTrack, ...prev]);
@@ -391,21 +331,42 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         fileInputRef.current.value = '';
       }
 
-      setSyncNotice('Caricamento completato! Rilevamento ritmo in corso...');
+      setSyncNotice('🔍 Lettura e analisi musicale in corso: rilevamento BPM, genere e battuta 1...');
 
-      // Background BPM analyzer
-      estimateBpmFromBlob(file).then((detected) => {
-        if (detected && detected >= 100 && detected <= 220) {
+      // Background audio & catalog analyzer
+      analyzeAudioFile(file)
+        .then((result) => {
           setCustomTracks((prev) =>
-            prev.map((t) => (t.id === newTrack.id ? { ...t, bpm: detected } : t))
+            prev.map((t) =>
+              t.id === newTrack.id
+                ? {
+                    ...t,
+                    name: result.title || t.name,
+                    artist: result.artist,
+                    genre: result.genre,
+                    bpm: result.bpm,
+                    beatOffset: result.beatOffset,
+                    isAnalyzing: false,
+                    recognitionSource: result.recognitionSource,
+                    details: result.details,
+                  }
+                : t
+            )
           );
-          setSyncNotice(`✓ Ritmo rilevato: ${detected} BPM!`);
-          setTimeout(() => setSyncNotice(null), 3500);
-        } else {
-          setSyncNotice('✓ Pronto! Puoi sincronizzare il tempo o usare il Tap.');
+          setActiveGenre(result.genre);
+          setSyncNotice(
+            `✓ Riconosciuto: ${result.title} • ${result.genre === 'salsa' ? '💃 Salsa' : '✨ Bachata'} (${result.bpm} BPM)!`
+          );
+          setTimeout(() => setSyncNotice(null), 4500);
+        })
+        .catch((err) => {
+          console.warn('Analisi audio fallita:', err);
+          setCustomTracks((prev) =>
+            prev.map((t) => (t.id === newTrack.id ? { ...t, isAnalyzing: false } : t))
+          );
+          setSyncNotice('✓ File pronto! Puoi verificare il BPM o usare il Tap.');
           setTimeout(() => setSyncNotice(null), 3000);
-        }
-      });
+        });
     }
   };
 
@@ -435,15 +396,27 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  // Sync Downbeat (Tempo 1) to exact millisecond
+  // Sync Downbeat (Tempo 1) to exact millisecond of current playback
   const handleSyncTempo1 = () => {
     if (!customAudioRef.current || !currentCustomTrack) return;
-    const currentSec = customAudioRef.current.currentTime;
+    const currentSec = Number(customAudioRef.current.currentTime.toFixed(2));
     setCustomTracks((prev) =>
       prev.map((t) => (t.id === currentCustomTrack.id ? { ...t, beatOffset: currentSec } : t))
     );
-    setSyncNotice('🎯 Tempo 1 agganciato all\'istante della musica!');
+    setSyncNotice(`🎯 Tempo 1 agganciato all'istante ${currentSec}s della musica!`);
     setTimeout(() => setSyncNotice(null), 2500);
+  };
+
+  // Nudge Downbeat Offset (+/- 0.1s)
+  const handleNudgeOffset = (delta: number) => {
+    if (!currentCustomTrack) return;
+    const currentOffset = currentCustomTrack.beatOffset || 0;
+    const newOffset = Math.max(0, Number((currentOffset + delta).toFixed(2)));
+    setCustomTracks((prev) =>
+      prev.map((t) => (t.id === currentCustomTrack.id ? { ...t, beatOffset: newOffset } : t))
+    );
+    setSyncNotice(`🎯 Tempo 1 spostato a ${newOffset}s`);
+    setTimeout(() => setSyncNotice(null), 2000);
   };
 
   // Tap Tempo functionality
@@ -833,7 +806,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="audio/*"
+                    accept="audio/*, .mp3, .m4a, .wav, .aac, .ogg, .flac, audio/mpeg, audio/mp4, audio/wav, audio/x-m4a"
                     onChange={handleFileUpload}
                     className="hidden"
                     id="custom-audio-file-input"
@@ -857,6 +830,19 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                       <span>Sincronizzazione Ritmo: {currentCustomTrack.name}</span>
                     </span>
                   </div>
+
+                  {/* Badge Riconoscimento Automatico */}
+                  {currentCustomTrack.isAnalyzing ? (
+                    <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-400/40 text-[11px] text-amber-200 flex items-center gap-2 animate-pulse">
+                      <Disc3 className="w-4 h-4 text-[#F9C03E] animate-spin" />
+                      <span>Analisi del file in corso: decodifica battiti e rilevamento ritmo...</span>
+                    </div>
+                  ) : currentCustomTrack.details ? (
+                    <div className="p-2 rounded-xl bg-[#021831] border border-[#F9C03E]/30 text-[11px] text-[#F9C03E] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{currentCustomTrack.details}</span>
+                    </div>
+                  ) : null}
 
                   {/* 1. Scelta Genere per il conteggio */}
                   <div className="flex items-center justify-between gap-2">
@@ -885,24 +871,48 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                     </div>
                   </div>
 
-                  {/* 2. Sincronizzazione Tempo 1 & Tap Tempo */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                      onClick={handleSyncTempo1}
-                      title="Allinea il Tempo 1 al punto attuale della canzone"
-                      className="p-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
-                    >
-                      <Target className="w-4 h-4 text-amber-200" />
-                      <span>Sincronizza Tempo 1</span>
-                    </button>
+                  {/* 2. Sincronizzazione Tempo 1 & Regolazione Millimetrica */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-300">Primo Battere (Tempo 1):</span>
+                      <span className="font-mono text-[#F9C03E] font-semibold text-[11px]">
+                        {currentCustomTrack.beatOffset.toFixed(2)}s
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <button
+                        onClick={() => handleNudgeOffset(-0.1)}
+                        className="p-2 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-300 text-xs font-mono border border-[#88A5BF]/30 cursor-pointer"
+                        title="Anticipa tempo 1 di 0.1s"
+                      >
+                        -0.1s
+                      </button>
+                      <button
+                        onClick={handleSyncTempo1}
+                        title="Allinea il Tempo 1 al secondo esatto attuale della musica"
+                        className="col-span-2 p-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
+                      >
+                        <Target className="w-3.5 h-3.5 text-amber-200" />
+                        <span>Allinea Ora</span>
+                      </button>
+                      <button
+                        onClick={() => handleNudgeOffset(+0.1)}
+                        className="p-2 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-300 text-xs font-mono border border-[#88A5BF]/30 cursor-pointer"
+                        title="Posticipa tempo 1 di 0.1s"
+                      >
+                        +0.1s
+                      </button>
+                    </div>
 
-                    <button
-                      onClick={handleTapTempo}
-                      title="Premi a tempo per impostare il BPM"
-                      className="p-2.5 rounded-xl bg-[#234C77] hover:bg-[#88A5BF]/40 text-white font-semibold text-xs flex items-center justify-center gap-1.5 border border-[#88A5BF]/40 shadow-sm cursor-pointer transition-all active:scale-95"
-                    >
-                      <span>🥁 Tap Tempo</span>
-                    </button>
+                    <div className="pt-1">
+                      <button
+                        onClick={handleTapTempo}
+                        title="Premi ritmicamente a tempo per calcolare il BPM"
+                        className="w-full p-2 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 border border-[#88A5BF]/30 cursor-pointer transition-all active:scale-95"
+                      >
+                        <span>🥁 Tap Tempo (Tocca a ritmo)</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* 3. Regolazione BPM Fine & Preset */}
@@ -1180,6 +1190,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         <audio
           ref={customAudioRef}
           preload="auto"
+          playsInline
           onTimeUpdate={() => {
             if (customAudioRef.current) {
               setCustomCurrentTime(customAudioRef.current.currentTime);
@@ -1203,6 +1214,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             isPlayingRef.current = false;
             setIsPlaying(false);
             setActiveBeat(-1);
+          }}
+          onError={() => {
+            setSyncNotice('Nota: Se il file audio non parte, tocca di nuovo Riproduci o prova un file MP3 standard.');
+            setTimeout(() => setSyncNotice(null), 4000);
           }}
         />
       </div>
