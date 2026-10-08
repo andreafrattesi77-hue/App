@@ -256,6 +256,9 @@ class HarmonizedRhythmAudioEngine {
 
   public start() {
     this.initContext();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
     if (this.isRunning) return;
 
     this.isRunning = true;
@@ -270,6 +273,14 @@ class HarmonizedRhythmAudioEngine {
     if (this.timerId !== null) {
       window.clearTimeout(this.timerId);
       this.timerId = null;
+    }
+    this.currentBeat = 0;
+    this.currentMeasure = 0;
+    if (this.ctx && this.ctx.state === 'running') {
+      this.ctx.suspend().catch(() => {});
+    }
+    if (this.onBeatCallback) {
+      this.onBeatCallback(-1, '');
     }
   }
 

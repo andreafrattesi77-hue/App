@@ -68,43 +68,53 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const customAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const beatIntervalRef = useRef<number | null>(null);
+  const isPlayingRef = useRef<boolean>(false);
+
+  // Stop everything immediately: both audio and beat counts
+  const stopAllPlayback = () => {
+    // 1. Synthesizer engine stop
+    harmonizedEngine.stop();
+
+    // 2. Custom audio pause
+    if (customAudioRef.current) {
+      customAudioRef.current.pause();
+    }
+
+    // 3. Clear simulated beat interval
+    if (beatIntervalRef.current !== null) {
+      window.clearInterval(beatIntervalRef.current);
+      beatIntervalRef.current = null;
+    }
+
+    // 4. Force state to inactive
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    setActiveBeat(-1);
+    setCurrentChordName('');
+  };
 
   // Setup synthesizer engine callbacks
   useEffect(() => {
     harmonizedEngine.setOnBeat((beat, chordName) => {
+      // Non fare avanzare mai i conteggi se la musica è spenta o in pausa
+      if (!isPlayingRef.current) {
+        setActiveBeat(-1);
+        setCurrentChordName('');
+        return;
+      }
       setActiveBeat(beat);
       setCurrentChordName(chordName);
     });
 
     return () => {
-      harmonizedEngine.stop();
+      stopAllPlayback();
       harmonizedEngine.setOnBeat(() => {});
-      if (customAudioRef.current) {
-        customAudioRef.current.pause();
-      }
-      if (beatIntervalRef.current) {
-        window.clearInterval(beatIntervalRef.current);
-      }
     };
   }, []);
 
   // When switching or selecting a catalog track
   const handleSelectCatalogTrack = (track: MusicTrack) => {
-    // Stop custom audio if playing
-    if (customAudioRef.current) {
-      customAudioRef.current.pause();
-      customAudioRef.current.currentTime = 0;
-    }
-    if (beatIntervalRef.current) {
-      window.clearInterval(beatIntervalRef.current);
-      beatIntervalRef.current = null;
-    }
-
-    harmonizedEngine.stop();
-    setIsPlaying(false);
-    setActiveBeat(-1);
-    setCurrentChordName('');
-
+    stopAllPlayback();
     setSourceMode('catalog');
     setSelectedTrack(track);
     setActiveGenre(track.genre);
@@ -113,6 +123,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
   // Genre switch for catalog
   const handleSelectGenre = (genre: DanceGenre) => {
+    stopAllPlayback();
     setActiveGenre(genre);
     const firstForGenre = MUSIC_TRACKS.find((t) => t.genre === genre) || MUSIC_TRACKS[0];
     handleSelectCatalogTrack(firstForGenre);
@@ -120,67 +131,51 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
   // Select a custom user track from playlist
   const handleSelectCustomTrack = (track: CustomTrack) => {
-    harmonizedEngine.stop();
-    setIsPlaying(false);
-    setActiveBeat(-1);
-    setCurrentChordName('');
-
-    if (customAudioRef.current) {
-      customAudioRef.current.pause();
-      customAudioRef.current.currentTime = 0;
-    }
-    if (beatIntervalRef.current) {
-      window.clearInterval(beatIntervalRef.current);
-      beatIntervalRef.current = null;
-    }
-
+    stopAllPlayback();
     setSourceMode('custom');
     setSelectedCustomId(track.id);
   };
 
   // Toggle Play / Stop
   const handleTogglePlay = () => {
-    if (isPlaying) {
-      // STOP PLAYBACK
-      if (sourceMode === 'catalog') {
-        harmonizedEngine.stop();
-      } else {
-        if (customAudioRef.current) {
-          customAudioRef.current.pause();
-        }
-        if (beatIntervalRef.current) {
-          window.clearInterval(beatIntervalRef.current);
-          beatIntervalRef.current = null;
-        }
-      }
-      setIsPlaying(false);
-      setActiveBeat(-1);
+    if (isPlayingRef.current) {
+      // STOP PLAYBACK COMPLETELY: ferma musica e azzera conteggi
+      stopAllPlayback();
     } else {
       // START PLAYBACK
       if (sourceMode === 'catalog') {
-        // Stop custom audio completely
-        if (customAudioRef.current) {
-          customAudioRef.current.pause();
-        }
+        stopAllPlayback();
         harmonizedEngine.selectTrack(selectedTrack.id);
         harmonizedEngine.mixer = { ...mixer };
         harmonizedEngine.start();
+        isPlayingRef.current = true;
         setIsPlaying(true);
       } else {
-        // Custom audio playback
-        harmonizedEngine.stop();
+        stopAllPlayback();
         if (customAudioRef.current && currentCustomTrack) {
           customAudioRef.current.play().then(() => {
+            isPlayingRef.current = true;
             setIsPlaying(true);
-            // Simulate 8-beat visualizer at standard tempo (~130 BPM = ~460ms per beat)
+
             let b = 0;
-            if (beatIntervalRef.current) window.clearInterval(beatIntervalRef.current);
+            if (beatIntervalRef.current !== null) {
+              window.clearInterval(beatIntervalRef.current);
+            }
             beatIntervalRef.current = window.setInterval(() => {
+              if (!isPlayingRef.current) {
+                if (beatIntervalRef.current !== null) {
+                  window.clearInterval(beatIntervalRef.current);
+                  beatIntervalRef.current = null;
+                }
+                setActiveBeat(-1);
+                return;
+              }
               setActiveBeat(b);
               b = (b + 1) % 8;
             }, 460);
           }).catch((err) => {
             console.error('Audio play error:', err);
+            stopAllPlayback();
           });
         }
       }
@@ -201,6 +196,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      stopAllPlayback();
       const url = URL.createObjectURL(file);
       const newTrack: CustomTrack = {
         id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -208,19 +204,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         url,
       };
 
-      // Stop previous playback
-      harmonizedEngine.stop();
-      if (customAudioRef.current) {
-        customAudioRef.current.pause();
-      }
-      setIsPlaying(false);
-      setActiveBeat(-1);
-
       setCustomTracks((prev) => [newTrack, ...prev]);
       setSelectedCustomId(newTrack.id);
       setSourceMode('custom');
 
-      // Reset file input so user can re-upload or select same file again if desired
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -230,6 +217,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   // Delete / Remove custom track from list
   const handleDeleteCustomTrack = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    stopAllPlayback();
     const trackToDelete = customTracks.find((t) => t.id === id);
     if (trackToDelete) {
       URL.revokeObjectURL(trackToDelete.url);
@@ -239,16 +227,9 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     setCustomTracks(updated);
 
     if (selectedCustomId === id) {
-      if (customAudioRef.current) {
-        customAudioRef.current.pause();
-      }
-      setIsPlaying(false);
-      setActiveBeat(-1);
-
       if (updated.length > 0) {
         setSelectedCustomId(updated[0].id);
       } else {
-        // Fallback to catalog
         setSelectedCustomId(null);
         setSourceMode('catalog');
       }
@@ -257,16 +238,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
   // Close modal safely
   const handleClose = () => {
-    harmonizedEngine.stop();
-    if (customAudioRef.current) {
-      customAudioRef.current.pause();
-    }
-    if (beatIntervalRef.current) {
-      window.clearInterval(beatIntervalRef.current);
-      beatIntervalRef.current = null;
-    }
-    setIsPlaying(false);
-    setActiveBeat(-1);
+    stopAllPlayback();
     onClose();
   };
 
@@ -429,11 +401,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           <div className="grid grid-cols-2 gap-2 p-1 bg-[#021831]/90 rounded-2xl border border-[#88A5BF]/25">
             <button
               onClick={() => {
+                stopAllPlayback();
                 setSourceMode('catalog');
-                if (isPlaying && customAudioRef.current) {
-                  customAudioRef.current.pause();
-                  setIsPlaying(false);
-                }
               }}
               className={`py-2 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 sourceMode === 'catalog'
@@ -447,11 +416,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
             <button
               onClick={() => {
+                stopAllPlayback();
                 setSourceMode('custom');
-                if (isPlaying && sourceMode === 'catalog') {
-                  harmonizedEngine.stop();
-                  setIsPlaying(false);
-                }
               }}
               className={`py-2 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 sourceMode === 'custom'
@@ -731,11 +697,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               <div className="pt-1">
                 <button
                   onClick={() => {
+                    stopAllPlayback();
                     setSourceMode('catalog');
-                    if (isPlaying && customAudioRef.current) {
-                      customAudioRef.current.pause();
-                      setIsPlaying(false);
-                    }
                   }}
                   className="w-full py-2.5 px-3 rounded-xl bg-[#021831] border border-[#88A5BF]/30 hover:border-[#F9C03E] text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
@@ -762,7 +725,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
             <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 pt-1">
               {beatLabels.map((item, idx) => {
-                const isActive = activeBeat === idx;
+                // Il conteggio è visivamente attivo SOLO quando la musica è in riproduzione
+                const isActive = isPlaying && activeBeat === idx;
                 const isStrong = item.strong;
                 const isTap = 'tap' in item && item.tap;
                 const isPause = 'pause' in item && item.pause;
@@ -810,7 +774,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
             <div className="pt-0.5 text-center">
               <span className="text-[11px] text-slate-300">
-                {activeBeat >= 0 ? (
+                {isPlaying && activeBeat >= 0 ? (
                   <>
                     <strong className="text-white">Tempo {activeBeat + 1}:</strong>{' '}
                     <span className="text-[#F9C03E] font-medium">
@@ -818,7 +782,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                     </span>
                   </>
                 ) : (
-                  'Premi Riproduci per avviare il brano e ascoltare il ritmo'
+                  'Musica spenta • Premi Riproduci per avviare la canzone e i conteggi'
                 )}
               </span>
             </div>
@@ -853,13 +817,17 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 setCustomDuration(customAudioRef.current.duration);
               }
             }}
+            onPause={() => {
+              stopAllPlayback();
+            }}
             onEnded={() => {
-              setIsPlaying(false);
-              setActiveBeat(-1);
-              if (beatIntervalRef.current) {
-                window.clearInterval(beatIntervalRef.current);
-                beatIntervalRef.current = null;
-              }
+              stopAllPlayback();
+            }}
+            onError={() => {
+              stopAllPlayback();
+            }}
+            onEmptied={() => {
+              stopAllPlayback();
             }}
           />
         )}
