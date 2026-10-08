@@ -16,15 +16,15 @@ export interface MusicTrack {
   chords: Array<{ name: string; notes: number[]; bass: number }>;
 }
 
-// 6 Brani musicali armonici pre-impostati
+// 12 Brani musicali armonici pre-impostati per Salsa e Bachata
 export const MUSIC_TRACKS: MusicTrack[] = [
-  // SALSA
+  // SALSA (6 brani diversificati)
   {
     id: 'salsa-romantica',
     title: 'Salsa Romantica – Noche Suave',
     genre: 'salsa',
     bpm: 165,
-    mood: 'Armonica e melodica, perfetta per imparare',
+    mood: 'Armonica e melodica, perfetta per connettersi',
     description: 'Pianoforte latino dolce, basso morbido e congas avvolgenti.',
     chords: [
       { name: 'Lam', notes: [220, 261.63, 329.63], bass: 110 },
@@ -34,11 +34,53 @@ export const MUSIC_TRACKS: MusicTrack[] = [
     ],
   },
   {
+    id: 'salsa-son-cubano',
+    title: 'Son Cubano Tradizionale – Raíz y Clave',
+    genre: 'salsa',
+    bpm: 152,
+    mood: 'Armonia classica cubana con clave 2-3 limpida',
+    description: 'Tres melodico, congas rotonde e spazio per sentire il tempo 1.',
+    chords: [
+      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+      { name: 'Fa',  notes: [174.61, 220, 261.63], bass: 87.31 },
+      { name: 'Sol7', notes: [196, 246.94, 293.66, 349.23], bass: 98 },
+      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+    ],
+  },
+  {
+    id: 'salsa-montuno',
+    title: 'Son Montuno – Primi Passi & Connessione',
+    genre: 'salsa',
+    bpm: 148,
+    mood: 'Tempo comodo e chiaro per principianti e intermedi',
+    description: 'Stacco netto tra tempo 1 e 5, ritmo spazioso per ballare senza affanno.',
+    chords: [
+      { name: 'Fa',  notes: [174.61, 220, 261.63], bass: 87.31 },
+      { name: 'Sib', notes: [233.08, 293.66, 349.23], bass: 116.54 },
+      { name: 'Do7', notes: [261.63, 329.63, 392, 466.16], bass: 130.81 },
+      { name: 'Fa',  notes: [174.61, 220, 261.63], bass: 87.31 },
+    ],
+  },
+  {
+    id: 'salsa-mambo-elegante',
+    title: 'Mambo Elegante – Notte a New York',
+    genre: 'salsa',
+    bpm: 176,
+    mood: 'Raffinata, swing latino e montuno sincopato',
+    description: 'Armonia jazzy latina, pianoforte frizzante e battuta precisa.',
+    chords: [
+      { name: 'Solm', notes: [196, 233.08, 293.66], bass: 98 },
+      { name: 'Dom',  notes: [261.63, 311.13, 392], bass: 130.81 },
+      { name: 'Re7',  notes: [293.66, 369.99, 440], bass: 146.83 },
+      { name: 'Solm', notes: [196, 233.08, 293.66], bass: 98 },
+    ],
+  },
+  {
     id: 'salsa-dura',
     title: 'Salsa Dura – Fuego en la Pista',
     genre: 'salsa',
     bpm: 195,
-    mood: 'Energica, incalzante, da vera pista',
+    mood: 'Energica, incalzante, per serate avanzate',
     description: 'Montuno brillante, clave 3-2 scandita, campana e tumbao vivace.',
     chords: [
       { name: 'Rem', notes: [293.66, 349.23, 440], bass: 146.83 },
@@ -48,27 +90,27 @@ export const MUSIC_TRACKS: MusicTrack[] = [
     ],
   },
   {
-    id: 'salsa-montuno',
-    title: 'Son Montuno – Primi Passi',
+    id: 'salsa-timba',
+    title: 'Salsa Timba – Ritmo & Sabor',
     genre: 'salsa',
-    bpm: 150,
-    mood: 'Tempo comodo e chiaro per principianti',
-    description: 'Stacco netto tra tempo 1 e 5, ritmo spazioso per contare senza fretta.',
+    bpm: 186,
+    mood: 'Dinamica, carica e piena di sfumature',
+    description: 'Basso potente, pianoforte sincopato e percussioni serrate.',
     chords: [
-      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
-      { name: 'Fa',  notes: [174.61, 220, 261.63], bass: 87.31 },
-      { name: 'Sol', notes: [196, 246.94, 293.66], bass: 98 },
-      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+      { name: 'Mim', notes: [164.81, 196, 246.94], bass: 82.41 },
+      { name: 'Lam', notes: [220, 261.63, 329.63], bass: 110 },
+      { name: 'Si7', notes: [246.94, 311.13, 369.99], bass: 123.47 },
+      { name: 'Mim', notes: [164.81, 196, 246.94], bass: 82.41 },
     ],
   },
 
-  // BACHATA
+  // BACHATA (6 brani diversificati)
   {
     id: 'bachata-sensual',
     title: 'Bachata Sensual – Tensión Lenta',
     genre: 'bachata',
     bpm: 116,
-    mood: 'Dolce, avvolgente, chitarra acustica',
+    mood: 'Dolce, avvolgente, chitarra acustica romantica',
     description: 'Arpeggi romantici in La minore, basso profondo e tap vellutato.',
     chords: [
       { name: 'Lam', notes: [220, 261.63, 329.63], bass: 110 },
@@ -78,10 +120,24 @@ export const MUSIC_TRACKS: MusicTrack[] = [
     ],
   },
   {
+    id: 'bachata-acustica',
+    title: 'Bachata Acustica – Chitarra & Cuore',
+    genre: 'bachata',
+    bpm: 112,
+    mood: 'Altamente armonica e intima, perfetta per l\'orecchio',
+    description: 'Chitarra solista requinto cristallina e arpeggio aperto per sentire il movimento.',
+    chords: [
+      { name: 'Do',  notes: [261.63, 329.63, 392], bass: 130.81 },
+      { name: 'Lam', notes: [220, 261.63, 329.63], bass: 110 },
+      { name: 'Fa',  notes: [174.61, 220, 261.63], bass: 87.31 },
+      { name: 'Sol', notes: [196, 246.94, 293.66], bass: 98 },
+    ],
+  },
+  {
     id: 'bachata-moderna',
     title: 'Bachata Moderna – Flirt Invisibile',
     genre: 'bachata',
-    bpm: 125,
+    bpm: 124,
     mood: 'Groove moderno e coinvolgente',
     description: 'Chitarra ritmica, bongò sincopato e tap marcato su 4 e 8.',
     chords: [
@@ -92,17 +148,45 @@ export const MUSIC_TRACKS: MusicTrack[] = [
     ],
   },
   {
+    id: 'bachata-rosa',
+    title: 'Bachata Rosa – Melodia Romantica',
+    genre: 'bachata',
+    bpm: 118,
+    mood: 'Armonia morbida e nostalgica per camminata fluida',
+    description: 'Accordi vellutati in Re minore con bassline cantabile e tap delicato.',
+    chords: [
+      { name: 'Rem',  notes: [293.66, 349.23, 440], bass: 146.83 },
+      { name: 'Solm', notes: [196, 233.08, 293.66], bass: 98 },
+      { name: 'Do',   notes: [261.63, 329.63, 392], bass: 130.81 },
+      { name: 'Fa',   notes: [174.61, 220, 261.63], bass: 87.31 },
+    ],
+  },
+  {
     id: 'bachata-dominicana',
     title: 'Bachata Dominicana – Fiesta Tradizionale',
     genre: 'bachata',
-    bpm: 134,
-    mood: 'Vivace e dinamica',
-    description: 'Requinto brillante, bongò martellato e güira rapida.',
+    bpm: 132,
+    mood: 'Autentica, vivace e dinamica',
+    description: 'Requinto brillante, bongò martellato e güira rapida con sabor caraibico.',
     chords: [
-      { name: 'La',  notes: [220, 277.18, 329.63], bass: 110 },
-      { name: 'Mi',  notes: [164.81, 207.65, 246.94], bass: 82.41 },
-      { name: 'Fa#m',notes: [185, 220, 277.18], bass: 92.5 },
-      { name: 'Re',  notes: [146.83, 220, 293.66], bass: 73.42 },
+      { name: 'La',   notes: [220, 277.18, 329.63], bass: 110 },
+      { name: 'Mi',   notes: [164.81, 207.65, 246.94], bass: 82.41 },
+      { name: 'Fa#m', notes: [185, 220, 277.18], bass: 92.5 },
+      { name: 'Re',   notes: [146.83, 220, 293.66], bass: 73.42 },
+    ],
+  },
+  {
+    id: 'bachata-bolero',
+    title: 'Bachata Bolero – Intimità & Connessione',
+    genre: 'bachata',
+    bpm: 108,
+    mood: 'Lenta, romantica e profonda',
+    description: 'Ritmo disteso per allenare la connessione corporea e la guida senza fretta.',
+    chords: [
+      { name: 'Sol',  notes: [196, 246.94, 293.66], bass: 98 },
+      { name: 'Mim',  notes: [164.81, 196, 246.94], bass: 82.41 },
+      { name: 'Lam',  notes: [220, 261.63, 329.63], bass: 110 },
+      { name: 'Re7',  notes: [293.66, 369.99, 440], bass: 146.83 },
     ],
   },
 ];

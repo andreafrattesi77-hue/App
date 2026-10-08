@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import { METODO, trovaUnitaPertinenti, getUnita } from './content/index';
+import { generateCoachReasoning, generateEveningAdviceReasoning } from './src/services/coachReasoning';
 
 dotenv.config();
 
@@ -41,9 +42,9 @@ COME DEVI RAGIONARE E RISPONDERE (REGOLA FONDAMENTALE):
 
 // Candidate models in order of priority (tested and verified)
 const CANDIDATE_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
   'gemini-3.8-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
 ];
 
 // Persistent User Store on Server for 100% Reliable Authentication
@@ -290,18 +291,28 @@ ATTENZIONE: NON ri-presentarti MAI ("sono Andrea Frattesi...", "sono il tuo coac
     }
 
     if (!replyText) {
-      const nameGreeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
-      replyText = `${nameGreeting}qualunque sia la situazione in pista, mantieni la calma e ascolta il ritmo. Metti a fuoco la connessione con la partner senza fretta e ripassa [[cap06]] o il Rituale Pre-Serata in [[bonus2]]!`;
+      replyText = generateCoachReasoning({
+        message,
+        history,
+        userName: studentName,
+        userProfile,
+        currentMission,
+        activeUnitId,
+      });
     }
 
     res.json({ reply: replyText });
   } catch (error) {
     console.error('Gemini chat error:', error);
-    const studentName = typeof req.body?.userName === 'string' ? req.body.userName.trim() : '';
-    const nameGreeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
-    res.json({
-      reply: `${nameGreeting}qualunque sia il dubbio in questo momento, concentrati sulla presenza e sul respiro. Alla prossima serata applica i consigli di [[cap06]] e divertiti in pista!`,
+    const replyText = generateCoachReasoning({
+      message: req.body?.message || '',
+      history: req.body?.history,
+      userName: typeof req.body?.userName === 'string' ? req.body.userName.trim() : '',
+      userProfile: req.body?.userProfile,
+      currentMission: req.body?.currentMission,
+      activeUnitId: req.body?.activeUnitId,
     });
+    res.json({ reply: replyText });
   }
 });
 
@@ -387,18 +398,26 @@ ${eveningContext}`,
     }
 
     if (!advice) {
-      const nameGreeting = userName ? `Bravo ${userName}! ` : 'Bravo! ';
-      advice = `${nameGreeting}Scendere in pista è sempre la cosa più importante.\n\n1. Cosa è andato bene: Hai registrato la serata e mantenuto la continuità.\n2. Punto su cui concentrarsi: La presenza rilassata e la gestione del ritmo tra un ballo e l'altro.\n3. Azione per la prossima volta: Prima del prossimo invito, fai due respiri profondi e guarda il sorriso di lei prima di muovere i piedi!`;
+      advice = generateEveningAdviceReasoning({
+        evening: evening || {},
+        userName,
+        userProfile,
+        currentMission,
+        previousAdvice,
+      });
     }
 
     res.json({ advice });
   } catch (error) {
     console.error('Gemini advice error:', error);
-    const studentName = typeof req.body?.userName === 'string' ? req.body.userName.trim() : '';
-    const nameGreeting = studentName ? `Bravo ${studentName}! ` : 'Bravo! ';
-    res.json({
-      advice: `${nameGreeting}Ogni serata in pista è un tassello prezioso. Concentrati sulla leggerezza e sulla connessione per la prossima volta: rileggi [[cap06]] o [[cap11]] e divertiti!`,
+    const advice = generateEveningAdviceReasoning({
+      evening: req.body?.evening || {},
+      userName: req.body?.userName,
+      userProfile: req.body?.userProfile,
+      currentMission: req.body?.currentMission,
+      previousAdvice: req.body?.previousAdvice,
     });
+    res.json({ advice });
   }
 });
 
