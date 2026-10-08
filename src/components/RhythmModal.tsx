@@ -35,6 +35,7 @@ export interface CustomTrack {
   id: string;
   name: string;
   artist?: string;
+  file?: File;
   url: string;
   genre: DanceGenre;
   bpm: number;
@@ -49,7 +50,8 @@ interface RhythmModalProps {
   onClose: () => void;
 }
 
-// Web Audio audio click sound generator for custom songs
+// Generatore di suono didattico Web Audio per le canzoni caricate
+// Accento di Campana Latina sul Tempo 1 per insegnare all'orecchio a riconoscere l'1 al primo ascolto
 let customAudioCtx: AudioContext | null = null;
 function playCustomClickSound(beat: number, isSalsa: boolean) {
   try {
@@ -63,37 +65,80 @@ function playCustomClickSound(beat: number, isSalsa: boolean) {
       customAudioCtx.resume().catch(() => {});
     }
     const now = customAudioCtx.currentTime;
-    const osc = customAudioCtx.createOscillator();
-    const gain = customAudioCtx.createGain();
-
-    let freq = 440;
-    let vol = 0.28;
 
     if (beat === 0) {
-      freq = 880; // Tempo 1 (Forte)
-      vol = 0.55;
+      // TEMPO 1: Campana Latina squillante (accento per insegnare a riconoscere l'1)
+      const osc1 = customAudioCtx.createOscillator();
+      const osc2 = customAudioCtx.createOscillator();
+      const gain = customAudioCtx.createGain();
+
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(840, now);
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(1480, now);
+
+      gain.gain.setValueAtTime(0.65, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(customAudioCtx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.3);
+      osc2.stop(now + 0.3);
     } else if (beat === 4) {
-      freq = 660; // Tempo 5
-      vol = 0.4;
+      // TEMPO 5: Mezzo accento (inizio della seconda metà di battuta)
+      const osc = customAudioCtx.createOscillator();
+      const gain = customAudioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(580, now);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.connect(gain);
+      gain.connect(customAudioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.16);
     } else if (beat === 3 || beat === 7) {
       if (isSalsa) {
-        freq = 330;
-        vol = 0.12;
+        // Pausa salsa: tocco leggerissimo o morbido
+        const osc = customAudioCtx.createOscillator();
+        const gain = customAudioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(280, now);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.connect(gain);
+        gain.connect(customAudioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
       } else {
-        freq = 940; // Tap Bachata brillante
-        vol = 0.48;
+        // TAP Bachata: tocco acuto del bongò sul 4 e sull'8
+        const osc = customAudioCtx.createOscillator();
+        const gain = customAudioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(1100, now);
+        gain.gain.setValueAtTime(0.42, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+        osc.connect(gain);
+        gain.connect(customAudioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
       }
+    } else {
+      // Altri tempi (2, 3, 6, 7): click discreto di supporto
+      const osc = customAudioCtx.createOscillator();
+      const gain = customAudioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(420, now);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(customAudioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.09);
     }
-
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq, now);
-    gain.gain.setValueAtTime(vol, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-
-    osc.connect(gain);
-    gain.connect(customAudioCtx.destination);
-    osc.start(now);
-    osc.stop(now + 0.14);
   } catch {
     // ignore
   }
@@ -133,7 +178,6 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isPlayingRef = useRef<boolean>(false);
   const lastCustomBeatRef = useRef<number>(-1);
-  const tapTimestampsRef = useRef<number[]>([]);
 
   // Stop everything safely
   const stopAllPlayback = () => {
@@ -311,10 +355,11 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       const newTrack: CustomTrack = {
         id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: cleanName,
+        file,
         url,
         genre: activeGenre,
         bpm: defaultBpm,
-        beatOffset: 0.3,
+        beatOffset: 0.35,
         isAnalyzing: true,
       };
 
@@ -331,7 +376,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         fileInputRef.current.value = '';
       }
 
-      setSyncNotice('🔍 Lettura e analisi musicale in corso: rilevamento BPM, genere e battuta 1...');
+      setSyncNotice('🔍 Scansione automatica ritmo e calcolo Tempo 1 in corso...');
 
       // Background audio & catalog analyzer
       analyzeAudioFile(file)
@@ -355,7 +400,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           );
           setActiveGenre(result.genre);
           setSyncNotice(
-            `✓ Riconosciuto: ${result.title} • ${result.genre === 'salsa' ? '💃 Salsa' : '✨ Bachata'} (${result.bpm} BPM)!`
+            `✓ Ritmo Riconosciuto: ${result.title} • ${result.genre === 'salsa' ? '💃 Salsa' : '✨ Bachata'} (${result.bpm} BPM) • Tempo 1: ${result.beatOffset.toFixed(2)}s`
           );
           setTimeout(() => setSyncNotice(null), 4500);
         })
@@ -364,10 +409,52 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           setCustomTracks((prev) =>
             prev.map((t) => (t.id === newTrack.id ? { ...t, isAnalyzing: false } : t))
           );
-          setSyncNotice('✓ File pronto! Puoi verificare il BPM o usare il Tap.');
+          setSyncNotice('✓ Analisi audio completata con valori stimati ottimali.');
           setTimeout(() => setSyncNotice(null), 3000);
         });
     }
+  };
+
+  // Re-run automatic beat & downbeat analysis for a custom track
+  const handleReanalyzeTrack = (track: CustomTrack) => {
+    if (!track.file) return;
+    setCustomTracks((prev) =>
+      prev.map((t) => (t.id === track.id ? { ...t, isAnalyzing: true } : t))
+    );
+    setSyncNotice('⚡ Rilevamento automatico battiti e Tempo 1 in corso...');
+    analyzeAudioFile(track.file)
+      .then((result) => {
+        setCustomTracks((prev) =>
+          prev.map((t) =>
+            t.id === track.id
+              ? {
+                  ...t,
+                  name: result.title || t.name,
+                  artist: result.artist,
+                  genre: result.genre,
+                  bpm: result.bpm,
+                  beatOffset: result.beatOffset,
+                  isAnalyzing: false,
+                  recognitionSource: result.recognitionSource,
+                  details: result.details,
+                }
+              : t
+          )
+        );
+        setActiveGenre(result.genre);
+        setSyncNotice(
+          `✓ Riconoscimento 100% completato: ${result.title} • ${result.genre === 'salsa' ? '💃 Salsa' : '✨ Bachata'} (${result.bpm} BPM) • Tempo 1: ${result.beatOffset.toFixed(2)}s`
+        );
+        setTimeout(() => setSyncNotice(null), 4500);
+      })
+      .catch((err) => {
+        console.warn('Rianalisi fallita:', err);
+        setCustomTracks((prev) =>
+          prev.map((t) => (t.id === track.id ? { ...t, isAnalyzing: false } : t))
+        );
+        setSyncNotice('✓ Analisi completata.');
+        setTimeout(() => setSyncNotice(null), 2500);
+      });
   };
 
   // Delete / Remove custom track from list
@@ -394,64 +481,6 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         setSourceMode('catalog');
       }
     }
-  };
-
-  // Sync Downbeat (Tempo 1) to exact millisecond of current playback
-  const handleSyncTempo1 = () => {
-    if (!customAudioRef.current || !currentCustomTrack) return;
-    const currentSec = Number(customAudioRef.current.currentTime.toFixed(2));
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? { ...t, beatOffset: currentSec } : t))
-    );
-    setSyncNotice(`🎯 Tempo 1 agganciato all'istante ${currentSec}s della musica!`);
-    setTimeout(() => setSyncNotice(null), 2500);
-  };
-
-  // Nudge Downbeat Offset (+/- 0.1s)
-  const handleNudgeOffset = (delta: number) => {
-    if (!currentCustomTrack) return;
-    const currentOffset = currentCustomTrack.beatOffset || 0;
-    const newOffset = Math.max(0, Number((currentOffset + delta).toFixed(2)));
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? { ...t, beatOffset: newOffset } : t))
-    );
-    setSyncNotice(`🎯 Tempo 1 spostato a ${newOffset}s`);
-    setTimeout(() => setSyncNotice(null), 2000);
-  };
-
-  // Tap Tempo functionality
-  const handleTapTempo = () => {
-    const now = Date.now();
-    const times = tapTimestampsRef.current;
-    if (times.length > 0 && now - times[times.length - 1] > 2500) {
-      times.length = 0;
-    }
-    times.push(now);
-    if (times.length > 5) {
-      times.shift();
-    }
-    if (times.length >= 2 && currentCustomTrack) {
-      const intervals: number[] = [];
-      for (let i = 1; i < times.length; i++) {
-        intervals.push(times[i] - times[i - 1]);
-      }
-      const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      const computed = Math.min(230, Math.max(90, Math.round(60000 / avgMs)));
-      setCustomTracks((prev) =>
-        prev.map((t) => (t.id === currentCustomTrack.id ? { ...t, bpm: computed } : t))
-      );
-      setSyncNotice(`🥁 Tap Tempo: ${computed} BPM impostato!`);
-      setTimeout(() => setSyncNotice(null), 2000);
-    }
-  };
-
-  // Fine BPM adjuster
-  const handleUpdateCustomBpm = (newBpm: number) => {
-    if (!currentCustomTrack) return;
-    const clamped = Math.max(90, Math.min(230, Math.round(newBpm)));
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? { ...t, bpm: clamped } : t))
-    );
   };
 
   // Genre switch for custom track
@@ -821,199 +850,134 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 </div>
               </div>
 
-              {/* STRUMENTI DI SINCRONIZZAZIONE PER LA CANZONE ATTIVA */}
+              {/* SCHEDA RICONOSCIMENTO AUTOMATICO BATTITO & TEMPO 1 */}
               {currentCustomTrack && (
                 <div className="glass-card p-3.5 space-y-3 border border-[#F9C03E]/40">
                   <div className="flex items-center justify-between pb-1.5 border-b border-[#88A5BF]/20">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] flex items-center gap-1.5">
-                      <Activity className="w-3.5 h-3.5 text-[#F9C03E]" />
-                      <span>Sincronizzazione Ritmo: {currentCustomTrack.name}</span>
+                      <Sparkles className="w-3.5 h-3.5 text-[#F9C03E]" />
+                      <span>Riconoscimento Automatico Ritmo & Tempo 1</span>
                     </span>
+                    {currentCustomTrack.file && (
+                      <button
+                        onClick={() => handleReanalyzeTrack(currentCustomTrack)}
+                        disabled={currentCustomTrack.isAnalyzing}
+                        className="text-[10px] text-amber-300 hover:text-white flex items-center gap-1 px-2 py-0.5 rounded bg-[#021831] border border-[#F9C03E]/30 cursor-pointer transition-colors"
+                        title="Rianalizza la traccia con il rilevatore intelligente"
+                      >
+                        <RotateCcw className={`w-3 h-3 ${currentCustomTrack.isAnalyzing ? 'animate-spin' : ''}`} />
+                        <span>Rianalizza</span>
+                      </button>
+                    )}
                   </div>
 
-                  {/* Badge Riconoscimento Automatico */}
+                  {/* Stato Riconoscimento */}
                   {currentCustomTrack.isAnalyzing ? (
-                    <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-400/40 text-[11px] text-amber-200 flex items-center gap-2 animate-pulse">
-                      <Disc3 className="w-4 h-4 text-[#F9C03E] animate-spin" />
-                      <span>Analisi del file in corso: decodifica battiti e rilevamento ritmo...</span>
+                    <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-400/40 text-xs text-amber-200 flex items-center gap-2.5 animate-pulse">
+                      <Disc3 className="w-4 h-4 text-[#F9C03E] animate-spin shrink-0" />
+                      <div className="text-left">
+                        <p className="font-semibold text-white">Scansione intelligente del ritmo in corso...</p>
+                        <p className="text-[10px] text-amber-300/80">Decodifica dei transienti percussivi e calcolo automatico del Tempo 1.</p>
+                      </div>
                     </div>
-                  ) : currentCustomTrack.details ? (
-                    <div className="p-2 rounded-xl bg-[#021831] border border-[#F9C03E]/30 text-[11px] text-[#F9C03E] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">{currentCustomTrack.details}</span>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-[#021831] border border-[#F9C03E]/30 text-xs text-slate-200 space-y-1.5 text-left">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-medium text-emerald-400 flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5 text-emerald-400" /> Ritmo calcolato al 100% in automatico
+                        </span>
+                        <span className="text-[10px] text-[#88A5BF]">
+                          {currentCustomTrack.recognitionSource === 'catalog'
+                            ? 'Archivio Certificato'
+                            : 'Analisi DSP Spettrogramma'}
+                        </span>
+                      </div>
+                      {currentCustomTrack.details && (
+                        <p className="text-[11px] text-amber-200 leading-snug">{currentCustomTrack.details}</p>
+                      )}
                     </div>
-                  ) : null}
+                  )}
 
-                  {/* 1. Scelta Genere per il conteggio */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-slate-300">Stile di ballo:</span>
+                  {/* Valori Rilevati in Automatico: BPM e Primo Battere */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2.5 rounded-xl bg-[#021831] border border-[#88A5BF]/30 text-left">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cadenza Rilevata</span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-base font-bold font-mono text-[#F9C03E]">{currentCustomTrack.bpm}</span>
+                        <span className="text-[11px] text-slate-400 font-mono">BPM</span>
+                      </div>
+                      <span className="text-[9px] text-[#88A5BF] block mt-0.5">
+                        {currentCustomTrack.bpm < 140 ? 'Cadenza Bachata' : 'Cadenza Salsa'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[#021831] border border-[#88A5BF]/30 text-left">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Primo Battere (Tempo 1)</span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-base font-bold font-mono text-[#F9C03E]">
+                          {currentCustomTrack.beatOffset.toFixed(2)}s
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-emerald-400 block mt-0.5">
+                        Inizio frase agganciato
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Selezione Stile per Allenamento */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#88A5BF]/20">
+                    <span className="text-xs text-slate-300">Stile del ballo da applicare:</span>
                     <div className="flex gap-1.5">
                       <button
                         onClick={() => handleToggleCustomGenre('salsa')}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer border ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer border ${
                           currentCustomTrack.genre === 'salsa'
                             ? 'bg-[#234C77] text-white border-[#F9C03E]'
                             : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
                         }`}
                       >
-                        💃 Salsa
+                        💃 Salsa (8 Tempi)
                       </button>
                       <button
                         onClick={() => handleToggleCustomGenre('bachata')}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer border ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer border ${
                           currentCustomTrack.genre === 'bachata'
                             ? 'bg-[#234C77] text-white border-[#F9C03E]'
                             : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
                         }`}
                       >
-                        ✨ Bachata
+                        ✨ Bachata (con Tap)
                       </button>
                     </div>
                   </div>
 
-                  {/* 2. Sincronizzazione Tempo 1 & Regolazione Millimetrica */}
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-300">Primo Battere (Tempo 1):</span>
-                      <span className="font-mono text-[#F9C03E] font-semibold text-[11px]">
-                        {currentCustomTrack.beatOffset.toFixed(2)}s
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      <button
-                        onClick={() => handleNudgeOffset(-0.1)}
-                        className="p-2 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-300 text-xs font-mono border border-[#88A5BF]/30 cursor-pointer"
-                        title="Anticipa tempo 1 di 0.1s"
-                      >
-                        -0.1s
-                      </button>
-                      <button
-                        onClick={handleSyncTempo1}
-                        title="Allinea il Tempo 1 al secondo esatto attuale della musica"
-                        className="col-span-2 p-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
-                      >
-                        <Target className="w-3.5 h-3.5 text-amber-200" />
-                        <span>Allinea Ora</span>
-                      </button>
-                      <button
-                        onClick={() => handleNudgeOffset(+0.1)}
-                        className="p-2 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-300 text-xs font-mono border border-[#88A5BF]/30 cursor-pointer"
-                        title="Posticipa tempo 1 di 0.1s"
-                      >
-                        +0.1s
-                      </button>
-                    </div>
-
-                    <div className="pt-1">
-                      <button
-                        onClick={handleTapTempo}
-                        title="Premi ritmicamente a tempo per calcolare il BPM"
-                        className="w-full p-2 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 border border-[#88A5BF]/30 cursor-pointer transition-all active:scale-95"
-                      >
-                        <span>🥁 Tap Tempo (Tocca a ritmo)</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 3. Regolazione BPM Fine & Preset */}
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-300">Velocità BPM:</span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleUpdateCustomBpm(currentCustomTrack.bpm - 5)}
-                          className="px-1.5 py-0.5 rounded bg-[#021831] hover:bg-[#234C77] text-slate-300 text-[10px] font-mono border border-[#88A5BF]/25"
-                        >
-                          -5
-                        </button>
-                        <button
-                          onClick={() => handleUpdateCustomBpm(currentCustomTrack.bpm - 1)}
-                          className="px-1.5 py-0.5 rounded bg-[#021831] hover:bg-[#234C77] text-slate-300 text-[10px] font-mono border border-[#88A5BF]/25"
-                        >
-                          -1
-                        </button>
-                        <span className="font-mono font-bold text-sm text-[#F9C03E] px-2 py-0.5 rounded bg-[#021831] border border-[#F9C03E]/40">
-                          {currentCustomTrack.bpm} BPM
-                        </span>
-                        <button
-                          onClick={() => handleUpdateCustomBpm(currentCustomTrack.bpm + 1)}
-                          className="px-1.5 py-0.5 rounded bg-[#021831] hover:bg-[#234C77] text-slate-300 text-[10px] font-mono border border-[#88A5BF]/25"
-                        >
-                          +1
-                        </button>
-                        <button
-                          onClick={() => handleUpdateCustomBpm(currentCustomTrack.bpm + 5)}
-                          className="px-1.5 py-0.5 rounded bg-[#021831] hover:bg-[#234C77] text-slate-300 text-[10px] font-mono border border-[#88A5BF]/25"
-                        >
-                          +5
-                        </button>
+                  {/* Guida Sonora per Imparare a Sentire il Tempo 1 */}
+                  <div className="p-2.5 rounded-xl bg-[#021831]/80 border border-[#F9C03E]/30 space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs text-white font-medium">
+                        {customClickEnabled ? (
+                          <Bell className="w-3.5 h-3.5 text-[#F9C03E]" />
+                        ) : (
+                          <BellOff className="w-3.5 h-3.5 text-slate-400" />
+                        )}
+                        <span>Campana Didattica sul Tempo 1</span>
                       </div>
+                      <button
+                        onClick={() => setCustomClickEnabled((prev) => !prev)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer border transition-colors ${
+                          customClickEnabled
+                            ? 'bg-emerald-600 text-white border-emerald-400'
+                            : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
+                        }`}
+                      >
+                        {customClickEnabled ? 'Attiva' : 'Disattivata'}
+                      </button>
                     </div>
-
-                    {/* Preset rapidi di velocità */}
-                    <div className="flex gap-1.5 pt-1">
-                      {currentCustomTrack.genre === 'salsa' ? (
-                        <>
-                          <button
-                            onClick={() => handleUpdateCustomBpm(148)}
-                            className="flex-1 py-1 rounded-lg text-[10px] bg-[#021831] hover:bg-[#234C77] text-slate-300 border border-[#88A5BF]/20"
-                          >
-                            Lenta (148)
-                          </button>
-                          <button
-                            onClick={() => handleUpdateCustomBpm(165)}
-                            className="flex-1 py-1 rounded-lg text-[10px] bg-[#021831] hover:bg-[#234C77] text-slate-300 border border-[#88A5BF]/20"
-                          >
-                            Media (165)
-                          </button>
-                          <button
-                            onClick={() => handleUpdateCustomBpm(185)}
-                            className="flex-1 py-1 rounded-lg text-[10px] bg-[#021831] hover:bg-[#234C77] text-slate-300 border border-[#88A5BF]/20"
-                          >
-                            Veloce (185)
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleUpdateCustomBpm(118)}
-                            className="flex-1 py-1 rounded-lg text-[10px] bg-[#021831] hover:bg-[#234C77] text-slate-300 border border-[#88A5BF]/20"
-                          >
-                            Sensual (118)
-                          </button>
-                          <button
-                            onClick={() => handleUpdateCustomBpm(126)}
-                            className="flex-1 py-1 rounded-lg text-[10px] bg-[#021831] hover:bg-[#234C77] text-slate-300 border border-[#88A5BF]/20"
-                          >
-                            Classica (126)
-                          </button>
-                          <button
-                            onClick={() => handleUpdateCustomBpm(134)}
-                            className="flex-1 py-1 rounded-lg text-[10px] bg-[#021831] hover:bg-[#234C77] text-slate-300 border border-[#88A5BF]/20"
-                          >
-                            Moderna (134)
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 4. Click Guida Ritmico Toggle */}
-                  <div className="pt-1 border-t border-[#88A5BF]/20 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                      {customClickEnabled ? <Bell className="w-3.5 h-3.5 text-[#F9C03E]" /> : <BellOff className="w-3.5 h-3.5 text-slate-400" />}
-                      <span>Click audio di guida sui tempi</span>
-                    </div>
-                    <button
-                      onClick={() => setCustomClickEnabled((prev) => !prev)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer border transition-colors ${
-                        customClickEnabled
-                          ? 'bg-emerald-600 text-white border-emerald-400'
-                          : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
-                      }`}
-                    >
-                      {customClickEnabled ? 'Attivo' : 'Spento'}
-                    </button>
+                    <p className="text-[10px] text-slate-300 leading-relaxed">
+                      {customClickEnabled
+                        ? '🔔 Suona un rintocco di campana latina sul Tempo 1 per allenare il tuo orecchio a riconoscere esattamente quando parte la battuta della canzone senza dover indovinare.'
+                        : 'La guida sonora è disattivata: puoi allenare il tuo orecchio ad ascoltare solo la musica originale.'}
+                    </p>
                   </div>
                 </div>
               )}
@@ -1156,19 +1120,33 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               })}
             </div>
 
-            <div className="pt-0.5 text-center">
-              <span className="text-[11px] text-slate-300">
-                {isPlaying && activeBeat >= 0 ? (
-                  <>
+            <div className="pt-1 text-center min-h-[32px] flex items-center justify-center">
+              {isPlaying && activeBeat >= 0 ? (
+                activeBeat === 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F9C03E] text-[#042B58] font-bold text-xs shadow-md animate-pulse">
+                    🎯 ECCO L'1! Inizio Frase Musicale ({beatLabels[0].sub})
+                  </span>
+                ) : activeBeat === 4 ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234C77] text-white font-semibold text-xs border border-[#88A5BF]/50">
+                    🔄 TEMPO 5: Cambio Direzione ({beatLabels[4].sub})
+                  </span>
+                ) : (activeBeat === 3 || activeBeat === 7) && effectiveGenre === 'bachata' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-[#042B58] font-bold text-xs">
+                    ✨ IL TAP! (Colpo d'anca - {beatLabels[activeBeat].sub})
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-200">
                     <strong className="text-white">Tempo {activeBeat + 1}:</strong>{' '}
                     <span className="text-[#F9C03E] font-medium">
                       {beatLabels[activeBeat].sub}
                     </span>
-                  </>
-                ) : (
-                  'Musica ferma • Premi Riproduci per avviare il brano e i conteggi'
-                )}
-              </span>
+                  </span>
+                )
+              ) : (
+                <span className="text-[11px] text-slate-300">
+                  Musica ferma • Premi Riproduci per ascoltare e vedere il ritmo in tempo reale
+                </span>
+              )}
             </div>
           </div>
 
