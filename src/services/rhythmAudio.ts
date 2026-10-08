@@ -206,8 +206,10 @@ class HarmonizedRhythmAudioEngine {
   private currentBeat: number = 0; // 0 to 7
   private currentMeasure: number = 0; // 0 to chords.length - 1
   private nextBeatTime: number = 0;
+  private startTime: number | null = null;
   private timerId: number | null = null;
   private onBeatCallback: ((beat: number, chordName: string) => void) | null = null;
+  private scheduledEvents: Array<{ beat: number; time: number; chordName: string }> = [];
 
   public mixer: RhythmMixer = {
     harmony: true,
@@ -222,9 +224,6 @@ class HarmonizedRhythmAudioEngine {
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
-    }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
     }
   }
 
@@ -254,31 +253,38 @@ class HarmonizedRhythmAudioEngine {
     this.onBeatCallback = cb;
   }
 
-  public start() {
+  public async start() {
     this.initContext();
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') {
+      try {
+        await this.ctx.resume();
+      } catch (err) {
+        console.error('AudioContext resume error:', err);
+      }
     }
     if (this.isRunning) return;
 
     this.isRunning = true;
     this.currentBeat = 0;
     this.currentMeasure = 0;
-    this.nextBeatTime = this.ctx!.currentTime + 0.05;
+    this.scheduledEvents = [];
+    // Piccolo buffer di sicurezza (0.08s) per garantire che l'hardware audio sia pronto
+    this.startTime = this.ctx.currentTime + 0.08;
+    this.nextBeatTime = this.startTime;
     this.scheduleLoop();
   }
 
   public stop() {
     this.isRunning = false;
+    this.startTime = null;
+    this.scheduledEvents = [];
     if (this.timerId !== null) {
       window.clearTimeout(this.timerId);
       this.timerId = null;
     }
     this.currentBeat = 0;
     this.currentMeasure = 0;
-    if (this.ctx && this.ctx.state === 'running') {
-      this.ctx.suspend().catch(() => {});
-    }
     if (this.onBeatCallback) {
       this.onBeatCallback(-1, '');
     }
@@ -288,16 +294,53 @@ class HarmonizedRhythmAudioEngine {
     return this.isRunning;
   }
 
+  /**
+   * Restituisce l'esatto battito attuale in sincronia perfetta con il clock audio hardware Web Audio.
+   * Utilizza l'elenco degli eventi programmati e verifica il currentTime esatto dell'AudioContext.
+   */
+  public getCurrentBeatState(): { beat: number; chordName: string } | null {
+    if (!this.isRunning || !this.ctx || this.startTime === null) return null;
+    const now = this.ctx.currentTime;
+
+    // Rimuove battute passate da oltre 0.4s
+    while (this.scheduledEvents.length > 1 && this.scheduledEvents[1].time <= now) {
+      this.scheduledEvents.shift();
+    }
+
+    if (this.scheduledEvents.length > 0 && this.scheduledEvents[0].time <= now) {
+      return {
+        beat: this.scheduledEvents[0].beat,
+        chordName: this.scheduledEvents[0].chordName,
+      };
+    }
+
+    if (this.scheduledEvents.length > 0 && now < this.scheduledEvents[0].time) {
+      return {
+        beat: 0,
+        chordName: this.scheduledEvents[0].chordName,
+      };
+    }
+
+    return null;
+  }
+
   private scheduleLoop = () => {
     if (!this.isRunning || !this.ctx) return;
 
     const secondsPerBeat = 60.0 / this.bpm;
-    const lookahead = 0.12;
+    const lookahead = 0.15;
 
     while (this.nextBeatTime < this.ctx.currentTime + lookahead) {
       const chord = this.currentTrack.chords[this.currentMeasure % this.currentTrack.chords.length];
 
       this.scheduleMusicalBeat(this.currentBeat, this.nextBeatTime, chord);
+
+      // Registra timestamp audio esatto per sincronia visiva perfetta a 60 FPS
+      this.scheduledEvents.push({
+        beat: this.currentBeat,
+        time: this.nextBeatTime,
+        chordName: chord.name,
+      });
 
       const beatNum = this.currentBeat;
       const cName = chord.name;

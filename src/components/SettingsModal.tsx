@@ -9,7 +9,6 @@ import {
   ShieldAlert,
   ExternalLink,
   Instagram,
-  Mail,
   Video,
   FileText,
   Music,
@@ -17,7 +16,7 @@ import {
 import { wipeAllAppData, saveUserData } from '../services/storage';
 import { exportAndPrintReport } from '../services/reportExport';
 import { logoutFirebase } from '../services/firebase';
-import { VIDEOCORSO_URL, AREA_RISERVATA_URL, INSTAGRAM_URL, SUPPORT_EMAIL } from '../config';
+import { VIDEOCORSO_URL, AREA_RISERVATA_URL, INSTAGRAM_URL } from '../config';
 import { UserData } from '../types';
 
 interface SettingsModalProps {
@@ -149,13 +148,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onClose();
                   onOpenRhythm();
                 }}
-                className="w-full p-2.5 rounded-xl bg-[#021831] hover:bg-[#234C77]/60 border border-[#F9C03E]/40 text-xs text-white flex items-center justify-between transition-colors cursor-pointer"
+                className="w-full p-2.5 rounded-xl bg-[#021831] hover:bg-[#234C77]/50 border border-[#88A5BF]/30 text-xs text-white flex items-center justify-between transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <Music className="w-4 h-4 text-[#F9C03E]" />
-                  <span className="font-semibold text-[#F9C03E]">Allenatore di Ritmo (Salsa & Bachata)</span>
+                  <Music className="w-4 h-4 text-[#88A5BF]" />
+                  <span>Allenatore di Ritmo (Salsa & Bachata)</span>
                 </div>
-                <span className="text-[10px] text-slate-300">Apri →</span>
+                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
               </button>
             )}
 
@@ -197,18 +196,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center gap-2">
                 <Instagram className="w-4 h-4 text-[#F9C03E]" />
                 <span>Instagram @andreaseduzioneballo</span>
-              </div>
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-            </a>
-
-            {/* Assistenza Email */}
-            <a
-              href={`mailto:${SUPPORT_EMAIL}?subject=Assistenza%20Effetto%20Calamita`}
-              className="p-2.5 rounded-xl bg-[#021831] hover:bg-[#234C77]/50 border border-[#88A5BF]/30 text-xs text-white flex items-center justify-between transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-sky-400" />
-                <span>Assistenza ({SUPPORT_EMAIL})</span>
               </div>
               <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
             </a>
