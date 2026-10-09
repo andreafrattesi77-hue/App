@@ -404,50 +404,72 @@ export async function analyzeAudioFile(
 
     // --- IDENTIFICAZIONE DEL TEMPO 1 DELLA FRASE (FASE 0..7) ---
     // Nella Salsa e nella Bachata, il ciclo di ballo e musicale è di 8 battute.
-    // Troviamo quale delle 8 possibili fasi corrisponde al vero TEMPO 1.
+    // L'utente ascolta i primi 5 secondi per capire dove entra l'1:
+    // Analizziamo con cura il periodo di aggancio (primi 5-8 secondi dal via ritmico)
+    // e pesiamo le frasi armoniche di 8 battute per distinguere in modo cristallino il Tempo 1 dal Tempo 5.
     let bestPhase = 0;
     let maxPhaseScore = -Infinity;
+
+    // Finestra di comprensione iniziale: i primi 5 secondi di ritmo
+    const fiveSecFrames = rhythmStartFrame + frameRate * 5;
 
     for (let phase = 0; phase < 8; phase++) {
       let score = 0;
       let count = 0;
+      let introScore = 0;
+      let introCount = 0;
 
       for (let k = 0; k < trackedFrames.length; k++) {
         const f = trackedFrames[k];
         if (f < rhythmStartFrame || f >= analysisFrames) continue;
 
         const b = ((k - phase) % 8 + 8) % 8; // 0..7 (corrispondente a tempi 1..8)
+        let beatScore = 0;
 
         if (detectedGenre === 'salsa') {
           if (b === 0) {
-            // Tempo 1 Salsa: ripartenza armonica / piano montuno / stacco
-            score += onsets[f] * 3.5 + midOnsets[f] * 2.2;
+            // Tempo 1 Salsa: ripartenza armonica / piano montuno squillante / inizio battuta (chiave distintiva rispetto al 5)
+            beatScore = onsets[f] * 4.5 + midOnsets[f] * 3.0 - bassOnsets[f] * 0.5;
           } else if (b === 4) {
-            // Tempo 5 Salsa: seconda metà battuta / accordo
-            score += onsets[f] * 2.8 + midOnsets[f] * 1.8;
+            // Tempo 5 Salsa: seconda metà battuta (punteggio inferiore per evitare confusione 1 ↔ 5)
+            beatScore = onsets[f] * 2.2 + midOnsets[f] * 1.5;
           } else if (b === 1 || b === 5) {
             // Tempi 2 e 6: slap congas
-            score += midOnsets[f] * 2.2;
+            beatScore = midOnsets[f] * 2.4;
           } else if (b === 3 || b === 7) {
             // Tempi 4 e 8: tumbao basso anticipato, pausa percussiva acuta
-            score += bassOnsets[f] * 1.6 - midOnsets[f] * 0.8;
+            beatScore = bassOnsets[f] * 2.0 - midOnsets[f] * 0.8;
           }
         } else {
           // Bachata: colpo basso su 1 e 5, tap bongò su 4 e 8
           if (b === 0) {
-            score += bassOnsets[f] * 3.5 + onsets[f] * 2.0;
+            // Tempo 1 Bachata: attacco della frase / inizio accordo
+            beatScore = bassOnsets[f] * 4.2 + onsets[f] * 2.5;
           } else if (b === 4) {
-            score += bassOnsets[f] * 2.8 + onsets[f] * 1.6;
+            // Tempo 5 Bachata
+            beatScore = bassOnsets[f] * 2.5 + onsets[f] * 1.5;
           } else if (b === 3 || b === 7) {
-            score += highOnsets[f] * 3.0 + midOnsets[f] * 1.8;
+            beatScore = highOnsets[f] * 3.2 + midOnsets[f] * 2.0;
           }
         }
+
+        score += beatScore;
         count++;
+
+        // Peso aggiuntivo nei primi 5 secondi di ingresso per capire dove parte esattamente l'1
+        if (f <= fiveSecFrames) {
+          introScore += beatScore;
+          introCount++;
+        }
       }
 
-      if (count > 0) score /= count;
-      if (score > maxPhaseScore) {
-        maxPhaseScore = score;
+      const avgScore = count > 0 ? score / count : 0;
+      const avgIntroScore = introCount > 0 ? introScore / introCount : 0;
+      // Combiniamo il punteggio globale con l'attacco iniziale nei primi 5 secondi
+      const totalCombinedScore = avgScore * 0.65 + avgIntroScore * 0.35;
+
+      if (totalCombinedScore > maxPhaseScore) {
+        maxPhaseScore = totalCombinedScore;
         bestPhase = phase;
       }
     }

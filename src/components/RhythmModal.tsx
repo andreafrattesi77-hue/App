@@ -20,6 +20,7 @@ import {
   BellOff,
   Activity,
   Check,
+  ArrowLeftRight,
 } from 'lucide-react';
 import {
   harmonizedEngine,
@@ -548,6 +549,31 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     }
   };
 
+  // Inverti / scambia Tempo 1 e Tempo 5 se la canzone ha fase invertita
+  const handleSwapOneAndFive = () => {
+    if (!currentCustomTrack || !currentCustomTrack.beats) return;
+    const newBeats = currentCustomTrack.beats.map((b) => ({
+      ...b,
+      beat: (b.beat + 4) % 8,
+    }));
+    const newFirst1 = newBeats.find((b) => b.beat === 0)?.time || currentCustomTrack.beatOffset;
+
+    setCustomTracks((prev) =>
+      prev.map((t) =>
+        t.id === currentCustomTrack.id
+          ? {
+              ...t,
+              beatOffset: newFirst1,
+              beats: newBeats,
+              details: `Allineamento 1↔5 scambiato: Tempo 1 a ${newFirst1.toFixed(2)}s`,
+            }
+          : t
+      )
+    );
+    setSyncNotice(`✓ Conteggio invertito: l'1 e il 5 sono stati scambiati con precisione!`);
+    setTimeout(() => setSyncNotice(null), 3500);
+  };
+
   // Close modal safely
   const handleClose = () => {
     stopAllPlayback();
@@ -1036,6 +1062,25 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                         Bachata (8 Battute)
                       </button>
                     </div>
+                  </div>
+
+                  {/* Inversione Rapida Tempo 1 ↔ 5 per correzione immediata */}
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#021831] border border-[#88A5BF]/30">
+                    <div className="text-left">
+                      <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                        <ArrowLeftRight className="w-3.5 h-3.5 text-[#F9C03E]" />
+                        <span>Fase 1 ↔ 5</span>
+                      </span>
+                      <p className="text-[10px] text-[#88A5BF]">Se la canzone sembra invertita, scambia l'1 con il 5</p>
+                    </div>
+                    <button
+                      onClick={handleSwapOneAndFive}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#234C77] hover:bg-[#88A5BF]/30 text-amber-300 hover:text-white border border-[#F9C03E]/40 cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm"
+                      title="Scambia l'1 con il 5 se la frase musicale è rovesciata"
+                    >
+                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                      <span>Inverti 1 ↔ 5</span>
+                    </button>
                   </div>
 
                   {/* Guida Sonora per Imparare a Sentire il Tempo 1 */}

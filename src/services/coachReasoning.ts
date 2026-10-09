@@ -1,164 +1,8 @@
 import { trovaUnitaPertinenti, getUnita, Unita } from '../../content/index';
+import { COACH_50_QUESTIONS, CoachQuestionItem } from './coachQuestionsData';
 
-export interface CoachQuestionItem {
-  id: string;
-  category: 'approccio' | 'bachata' | 'salsa' | 'chiusura' | 'psicologia';
-  categoryLabel: string;
-  question: string;
-  summary: string;
-}
-
-export const OFFICIAL_COACH_QUESTIONS: CoachQuestionItem[] = [
-  // CATEGORIA 1: APPROCCIO & INVITO (5)
-  {
-    id: 'q_blocco_invito',
-    category: 'approccio',
-    categoryLabel: 'Invito & Blocco',
-    question: "Mi blocco prima dell'invito e rimango a fissarla da lontano: come sblocco la paura?",
-    summary: 'Sbloccare la paura prima dell\'invito',
-  },
-  {
-    id: 'q_regola_3_secondi',
-    category: 'approccio',
-    categoryLabel: 'Invito & Blocco',
-    question: 'Come applico esattamente la Regola dei 3 Secondi dal momento in cui incrocio il suo sguardo?',
-    summary: 'La Regola dei 3 Secondi per invitare',
-  },
-  {
-    id: 'q_primi_10_minuti',
-    category: 'approccio',
-    categoryLabel: 'Invito & Blocco',
-    question: 'Cosa devo fare nei primi 10 minuti dal mio arrivo al locale per entrare nel giusto Asse?',
-    summary: 'I primi 10 minuti all\'arrivo nel locale',
-  },
-  {
-    id: 'q_sguardo_ancora',
-    category: 'approccio',
-    categoryLabel: 'Invito & Blocco',
-    question: 'Come uso lo Sguardo Ancora e il sorriso a distanza prima di avvicinarmi a lei?',
-    summary: 'Sguardo Ancora che non scappa e non invade',
-  },
-  {
-    id: 'q_gestione_rifiuto',
-    category: 'approccio',
-    categoryLabel: 'Invito & Blocco',
-    question: 'Se mi dice di no o che è stanca, come gestisco il rifiuto con eleganza senza sembrare ferito?',
-    summary: 'Gestire il no con i 10 secondi eleganti',
-  },
-
-  // CATEGORIA 2: BACHATA & CONNESSIONE (4)
-  {
-    id: 'q_bachata_vicinanza',
-    category: 'bachata',
-    categoryLabel: 'Bachata & Connessione',
-    question: 'Bachata Sensual: come gestisco la vicinanza fisica senza sembrare invadente o al contrario freddo?',
-    summary: 'Vicinanza offerta e non imposta',
-  },
-  {
-    id: 'q_tensione_lenta',
-    category: 'bachata',
-    categoryLabel: 'Bachata & Connessione',
-    question: "Cos'è la Tensione Lenta nella Bachata e come faccio a far rilassare la partner nel mio abbraccio?",
-    summary: 'Tensione Lenta e rilassamento corporeo',
-  },
-  {
-    id: 'q_bachata_tap',
-    category: 'bachata',
-    categoryLabel: 'Bachata & Connessione',
-    question: 'Come guido il movimento d\'anca e il Tap sui tempi 4 e 8 senza tirare con le braccia?',
-    summary: 'Guida del Tap 4 e 8 col corpo',
-  },
-  {
-    id: 'q_lettura_segnali_bachata',
-    category: 'bachata',
-    categoryLabel: 'Bachata & Connessione',
-    question: 'Come faccio a capire se lei gradisce la vicinanza o se preferisce mantenere spazio?',
-    summary: 'Leggere i segnali di comfort corporeo',
-  },
-
-  // CATEGORIA 3: SALSA & MUSICALITÀ (4)
-  {
-    id: 'q_salsa_figure_vs_connessione',
-    category: 'salsa',
-    categoryLabel: 'Salsa & Musicalità',
-    question: 'Nella Salsa mi concentro troppo sulle figure e dimentico la partner: come cambio focus?',
-    summary: 'Dal Primo Ballo tecnico al Secondo Ballo emotivo',
-  },
-  {
-    id: 'q_guida_corpo_braccia',
-    category: 'salsa',
-    categoryLabel: 'Salsa & Musicalità',
-    question: 'Come elimino la rigidità nelle braccia e guido con il centro del corpo e la schiena?',
-    summary: 'Guidare dal tronco e non con le mani',
-  },
-  {
-    id: 'q_salsa_tempo_1',
-    category: 'salsa',
-    categoryLabel: 'Salsa & Musicalità',
-    question: 'Come riconosco il tempo 1 nel montuno del pianoforte e nella clave senza contare come un robot?',
-    summary: 'Sentire il tempo 1 e il respiro del basso',
-  },
-  {
-    id: 'q_partner_balla_sola',
-    category: 'salsa',
-    categoryLabel: 'Salsa & Musicalità',
-    question: "Cosa fare se la partner 'balla da sola' o oppone resistenza alla guida?",
-    summary: 'Guidare non è comandare: gestione partner rigida',
-  },
-
-  // CATEGORIA 4: FINE BALLO & CHIUSURA (4)
-  {
-    id: 'q_ultimi_10_secondi',
-    category: 'chiusura',
-    categoryLabel: 'Chiusura Calamita',
-    question: 'Cosa devo fare negli ultimi 10 secondi del brano per non farla scappare via appena finisce la musica?',
-    summary: 'Gli ultimi 10 secondi e la Regola del Picco',
-  },
-  {
-    id: 'q_chiusura_calamita',
-    category: 'chiusura',
-    categoryLabel: 'Chiusura Calamita',
-    question: 'Come eseguo la Chiusura Calamita trattenendo il contatto per 2 secondi senza sembrare appiccicoso?',
-    summary: 'Trattenere la mano per 2 secondi con calma',
-  },
-  {
-    id: 'q_cosa_dire_dopo',
-    category: 'chiusura',
-    categoryLabel: 'Chiusura Calamita',
-    question: "Cosa le dico appena finisce la musica per rompere il classico congedo 'Grazie, balli benissimo'?",
-    summary: 'Formula Apprezzamento + Domanda Ponte',
-  },
-  {
-    id: 'q_staccarsi_per_primi',
-    category: 'chiusura',
-    categoryLabel: 'Chiusura Calamita',
-    question: 'Come faccio a staccarmi io per primo lasciandole il desiderio di rivedermi più tardi?',
-    summary: 'Staccarsi per primi per creare attrazione',
-  },
-
-  // CATEGORIA 5: PSICOLOGIA, ASSE & FLIRT (3)
-  {
-    id: 'q_conversazione_flirt',
-    category: 'psicologia',
-    categoryLabel: 'Psicologia & Asse',
-    question: 'Cosa dire tra un ballo e l\'altro? Come trasformo le solite chiacchiere in una conversazione magnetica?',
-    summary: 'Silenzio Pieno e Conversazione Ping-Pong',
-  },
-  {
-    id: 'q_ballerini_esperti',
-    category: 'psicologia',
-    categoryLabel: 'Psicologia & Asse',
-    question: 'Come supero la sensazione di sentirmi goffo o inferiore rispetto ai ballerini più esperti della sala?',
-    summary: 'Smettere di paragonarsi ai ballerini della sala',
-  },
-  {
-    id: 'q_reset_serata_storta',
-    category: 'psicologia',
-    categoryLabel: 'Psicologia & Asse',
-    question: 'Cosa fare quando una serata sembra andare tutta storta per resettare la mente in 60 secondi?',
-    summary: 'Il Protocollo Reset di 60 secondi al bagno',
-  },
-];
+export type { CoachQuestionItem };
+export const OFFICIAL_COACH_QUESTIONS: CoachQuestionItem[] = COACH_50_QUESTIONS;
 
 interface CoachReasoningParams {
   message: string;
@@ -192,9 +36,20 @@ interface EveningReasoningParams {
  */
 export function generateCoachReasoning(params: CoachReasoningParams): string {
   const { message, userName, userProfile, currentMission, activeUnitId } = params;
-  const msgLower = (message || '').toLowerCase();
+  const msgLower = (message || '').toLowerCase().trim();
   const studentName = userName?.trim() || '';
   const greeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
+
+  // Controllo prioritario: corrispondenza con una delle 50 domande ufficiali preparate
+  const exactMatch = COACH_50_QUESTIONS.find((item) => {
+    const qLower = item.question.toLowerCase().trim();
+    const sLower = item.summary.toLowerCase().trim();
+    return msgLower === qLower || msgLower === sLower || msgLower.includes(qLower) || qLower.includes(msgLower);
+  });
+
+  if (exactMatch) {
+    return `${greeting}${exactMatch.response}`;
+  }
 
   // Trova unità pertinenti
   const pertinentUnits = trovaUnitaPertinenti(message, 2);
