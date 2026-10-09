@@ -93,8 +93,8 @@ export async function analyzeAudioFile(
     const frameHop = Math.floor(sampleRate / frameRate);
     const totalFrames = Math.floor(channelData.length / frameHop);
 
-    // Analizziamo fino a 120 secondi per la stima ritmica ad alta fedeltà
-    const analysisFrames = Math.min(totalFrames, frameRate * 120);
+    // Analizziamo la traccia audio completa (fino a 360 secondi / 6 minuti)
+    const analysisFrames = Math.min(totalFrames, frameRate * 360);
 
     const energies = new Float32Array(analysisFrames);
     const bassEnergies = new Float32Array(analysisFrames);
@@ -175,20 +175,20 @@ export async function analyzeAudioFile(
     let avgEnergy = 0;
     for (let f = 0; f < analysisFrames; f++) avgEnergy += energies[f];
     avgEnergy = avgEnergy / analysisFrames;
-    const rhythmThreshold = avgEnergy * 0.40;
+    const rhythmThreshold = avgEnergy * 0.35;
 
-    for (let f = 0; f < Math.min(analysisFrames, frameRate * 25); f++) {
+    for (let f = 0; f < Math.min(analysisFrames, frameRate * 30); f++) {
       let windowSum = 0;
       for (let w = 0; w < 30 && f + w < analysisFrames; w++) {
         windowSum += bassOnsets[f + w] + onsets[f + w] + midOnsets[f + w];
       }
-      if (energies[f] > rhythmThreshold && windowSum > 1.8) {
+      if (energies[f] > rhythmThreshold && windowSum > 1.5) {
         rhythmStartFrame = f;
         break;
       }
     }
 
-    const autocorrDuration = Math.min(analysisFrames, rhythmStartFrame + frameRate * 50);
+    const autocorrDuration = Math.min(analysisFrames, rhythmStartFrame + frameRate * 90);
 
     // Campionamento continuo con interpolazione lineare per risolvere il jitter di frame
     const sampleNovelty = (arr: Float32Array, idx: number): number => {
@@ -198,46 +198,72 @@ export async function analyzeAudioFile(
       return (1 - frac) * arr[i0] + frac * arr[i0 + 1];
     };
 
-    // Comb filter a campionamento continuo con risonanza su battito (1P), mezzo periodo (2P) e battuta (4P)
+    // Segnale di novità ritmica composito specifico per Salsa o Bachata
+    const targetIsSalsa = preferredGenre === 'salsa' || genreHint === 'salsa';
+    const onsetSignal = new Float32Array(analysisFrames);
+    for (let f = 0; f < analysisFrames; f++) {
+      if (targetIsSalsa) {
+        onsetSignal[f] = 0.45 * onsets[f] + 0.40 * midOnsets[f] + 0.15 * highOnsets[f];
+      } else {
+        onsetSignal[f] = 0.40 * onsets[f] + 0.35 * bassOnsets[f] + 0.25 * midOnsets[f];
+      }
+    }
+
+    // Comb filter multi-risoluzione su metrica 4/4 caraibica:
+    // Periodicità su 1 battito (lag), 2 battiti (lag*2), 4 battiti (lag*4) e 8 battiti (lag*8)
     const evaluateCombResonance = (bpm: number): number => {
       const lag = (60.0 / bpm) * frameRate;
-      if (lag < 4 || lag * 4 >= autocorrDuration - rhythmStartFrame) return -1;
+      const lag2 = lag * 2;
+      const lag4 = lag * 4;
+      const lag8 = lag * 8;
+      if (lag < 4 || lag8 >= autocorrDuration - rhythmStartFrame) return -1;
 
       let sum = 0;
       let count = 0;
-      const lag2 = lag * 2;
-      const lag3 = lag * 3;
-      const lag4 = lag * 4;
 
-      for (let f = rhythmStartFrame; f < autocorrDuration - lag4; f += 2) {
-        const v0 = 0.45 * onsets[f] + 0.35 * midOnsets[f] + 0.20 * bassOnsets[f];
-        const v1 = 0.45 * sampleNovelty(onsets, f + lag) + 0.35 * sampleNovelty(midOnsets, f + lag) + 0.20 * sampleNovelty(bassOnsets, f + lag);
-        const v2 = 0.45 * sampleNovelty(onsets, f + lag2) + 0.35 * sampleNovelty(midOnsets, f + lag2) + 0.20 * sampleNovelty(bassOnsets, f + lag2);
-        const v3 = 0.45 * sampleNovelty(onsets, f + lag3) + 0.35 * sampleNovelty(midOnsets, f + lag3) + 0.20 * sampleNovelty(bassOnsets, f + lag3);
-        const v4 = 0.45 * sampleNovelty(onsets, f + lag4) + 0.35 * sampleNovelty(midOnsets, f + lag4) + 0.20 * sampleNovelty(bassOnsets, f + lag4);
+      for (let f = rhythmStartFrame; f < autocorrDuration - lag8; f += 2) {
+        const v0 = onsetSignal[f];
+        const v1 = sampleNovelty(onsetSignal, f + lag);
+        const v2 = sampleNovelty(onsetSignal, f + lag2);
+        const v4 = sampleNovelty(onsetSignal, f + lag4);
+        const v8 = sampleNovelty(onsetSignal, f + lag8);
 
-        // Nel ritmo caraibico la barra (2P) e la battuta intera (4P) hanno pesi primari
-        sum += v0 * (v1 + 1.15 * v2 + 0.7 * v3 + 1.35 * v4);
+        sum += v0 * (v1 * 1.0 + v2 * 1.25 + v4 * 1.5 + v8 * 1.25);
         count++;
       }
       return count > 0 ? sum / count : 0;
     };
 
-    // Scansione ad altissima risoluzione per Salsa (140-220 BPM) e Bachata (110-145 BPM)
+    // Scansione ad altissima precisione per Salsa (145-220 BPM)
     let bestSalsaBpm = 180;
     let bestSalsaScore = -1;
-    for (let bpm = 140; bpm <= 220; bpm += 1) {
-      const prior = Math.exp(-0.5 * Math.pow((bpm - 180) / 30, 2));
-      const score = evaluateCombResonance(bpm) * (0.88 + 0.12 * prior);
+    for (let bpm = 145; bpm <= 220; bpm += 0.5) {
+      const prior = Math.exp(-0.5 * Math.pow((bpm - 180) / 32, 2));
+      const score = evaluateCombResonance(bpm) * (0.85 + 0.15 * prior);
       if (score > bestSalsaScore) {
         bestSalsaScore = score;
         bestSalsaBpm = bpm;
       }
     }
-    // Raffinamento fine sub-decimale a passi di 0.1 BPM
+
+    // Scansione a metà tempo (75-110 BPM, raddoppiato per Salsa)
+    let bestHalfTimeBpm = 90;
+    let bestHalfTimeScore = -1;
+    for (let bpm = 75; bpm <= 110; bpm += 0.5) {
+      const score = evaluateCombResonance(bpm);
+      if (score > bestHalfTimeScore) {
+        bestHalfTimeScore = score;
+        bestHalfTimeBpm = bpm;
+      }
+    }
+    if (bestHalfTimeScore > bestSalsaScore * 1.12 && bestHalfTimeBpm * 2 >= 150 && bestHalfTimeBpm * 2 <= 220) {
+      bestSalsaBpm = bestHalfTimeBpm * 2;
+    }
+
+    // Raffinamento fine sub-decimale Salsa a passi di 0.05 BPM
     let fineSalsaBpm = bestSalsaBpm;
     let fineSalsaScore = bestSalsaScore;
-    for (let d = -1.5; d <= 1.5; d += 0.1) {
+    for (let d = -1.2; d <= 1.2; d += 0.05) {
       const cand = Number((bestSalsaBpm + d).toFixed(2));
       const sc = evaluateCombResonance(cand);
       if (sc > fineSalsaScore) {
@@ -247,19 +273,21 @@ export async function analyzeAudioFile(
     }
     bestSalsaBpm = fineSalsaBpm;
 
+    // Scansione per Bachata (110-145 BPM)
     let bestBachataBpm = 126;
     let bestBachataScore = -1;
-    for (let bpm = 110; bpm <= 145; bpm += 1) {
+    for (let bpm = 110; bpm <= 145; bpm += 0.5) {
       const prior = Math.exp(-0.5 * Math.pow((bpm - 126) / 18, 2));
-      const score = evaluateCombResonance(bpm) * (0.88 + 0.12 * prior);
+      const score = evaluateCombResonance(bpm) * (0.85 + 0.15 * prior);
       if (score > bestBachataScore) {
         bestBachataScore = score;
         bestBachataBpm = bpm;
       }
     }
+    // Raffinamento fine Bachata a passi di 0.05 BPM
     let fineBachataBpm = bestBachataBpm;
     let fineBachataScore = bestBachataScore;
-    for (let d = -1.5; d <= 1.5; d += 0.1) {
+    for (let d = -1.2; d <= 1.2; d += 0.05) {
       const cand = Number((bestBachataBpm + d).toFixed(2));
       const sc = evaluateCombResonance(cand);
       if (sc > fineBachataScore) {
@@ -269,287 +297,184 @@ export async function analyzeAudioFile(
     }
     bestBachataBpm = fineBachataBpm;
 
-    // Scansione a metà tempo (70-110 BPM)
-    let bestHalfTimeBpm = 90;
-    let bestHalfTimeScore = -1;
-    for (let bpm = 70; bpm <= 110; bpm += 1) {
-      const score = evaluateCombResonance(bpm);
-      if (score > bestHalfTimeScore) {
-        bestHalfTimeScore = score;
-        bestHalfTimeBpm = bpm;
-      }
-    }
-
     let detectedGenre: DanceGenre = 'bachata';
     let calculatedBpm = 126;
 
     if (preferredGenre === 'salsa' || genreHint === 'salsa') {
       detectedGenre = 'salsa';
       calculatedBpm = bestSalsaBpm;
-      if (bestHalfTimeScore > bestSalsaScore * 1.15 && bestHalfTimeBpm * 2 >= 140 && bestHalfTimeBpm * 2 <= 220) {
-        calculatedBpm = Number((bestHalfTimeBpm * 2).toFixed(2));
-      }
     } else if (preferredGenre === 'bachata' || genreHint === 'bachata') {
       detectedGenre = 'bachata';
       calculatedBpm = bestBachataBpm;
     } else {
-      // Riconoscimento automatico del genere tramite densità timbrica
       let fastPercussionEnergy = 0;
       for (let f = rhythmStartFrame; f < autocorrDuration; f++) {
         fastPercussionEnergy += midOnsets[f] + highOnsets[f];
       }
       const avgPercussionDensity = fastPercussionEnergy / (autocorrDuration - rhythmStartFrame);
 
-      const candidateSalsaEquiv = Number((bestBachataBpm * 1.5).toFixed(2));
-      const isClave15 = candidateSalsaEquiv >= 150 && candidateSalsaEquiv <= 215 && evaluateCombResonance(candidateSalsaEquiv) > bestBachataScore * 0.75;
-
-      if (bestSalsaScore > bestBachataScore * 1.05 || avgPercussionDensity > 0.38 || isClave15) {
+      if (bestSalsaScore > bestBachataScore * 1.05 || avgPercussionDensity > 0.38) {
         detectedGenre = 'salsa';
-        calculatedBpm = isClave15 ? candidateSalsaEquiv : bestSalsaBpm;
+        calculatedBpm = bestSalsaBpm;
       } else {
         detectedGenre = 'bachata';
         calculatedBpm = bestBachataBpm;
       }
     }
 
-    if (detectedGenre === 'salsa' && calculatedBpm < 135) {
+    if (detectedGenre === 'salsa' && calculatedBpm < 140) {
       calculatedBpm = Number((calculatedBpm * 2).toFixed(2));
     }
-    if (detectedGenre === 'bachata' && calculatedBpm > 155) {
+    if (detectedGenre === 'bachata' && calculatedBpm > 150) {
       calculatedBpm = Number((calculatedBpm / 2).toFixed(2));
     }
 
-    // --- IDENTIFICAZIONE DIRETTA E ROBUSTA DEL DOWNBEAT (TEMPO 1) ---
+    // --- TRACKING GLOBALE DEI BATTITI (ELLIS DYNAMIC PROGRAMMING BEAT TRACKER) ---
+    // Elimina ogni deriva nel tempo ("tiene il tempo fino a metà poi si perde")
+    // e impedisce scatti e salti errati, mantenendo il tempo regolare e agganciato alla musica.
     const beatPeriodFrames = (60.0 / calculatedBpm) * frameRate;
-    const phrasePeriodFrames = beatPeriodFrames * 8;
-    const beatPeriodSec = 60.0 / calculatedBpm;
+    const cumScore = new Float32Array(analysisFrames);
+    const backlink = new Int32Array(analysisFrames);
+    backlink.fill(-1);
 
-    // Scansione della fase di Tempo 1 attraverso le prime frasi musicali
-    // Cerchiamo l'offset esatto da 0 a 8*beatPeriodFrames che massimizza il contrasto musicale del Tempo 1
-    let bestPhraseOffsetFrames = 0;
-    let maxPhraseScore = -Infinity;
+    // Finestra di transizione naturale del passo per la band: ±15% del tempo nominale
+    const minDelta = Math.max(1, Math.round(0.85 * beatPeriodFrames));
+    const maxDelta = Math.max(minDelta + 1, Math.round(1.15 * beatPeriodFrames));
+    // Peso di regolarità: impedisce di agganciare suddivisioni sincopate o terzine
+    const penaltyWeight = 48.0;
 
-    const testCycles = Math.min(5, Math.floor((autocorrDuration - rhythmStartFrame) / phrasePeriodFrames));
-    const stepScan = Math.max(1, Math.floor(frameRate * 0.015)); // Risoluzione di scansione ~15ms
+    for (let t = 0; t < analysisFrames; t++) {
+      const oVal = onsetSignal[t];
+      let bestPrev = -Infinity;
+      let bestDelta = -1;
 
-    for (let offset = 0; offset < phrasePeriodFrames; offset += stepScan) {
+      for (let delta = minDelta; delta <= maxDelta; delta++) {
+        const prevT = t - delta;
+        if (prevT < 0) continue;
+        const logRatio = Math.log(delta / beatPeriodFrames);
+        const scoreCand = cumScore[prevT] - penaltyWeight * logRatio * logRatio;
+        if (scoreCand > bestPrev) {
+          bestPrev = scoreCand;
+          bestDelta = delta;
+        }
+      }
+
+      if (bestPrev > 0) {
+        cumScore[t] = oVal + bestPrev;
+        backlink[t] = t - bestDelta;
+      } else {
+        cumScore[t] = oVal;
+        backlink[t] = -1;
+      }
+    }
+
+    // Backtracking a ritroso dal miglior frame finale
+    const searchWindow = Math.round(1.8 * beatPeriodFrames);
+    let bestEndT = analysisFrames - 1;
+    let bestEndScore = -Infinity;
+    for (let t = Math.max(0, analysisFrames - searchWindow); t < analysisFrames; t++) {
+      if (cumScore[t] > bestEndScore) {
+        bestEndScore = cumScore[t];
+        bestEndT = t;
+      }
+    }
+
+    const trackedFrames: number[] = [];
+    let curr = bestEndT;
+    while (curr >= 0) {
+      trackedFrames.push(curr);
+      curr = backlink[curr];
+    }
+    trackedFrames.reverse();
+
+    // Estensione verso l'inizio e la fine se necessario
+    if (trackedFrames.length === 0) {
+      trackedFrames.push(rhythmStartFrame);
+    }
+    while (trackedFrames[0] > beatPeriodFrames * 0.8) {
+      const prevF = Math.round(trackedFrames[0] - beatPeriodFrames);
+      if (prevF < 0) break;
+      trackedFrames.unshift(prevF);
+    }
+    const maxAudioFrames = Math.round(durationSec * frameRate);
+    while (trackedFrames[trackedFrames.length - 1] + beatPeriodFrames * 0.8 < maxAudioFrames) {
+      const nextF = Math.round(trackedFrames[trackedFrames.length - 1] + beatPeriodFrames);
+      trackedFrames.push(nextF);
+    }
+
+    // --- IDENTIFICAZIONE DEL TEMPO 1 DELLA FRASE (FASE 0..7) ---
+    // Nella Salsa e nella Bachata, il ciclo di ballo e musicale è di 8 battute.
+    // Troviamo quale delle 8 possibili fasi corrisponde al vero TEMPO 1.
+    let bestPhase = 0;
+    let maxPhaseScore = -Infinity;
+
+    for (let phase = 0; phase < 8; phase++) {
       let score = 0;
+      let count = 0;
 
-      for (let cyc = 0; cyc < testCycles; cyc++) {
-        const base = rhythmStartFrame + offset + cyc * phrasePeriodFrames;
+      for (let k = 0; k < trackedFrames.length; k++) {
+        const f = trackedFrames[k];
+        if (f < rhythmStartFrame || f >= analysisFrames) continue;
 
-        // Campionamento delle 8 battute del ciclo
-        const f0 = Math.round(base);                      // Tempo 1
-        const f1 = Math.round(base + 1 * beatPeriodFrames); // Tempo 2
-        const f2 = Math.round(base + 2 * beatPeriodFrames); // Tempo 3
-        const f3 = Math.round(base + 3 * beatPeriodFrames); // Tempo 4
-        const f4 = Math.round(base + 4 * beatPeriodFrames); // Tempo 5
-        const f5 = Math.round(base + 5 * beatPeriodFrames); // Tempo 6
-        const f6 = Math.round(base + 6 * beatPeriodFrames); // Tempo 7
-        const f7 = Math.round(base + 7 * beatPeriodFrames); // Tempo 8
+        const b = ((k - phase) % 8 + 8) % 8; // 0..7 (corrispondente a tempi 1..8)
 
         if (detectedGenre === 'salsa') {
-          // Firma acustica Salsa:
-          // Tempo 1 e 5: impatto accordo montuno, campana, ripartenza frase
-          // Tempo 2 e 6: slap congas
-          // Tempi 4 e 8: sospensioni/respiro (minima energia di transiente di passo)
-          const val0 = f0 < analysisFrames ? onsets[f0] * 3.5 + midOnsets[f0] * 2.0 : 0;
-          const val4 = f4 < analysisFrames ? onsets[f4] * 2.8 + midOnsets[f4] * 1.6 : 0;
-          const val1 = f1 < analysisFrames ? midOnsets[f1] * 2.0 + onsets[f1] * 1.2 : 0;
-          const val5 = f5 < analysisFrames ? midOnsets[f5] * 2.0 + onsets[f5] * 1.2 : 0;
-          const val2 = f2 < analysisFrames ? onsets[f2] * 1.4 : 0;
-          const val6 = f6 < analysisFrames ? onsets[f6] * 1.4 : 0;
-          const val3 = f3 < analysisFrames ? onsets[f3] * 1.5 : 0;
-          const val7 = f7 < analysisFrames ? onsets[f7] * 1.5 : 0;
-
-          // Contrasto netto: forti battute 1, 5, 2, 6 vs pause 4 e 8
-          score += (val0 + val4 + val1 + val5 + val2 + val6) - (val3 + val7) * 1.2;
+          if (b === 0) {
+            // Tempo 1 Salsa: ripartenza armonica / piano montuno / stacco
+            score += onsets[f] * 3.5 + midOnsets[f] * 2.2;
+          } else if (b === 4) {
+            // Tempo 5 Salsa: seconda metà battuta / accordo
+            score += onsets[f] * 2.8 + midOnsets[f] * 1.8;
+          } else if (b === 1 || b === 5) {
+            // Tempi 2 e 6: slap congas
+            score += midOnsets[f] * 2.2;
+          } else if (b === 3 || b === 7) {
+            // Tempi 4 e 8: tumbao basso anticipato, pausa percussiva acuta
+            score += bassOnsets[f] * 1.6 - midOnsets[f] * 0.8;
+          }
         } else {
-          // Firma acustica Bachata:
-          // Tempo 1 e 5: colpo di basso profondo + chitarra
-          // Tempo 4 e 8: tap bongò brillante
-          const val0 = f0 < analysisFrames ? bassOnsets[f0] * 3.5 + onsets[f0] * 2.0 : 0;
-          const val4 = f4 < analysisFrames ? bassOnsets[f4] * 2.8 + onsets[f4] * 1.5 : 0;
-          const val3 = f3 < analysisFrames ? midOnsets[f3] * 3.0 + highOnsets[f3] * 2.0 : 0;
-          const val7 = f7 < analysisFrames ? midOnsets[f7] * 3.0 + highOnsets[f7] * 2.0 : 0;
-
-          score += (val0 + val4 + val3 + val7);
+          // Bachata: colpo basso su 1 e 5, tap bongò su 4 e 8
+          if (b === 0) {
+            score += bassOnsets[f] * 3.5 + onsets[f] * 2.0;
+          } else if (b === 4) {
+            score += bassOnsets[f] * 2.8 + onsets[f] * 1.6;
+          } else if (b === 3 || b === 7) {
+            score += highOnsets[f] * 3.0 + midOnsets[f] * 1.8;
+          }
         }
+        count++;
       }
 
-      if (score > maxPhraseScore) {
-        maxPhraseScore = score;
-        bestPhraseOffsetFrames = offset;
+      if (count > 0) score /= count;
+      if (score > maxPhaseScore) {
+        maxPhaseScore = score;
+        bestPhase = phase;
       }
     }
 
-    // Affinamento del picco di attacco per Tempo 1 sul transiente esatto
-    let refinedFirstBeatFrame = rhythmStartFrame + bestPhraseOffsetFrames;
-    const windowPeak = Math.round(beatPeriodFrames * 0.25);
-    let peakVal = -1;
-    let peakFrame = refinedFirstBeatFrame;
-    for (let f = Math.max(0, refinedFirstBeatFrame - windowPeak); f <= Math.min(analysisFrames - 1, refinedFirstBeatFrame + windowPeak); f++) {
-      const v = onsets[f] + 0.6 * midOnsets[f] + 0.4 * bassOnsets[f];
-      if (v > peakVal) {
-        peakVal = v;
-        peakFrame = f;
-      }
-    }
-    if (peakVal > 0.1) {
-      refinedFirstBeatFrame = peakFrame;
-    }
-
-    let firstBeatSec = refinedFirstBeatFrame / frameRate;
-    const phrasePeriodSec = beatPeriodSec * 8;
-    // Riporta all'inizio della canzone se l'offset supera un'intera frase
-    while (firstBeatSec >= phrasePeriodSec && firstBeatSec - phrasePeriodSec >= (rhythmStartFrame / frameRate)) {
-      firstBeatSec -= phrasePeriodSec;
-    }
-    firstBeatSec = Math.max(0.04, Number(firstBeatSec.toFixed(3)));
-
-    // --- GENERAZIONE DINAMICA E MULTI-SINCRONIZZAZIONE (ZERO DRIFT & CONTINUA RICERCA DELL'1) ---
-    // Invece di propagare ciecamente un clock fisso, eseguiamo una risincronizzazione continua
-    // ad ogni frase (ogni 8 battute) e monitoriamo costantemente la posizione dell'UNO (downbeat)
-    // per compensare stacchi, assoli, rallentamenti o accelerazioni tipiche della Salsa.
+    // Costruzione della lista finale dei battiti perfettamente sincronizzati
     const beats: BeatEvent[] = [];
-    let currentSec = firstBeatSec;
-    let localBeatPeriodSec = beatPeriodSec;
-    let phraseCount = 0;
+    let firstTempo1Sec = 0;
+    let foundFirstTempo1 = false;
 
-    const snapWindowSec = Math.min(0.08, beatPeriodSec * 0.25);
-    const snapWindowFrames = Math.max(1, Math.round(snapWindowSec * frameRate));
+    for (let k = 0; k < trackedFrames.length; k++) {
+      const f = trackedFrames[k];
+      const sec = Number((f / frameRate).toFixed(3));
+      const beatNum = ((k - bestPhase) % 8 + 8) % 8;
 
-    // Funzione di valutazione della salienza di Tempo 1 per un frame candidato
-    const evaluateTempo1Salience = (targetFrame: number): number => {
-      if (targetFrame < 0 || targetFrame >= analysisFrames) return 0;
-      if (detectedGenre === 'salsa') {
-        // Tempo 1 Salsa: ripartenza armonica / percussiva / pianoforte
-        return onsets[targetFrame] * 2.8 + midOnsets[targetFrame] * 2.2 + bassOnsets[targetFrame] * 1.0;
-      } else {
-        // Bachata: attacco basso profondo + chitarra
-        return bassOnsets[targetFrame] * 3.0 + onsets[targetFrame] * 2.0;
-      }
-    };
-
-    while (currentSec < durationSec + localBeatPeriodSec) {
-      phraseCount++;
-
-      // 1. OGNI FRASATO (8 BATTUTE): RISINCRONIZZAZIONE DELLA POSIZIONE DELL'1
-      // Cerchiamo nella finestra intorno a currentSec l'impatto reale dell'1 della frase
-      const expectedOneSec = currentSec;
-      const expectedOneFrame = Math.round(expectedOneSec * frameRate);
-      
-      // Finestra di ricerca dell'1: ±40% del periodo di battuta per catturare variazioni di tempo
-      const searchOneFrames = Math.max(2, Math.round(beatPeriodFrames * 0.40));
-      let bestOneVal = -1;
-      let bestOneFrame = expectedOneFrame;
-
-      const oneStartF = Math.max(0, expectedOneFrame - searchOneFrames);
-      const oneEndF = Math.min(analysisFrames - 1, expectedOneFrame + searchOneFrames);
-
-      for (let f = oneStartF; f <= oneEndF; f++) {
-        const sal = evaluateTempo1Salience(f);
-        if (sal > bestOneVal) {
-          bestOneVal = sal;
-          bestOneFrame = f;
-        }
+      if (!foundFirstTempo1 && beatNum === 0 && f >= rhythmStartFrame) {
+        firstTempo1Sec = sec;
+        foundFirstTempo1 = true;
       }
 
-      // Se troviamo un picco chiaro dell'1, correggiamo l'allineamento all'1 reale
-      if (bestOneVal > 0.16) {
-        const detectedOneSec = bestOneFrame / frameRate;
-        // Aggancio solido per non perdere mai l'1
-        currentSec = Number((0.75 * detectedOneSec + 0.25 * currentSec).toFixed(3));
-      }
+      beats.push({
+        time: sec,
+        beat: beatNum,
+      });
+    }
 
-      // 2. STIMA LOCALE DEL TEMPO PER QUESTA FRASATA
-      // Se siamo abbastanza avanti nella canzone, verifichiamo se il tempo locale della band è cambiato
-      if (expectedOneFrame + Math.round(beatPeriodFrames * 8) < analysisFrames) {
-        let bestLocalPeriodFrames = beatPeriodFrames;
-        let maxLagCorr = -1;
-        const minL = Math.max(4, Math.round(beatPeriodFrames * 0.88));
-        const maxL = Math.round(beatPeriodFrames * 1.12);
-
-        for (let l = minL; l <= maxL; l++) {
-          let corr = 0;
-          for (let step = 1; step <= 7; step++) {
-            const checkF = Math.round(bestOneFrame + step * l);
-            if (checkF < analysisFrames) {
-              corr += onsets[checkF] + 0.5 * midOnsets[checkF];
-            }
-          }
-          if (corr > maxLagCorr) {
-            maxLagCorr = corr;
-            bestLocalPeriodFrames = l;
-          }
-        }
-
-        const candidatePeriodSec = bestLocalPeriodFrames / frameRate;
-        if (Math.abs(candidatePeriodSec - localBeatPeriodSec) < localBeatPeriodSec * 0.12) {
-          localBeatPeriodSec = 0.7 * localBeatPeriodSec + 0.3 * candidatePeriodSec;
-        }
-      }
-
-      // 3. GENERAZIONE DELLE 8 BATTUTE DELLA FRASE CORRENTE (TEMPO 1 A 8)
-      for (let b = 0; b < 8; b++) {
-        const nominalBeatSec = currentSec + b * localBeatPeriodSec;
-        if (nominalBeatSec >= durationSec + localBeatPeriodSec) break;
-
-        const nominalFrame = Math.round(nominalBeatSec * frameRate);
-        let actualBeatSec = nominalBeatSec;
-
-        if (nominalFrame < analysisFrames) {
-          let localMax = -1;
-          let bestLocalF = nominalFrame;
-          const startF = Math.max(0, nominalFrame - snapWindowFrames);
-          const endF = Math.min(analysisFrames - 1, nominalFrame + snapWindowFrames);
-
-          for (let lf = startF; lf <= endF; lf++) {
-            let sig = onsets[lf];
-            if (detectedGenre === 'salsa') {
-              if (b === 0) {
-                sig = 0.7 * onsets[lf] + 0.3 * midOnsets[lf]; // Tempo 1
-              } else if (b === 1 || b === 5) {
-                sig = 0.65 * midOnsets[lf] + 0.35 * onsets[lf]; // Congas slap
-              } else if (b === 4) {
-                sig = 0.65 * onsets[lf] + 0.35 * midOnsets[lf]; // Tempo 5
-              } else if (b === 3 || b === 7) {
-                // Pausa naturale della Salsa: minima energia richiesta
-                sig = 0.2 * onsets[lf];
-              }
-            } else {
-              if (b === 0 || b === 4) {
-                sig = 0.65 * bassOnsets[lf] + 0.35 * onsets[lf];
-              } else if (b === 3 || b === 7) {
-                sig = 0.6 * midOnsets[lf] + 0.4 * highOnsets[lf];
-              }
-            }
-
-            if (sig > localMax) {
-              localMax = sig;
-              bestLocalF = lf;
-            }
-          }
-
-          // Se rileviamo il transiente del passo (evitando falsi scatti sulle pause 4 e 8 della Salsa)
-          if (localMax > 0.13 && (detectedGenre !== 'salsa' || (b !== 3 && b !== 7))) {
-            const detectedPeakSec = bestLocalF / frameRate;
-            actualBeatSec = Number((0.65 * detectedPeakSec + 0.35 * nominalBeatSec).toFixed(3));
-          }
-        }
-
-        beats.push({
-          time: Number(actualBeatSec.toFixed(3)),
-          beat: b,
-        });
-      }
-
-      // Passa alla prossima frase di 8 tempi partendo dall'ultimo battito registrato
-      if (beats.length > 0) {
-        currentSec = beats[beats.length - 1].time + localBeatPeriodSec;
-      } else {
-        currentSec += localBeatPeriodSec * 8;
-      }
+    if (!foundFirstTempo1 && beats.length > 0) {
+      firstTempo1Sec = beats[0].time;
     }
 
     return {
@@ -557,11 +482,11 @@ export async function analyzeAudioFile(
       artist,
       genre: detectedGenre,
       bpm: calculatedBpm,
-      beatOffset: firstBeatSec,
+      beatOffset: firstTempo1Sec,
       beats,
       confidence: 0.98,
       recognitionSource: 'dsp_waveform',
-      details: `Ritmo ${detectedGenre.toUpperCase()} sincronizzato: ${beats.length} battiti agganciati (BPM ${calculatedBpm}, Tempo 1 a ${firstBeatSec}s)`,
+      details: `Ritmo ${detectedGenre.toUpperCase()} sincronizzato: ${beats.length} battiti agganciati (BPM ${calculatedBpm}, Tempo 1 a ${firstTempo1Sec}s)`,
     };
   } catch (err) {
     console.warn('Decodifica audio avanzata non riuscita, passaggio a cadenza generata su segnale:', err);

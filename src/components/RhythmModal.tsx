@@ -101,22 +101,17 @@ function playCustomClickSound(beat: number, isSalsa: boolean) {
       osc.start(now);
       osc.stop(now + 0.16);
     } else if (beat === 3 || beat === 7) {
-      if (isSalsa) {
-        // Pausa Salsa sui tempi 4 e 8: silenzio completo per non disturbare la pausa del passo!
-        return;
-      } else {
-        // TAP Bachata: tocco acuto del bongò sul 4 e sull'8
-        const osc = customAudioCtx.createOscillator();
-        const gain = customAudioCtx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(1100, now);
-        gain.gain.setValueAtTime(0.42, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-        osc.connect(gain);
-        gain.connect(customAudioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.1);
-      }
+      // Tempi 4 e 8: battuta di respiro/sospensione (click discreto per tenere sempre il tempo senza vuoti)
+      const osc = customAudioCtx.createOscillator();
+      const gain = customAudioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(380, now);
+      gain.gain.setValueAtTime(isSalsa ? 0.15 : 0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      osc.connect(gain);
+      gain.connect(customAudioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
     } else {
       // Tempi 2, 3, 6, 7: click chiaro e pulito a tempo di musica
       const osc = customAudioCtx.createOscillator();
