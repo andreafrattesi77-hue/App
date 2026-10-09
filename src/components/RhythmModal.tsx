@@ -103,12 +103,12 @@ function playCustomClickSound(beat: number, isSalsa: boolean) {
       osc.stop(now + 0.16);
     } else if (beat === 3 || beat === 7) {
       if (isSalsa) {
-        // Pausa salsa: tocco leggerissimo o morbido
+        // Tempo 4 e 8 Salsa: battuta woodblock precisa e udibile
         const osc = customAudioCtx.createOscillator();
         const gain = customAudioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(280, now);
-        gain.gain.setValueAtTime(0.08, now);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(380, now);
+        gain.gain.setValueAtTime(0.24, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
         osc.connect(gain);
         gain.connect(customAudioCtx.destination);
@@ -431,8 +431,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
       setSyncNotice('🔍 Decodifica audio in corso: estrazione battiti e calcolo Tempo 1...');
 
-      // Background audio signal analyzer
-      analyzeAudioFile(file)
+      // Background audio signal analyzer con ottimizzazione per il genere selezionato
+      analyzeAudioFile(file, activeGenre)
         .then((result) => {
           setCustomTracks((prev) =>
             prev.map((t) =>
@@ -454,7 +454,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           );
           setActiveGenre(result.genre);
           setSyncNotice(
-            `✓ Ritmo Riconosciuto: Primo Tempo 1 a ${result.beatOffset.toFixed(2)}s (${result.beats.length} battiti agganciati all'onda sonora)`
+            `✓ Ritmo Riconosciuto (${result.genre.toUpperCase()}): Primo Tempo 1 a ${result.beatOffset.toFixed(2)}s (${result.beats.length} battiti agganciati)`
           );
           setTimeout(() => setSyncNotice(null), 4500);
         })
@@ -476,7 +476,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       prev.map((t) => (t.id === track.id ? { ...t, isAnalyzing: true } : t))
     );
     setSyncNotice('⚡ Decodifica e scansione dei transienti audio in corso...');
-    analyzeAudioFile(track.file)
+    analyzeAudioFile(track.file, track.genre || activeGenre)
       .then((result) => {
         setCustomTracks((prev) =>
           prev.map((t) =>
@@ -498,7 +498,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         );
         setActiveGenre(result.genre);
         setSyncNotice(
-          `✓ Battiti Riconosciuti: Primo Tempo 1 a ${result.beatOffset.toFixed(2)}s (${result.beats.length} battiti agganciati)`
+          `✓ Battiti Riconosciuti (${result.genre.toUpperCase()}): Primo Tempo 1 a ${result.beatOffset.toFixed(2)}s (${result.beats.length} battiti agganciati)`
         );
         setTimeout(() => setSyncNotice(null), 4500);
       })
@@ -538,13 +538,37 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  // Genre switch for custom track
+  // Genre switch for custom track con ricalibrazione ritmica automatica
   const handleToggleCustomGenre = (genre: DanceGenre) => {
     if (!currentCustomTrack) return;
     setActiveGenre(genre);
     setCustomTracks((prev) =>
       prev.map((t) => (t.id === currentCustomTrack.id ? { ...t, genre } : t))
     );
+
+    if (currentCustomTrack.file) {
+      setSyncNotice(`⚡ Ricalibrazione ritmo e battute per ${genre.toUpperCase()} in corso...`);
+      analyzeAudioFile(currentCustomTrack.file, genre)
+        .then((result) => {
+          setCustomTracks((prev) =>
+            prev.map((t) =>
+              t.id === currentCustomTrack.id
+                ? {
+                    ...t,
+                    genre: result.genre,
+                    bpm: result.bpm,
+                    beatOffset: result.beatOffset,
+                    beats: result.beats,
+                    details: result.details,
+                  }
+                : t
+            )
+          );
+          setSyncNotice(`✓ Ritmo ${genre.toUpperCase()} sincronizzato: Tempo 1 a ${result.beatOffset.toFixed(2)}s`);
+          setTimeout(() => setSyncNotice(null), 3500);
+        })
+        .catch(() => {});
+    }
   };
 
   // Close modal safely
@@ -573,27 +597,27 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       ? `${selectedTrack.bpm} BPM`
       : 'Ritmo Dinamico Audio';
 
-  // Labels for 8 beats
+  // Labels for 8 beats (nessun movimento o passo: solo tempo musicale pulito)
   const salsaBeatLabels = [
-    { num: 1, label: 'Tempo 1', sub: 'Avanti sx', strong: true },
-    { num: 2, label: 'Tempo 2', sub: 'Sul posto', strong: false },
-    { num: 3, label: 'Tempo 3', sub: 'Ritorno', strong: false },
-    { num: 4, label: 'Pausa', sub: 'Sospensione', pause: true },
-    { num: 5, label: 'Tempo 5', sub: 'Indietro dx', strong: true },
-    { num: 6, label: 'Tempo 6', sub: 'Sul posto', strong: false },
-    { num: 7, label: 'Tempo 7', sub: 'Ritorno', strong: false },
-    { num: 8, label: 'Pausa', sub: 'Sospensione', pause: true },
+    { num: 1, label: 'Tempo 1', sub: 'Battere', strong: true },
+    { num: 2, label: 'Tempo 2', sub: 'Levare', strong: false },
+    { num: 3, label: 'Tempo 3', sub: 'Battere', strong: false },
+    { num: 4, label: 'Tempo 4', sub: 'Pausa', pause: true },
+    { num: 5, label: 'Tempo 5', sub: 'Battere', strong: true },
+    { num: 6, label: 'Tempo 6', sub: 'Levare', strong: false },
+    { num: 7, label: 'Tempo 7', sub: 'Battere', strong: false },
+    { num: 8, label: 'Tempo 8', sub: 'Pausa', pause: true },
   ];
 
   const bachataBeatLabels = [
-    { num: 1, label: 'Tempo 1', sub: 'Passo sx', strong: true },
-    { num: 2, label: 'Tempo 2', sub: 'Chiudi dx', strong: false },
-    { num: 3, label: 'Tempo 3', sub: 'Passo sx', strong: false },
-    { num: 4, label: 'TAP', sub: 'Anca sx ✨', tap: true },
-    { num: 5, label: 'Tempo 5', sub: 'Passo dx', strong: true },
-    { num: 6, label: 'Tempo 6', sub: 'Chiudi sx', strong: false },
-    { num: 7, label: 'Tempo 7', sub: 'Passo dx', strong: false },
-    { num: 8, label: 'TAP', sub: 'Anca dx ✨', tap: true },
+    { num: 1, label: 'Tempo 1', sub: 'Battere', strong: true },
+    { num: 2, label: 'Tempo 2', sub: 'Levare', strong: false },
+    { num: 3, label: 'Tempo 3', sub: 'Battere', strong: false },
+    { num: 4, label: 'Tempo 4', sub: 'Tap', tap: true },
+    { num: 5, label: 'Tempo 5', sub: 'Battere', strong: true },
+    { num: 6, label: 'Tempo 6', sub: 'Levare', strong: false },
+    { num: 7, label: 'Tempo 7', sub: 'Battere', strong: false },
+    { num: 8, label: 'Tempo 8', sub: 'Tap', tap: true },
   ];
 
   const beatLabels = effectiveGenre === 'salsa' ? salsaBeatLabels : bachataBeatLabels;
@@ -1177,15 +1201,19 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 activeBeat >= 0 ? (
                   activeBeat === 0 ? (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F9C03E] text-[#042B58] font-bold text-xs shadow-lg shadow-[#F9C03E]/40 animate-pulse scale-105">
-                      🎯 ECCO L'1! Battere / Inizio Frase ({beatLabels[0].sub})
+                      🎯 ECCO L'1! Battere / Inizio Frase
                     </span>
                   ) : activeBeat === 4 ? (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#234C77] text-white font-semibold text-xs border border-[#88A5BF]/50">
-                      🔄 TEMPO 5: Seconda Metà Frase ({beatLabels[4].sub})
+                      🔄 TEMPO 5: Seconda Metà Frase
                     </span>
                   ) : (activeBeat === 3 || activeBeat === 7) && effectiveGenre === 'bachata' ? (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-400 text-[#042B58] font-bold text-xs">
-                      ✨ IL TAP! (Colpo d'anca - {beatLabels[activeBeat].sub})
+                      ✨ TEMPO {activeBeat + 1} — Il Tap!
+                    </span>
+                  ) : (activeBeat === 3 || activeBeat === 7) && effectiveGenre === 'salsa' ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#234C77] text-slate-200 text-xs border border-[#88A5BF]/40">
+                      Tempo {activeBeat + 1} (Pausa ritmica)
                     </span>
                   ) : (
                     <span className="text-xs text-slate-200">
@@ -1197,7 +1225,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   )
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-900/60 text-blue-200 border border-blue-400/40 text-xs font-medium animate-pulse">
-                    🎵 Intro musicale in corso... La ritmica sui passi (Tempo 1) inizia a breve
+                    🎵 Intro musicale in corso... La ritmica (Tempo 1) inizia a breve
                   </span>
                 )
               ) : (

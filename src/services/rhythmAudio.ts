@@ -548,8 +548,8 @@ class HarmonizedRhythmAudioEngine {
       vol = 0.35;
     } else if (beat === 3 || beat === 7) {
       if (isSalsa) {
-        freq = 330; // Pausa Salsa morbida
-        vol = 0.08;
+        freq = 380; // Battuta Tempo 4 e 8 Salsa (woodblock percussivo netto)
+        vol = 0.24;
       } else {
         freq = 950; // Tap Bachata brillante
         vol = 0.4;
