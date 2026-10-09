@@ -454,7 +454,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           );
           setActiveGenre(result.genre);
           setSyncNotice(
-            `✓ Ritmo Riconosciuto: ${result.bpm} BPM • Primo Tempo 1 a ${result.beatOffset.toFixed(2)}s (${result.beats.length} battiti agganciati all'onda sonora)`
+            `✓ Ritmo Riconosciuto: Primo Tempo 1 a ${result.beatOffset.toFixed(2)}s (${result.beats.length} battiti agganciati all'onda sonora)`
           );
           setTimeout(() => setSyncNotice(null), 4500);
         })
@@ -498,7 +498,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         );
         setActiveGenre(result.genre);
         setSyncNotice(
-          `✓ Battiti Riconosciuti: ${result.bpm} BPM • Primo Tempo 1 a ${result.beatOffset.toFixed(2)}s (${result.beats.length} battiti agganciati)`
+          `✓ Battiti Riconosciuti: Primo Tempo 1 a ${result.beatOffset.toFixed(2)}s (${result.beats.length} battiti agganciati)`
         );
         setTimeout(() => setSyncNotice(null), 4500);
       })
@@ -571,9 +571,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const activeBpmInfo =
     sourceMode === 'catalog'
       ? `${selectedTrack.bpm} BPM`
-      : currentCustomTrack
-      ? `${currentCustomTrack.bpm} BPM`
-      : 'BPM non impostato';
+      : 'Ritmo Dinamico Audio';
 
   // Labels for 8 beats
   const salsaBeatLabels = [
@@ -954,13 +952,14 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   {/* Valori Rilevati in Automatico dal Segnale Audio della Canzone */}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="p-2.5 rounded-xl bg-[#021831] border border-[#88A5BF]/30 text-left">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cadenza Naturale</span>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Stile Musicale</span>
                       <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-base font-bold font-mono text-[#F9C03E]">{currentCustomTrack.bpm}</span>
-                        <span className="text-[11px] text-slate-400 font-mono">BPM</span>
+                        <span className="text-base font-bold text-[#F9C03E]">
+                          {currentCustomTrack.genre === 'salsa' ? '💃 Salsa' : '✨ Bachata'}
+                        </span>
                       </div>
                       <span className="text-[9px] text-[#88A5BF] block mt-0.5">
-                        {currentCustomTrack.genre === 'salsa' ? 'Ritmo Salsa' : 'Ritmo Bachata'}
+                        {currentCustomTrack.genre === 'salsa' ? 'Ciclo a 8 tempi' : 'Ritmo con tap al 4 e 8'}
                       </span>
                     </div>
 
@@ -1069,7 +1068,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                             </span>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[10px] font-bold text-[#F9C03E]">
-                                {track.genre === 'salsa' ? 'Salsa' : 'Bachata'} • {track.bpm} BPM
+                                {track.genre === 'salsa' ? '💃 Salsa' : '✨ Bachata'} • {track.beats?.length ? `${track.beats.length} battiti` : 'Ritmo Sincronizzato'}
                               </span>
                               {isSelected && (
                                 <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
@@ -1119,9 +1118,9 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 <span>Conteggio Battute (8 Tempi)</span>
               </span>
               <span className="text-xs font-mono font-bold text-[#F9C03E]">
-                {sourceMode === 'catalog' && currentChordName
-                  ? `Accordo: ${currentChordName}`
-                  : activeBpmInfo}
+                {sourceMode === 'catalog'
+                  ? (currentChordName ? `Accordo: ${currentChordName}` : `${selectedTrack.bpm} BPM`)
+                  : (currentChordName || 'Ritmo Sincronizzato con l\'Audio')}
               </span>
             </div>
 
