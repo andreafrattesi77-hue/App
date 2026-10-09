@@ -379,12 +379,10 @@ class HarmonizedRhythmAudioEngine {
     // 2. ARMONIA (Pianoforte Salsa o Chitarra Bachata)
     if (this.mixer.harmony) {
       if (isSalsa) {
-        // Montuno pianoforte Salsa: battute sui passi 1, 3, 5, 7 e controtempi leggeri
-        if (beat === 0 || beat === 2 || beat === 4 || beat === 6) {
-          this.playPianoChord(time, chord.notes, 0.28);
-        }
-        if (beat === 1 || beat === 5) {
-          this.playPianoChord(time + halfBeat, chord.notes, 0.22);
+        // Montuno pianoforte Salsa: battute nitide sui passi 1, 2, 3 e 5, 6, 7
+        if (beat === 0 || beat === 1 || beat === 2 || beat === 4 || beat === 5 || beat === 6) {
+          const vol = (beat === 0 || beat === 4) ? 0.32 : 0.24;
+          this.playPianoChord(time, chord.notes, vol);
         }
       } else {
         // Arpeggio chitarra Bachata (plucked arpeggio su 1-2-3-4 e 5-6-7-8)
@@ -398,14 +396,13 @@ class HarmonizedRhythmAudioEngine {
     // 3. BASSO LATINO
     if (this.mixer.bass) {
       if (isSalsa) {
-        // Basso Salsa: ancoraggio solido sui tempi forti 1 e 5 + sostegno passi 3 e 7
+        // Basso Salsa: guida chiara per i ballerini sui passi 1, 2, 3 e 5, 6, 7. Pausa su 4 e 8.
         if (beat === 0 || beat === 4) {
           this.playBassNote(time, chord.bass, 0.55);
+        } else if (beat === 1 || beat === 5) {
+          this.playBassNote(time, chord.bass * 1.25, 0.40);
         } else if (beat === 2 || beat === 6) {
-          this.playBassNote(time, chord.bass * 1.25, 0.42);
-        }
-        if (beat === 3 || beat === 7) {
-          this.playBassNote(time, chord.bass, 0.32);
+          this.playBassNote(time, chord.bass * 1.12, 0.44);
         }
       } else {
         // Bachata Bass (battere 0 e 2, 4 e 6)
@@ -420,7 +417,7 @@ class HarmonizedRhythmAudioEngine {
     // 4. PERCUSSIONI (Congas, Clave, Güira, Bongò)
     if (this.mixer.percussion) {
       if (isSalsa) {
-        // Clave Son sui tempi guida
+        // Clave Son sui tempi forti
         if (beat === 0 || beat === 2 || beat === 4 || beat === 6) {
           this.playClave(time);
         }
@@ -432,12 +429,11 @@ class HarmonizedRhythmAudioEngine {
         if (beat === 0 || beat === 4) {
           this.playCongaOpen(time);
         }
-        if (beat === 3 || beat === 7) {
-          this.playCongaOpen(time + halfBeat);
-        }
 
-        // Bongò continuo
-        this.playBongo(time, beat % 2 === 0 ? 460 : 320);
+        // Bongò sui passi attivi (silenzio sulle pause 4 e 8)
+        if (beat !== 3 && beat !== 7) {
+          this.playBongo(time, beat % 2 === 0 ? 460 : 320);
+        }
       } else {
         // Bachata Güira (Raschio continuo sui 16esimi)
         const qtr = (60.0 / this.bpm) * 0.25;
@@ -549,8 +545,8 @@ class HarmonizedRhythmAudioEngine {
       vol = 0.38;
     } else if (beat === 3 || beat === 7) {
       if (isSalsa) {
-        freq = 300; // Pausa Salsa (click leggerissimo per non confondere il passo)
-        vol = 0.08;
+        // Pausa Salsa (tempi 4 e 8): silenzio completo per non disturbare la sospensione del passo!
+        return;
       } else {
         freq = 950; // Tap Bachata brillante
         vol = 0.4;

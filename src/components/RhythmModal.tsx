@@ -102,17 +102,8 @@ function playCustomClickSound(beat: number, isSalsa: boolean) {
       osc.stop(now + 0.16);
     } else if (beat === 3 || beat === 7) {
       if (isSalsa) {
-        // Pausa Salsa sui tempi 4 e 8: respiro soffuso impercettibile
-        const osc = customAudioCtx.createOscillator();
-        const gain = customAudioCtx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(260, now);
-        gain.gain.setValueAtTime(0.06, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.connect(gain);
-        gain.connect(customAudioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.06);
+        // Pausa Salsa sui tempi 4 e 8: silenzio completo per non disturbare la pausa del passo!
+        return;
       } else {
         // TAP Bachata: tocco acuto del bongò sul 4 e sull'8
         const osc = customAudioCtx.createOscillator();
@@ -700,6 +691,53 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             )}
           </div>
 
+          {/* BATTUTE MUSICALI (1 A 8) - VISIBILI SUBITO IN ALTO, NESSUN TESTO O SCHERMATA SOTTO */}
+          <div className="glass-card p-3 sm:p-4 text-center space-y-2">
+            <div className="flex items-center justify-between pb-1 border-b border-[#88A5BF]/20">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#88A5BF] flex items-center gap-1.5">
+                <Music className="w-3.5 h-3.5 text-[#F9C03E]" />
+                <span>Battute Musicali</span>
+              </span>
+              <span className="text-xs font-mono font-bold text-[#F9C03E]">
+                {sourceMode === 'catalog'
+                  ? `${selectedTrack.bpm} BPM`
+                  : currentCustomTrack?.bpm
+                  ? `${currentCustomTrack.bpm} BPM`
+                  : 'Sincronizzato con l\'Audio'}
+              </span>
+            </div>
+
+            {/* Griglia a 8 caselle fisse pulite (da 1 a 8) */}
+            <div className="grid grid-cols-8 gap-1 sm:gap-1.5 pt-1">
+              {beatList.map((item, idx) => {
+                const isActive = isPlaying && activeBeat === idx;
+                const isStrong = item.strong;
+
+                let padClasses = 'bg-[#021831]/80 border border-[#88A5BF]/20 text-slate-300';
+                if (isActive) {
+                  if (isStrong) {
+                    padClasses = 'bg-[#F9C03E] text-[#042B58] border border-[#F9C03E] shadow-xl shadow-[#F9C03E]/50 scale-105 font-black ring-2 ring-[#F9C03E]';
+                  } else {
+                    padClasses = 'bg-[#234C77] text-white border border-[#88A5BF]/80 shadow-lg shadow-[#234C77]/50 scale-105 font-bold ring-1 ring-white/50';
+                  }
+                } else if (isStrong) {
+                  padClasses = 'bg-[#021831]/90 border border-[#F9C03E]/40 text-[#F9C03E] font-semibold';
+                }
+
+                return (
+                  <div
+                    key={idx}
+                    className={`py-3 sm:py-3.5 px-1 rounded-xl flex items-center justify-center transition-all duration-75 select-none ${padClasses}`}
+                  >
+                    <span className="text-lg sm:text-2xl font-bold font-mono">
+                      {item.num}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* SORGENTE: Scelta tra "Brani del Metodo" e "Le mie Canzoni personali" */}
           <div className="glass-card p-1 grid grid-cols-2 gap-2">
             <button
@@ -1111,50 +1149,6 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               </div>
             </div>
           )}
-
-          {/* BEAT VISUALIZER 1 A 8 - SINCRONIZZATO E CON COLORI UFFICIALI */}
-          <div className="glass-card p-4 text-center space-y-2.5">
-            <div className="flex items-center justify-between pb-1 border-b border-[#88A5BF]/20">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#88A5BF] flex items-center gap-1.5">
-                <Music className="w-3.5 h-3.5 text-[#F9C03E]" />
-                <span>Battute Musicali (1 - 8)</span>
-              </span>
-              <span className="text-xs font-mono font-bold text-[#F9C03E]">
-                {sourceMode === 'catalog'
-                  ? `${selectedTrack.bpm} BPM`
-                  : 'Sincronizzato con l\'Audio'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 pt-1">
-              {beatList.map((item, idx) => {
-                const isActive = isPlaying && activeBeat === idx;
-                const isStrong = item.strong;
-
-                let padClasses = 'bg-[#021831]/70 border border-[#88A5BF]/20 text-slate-300';
-                if (isActive) {
-                  if (isStrong) {
-                    padClasses = 'bg-[#F9C03E] text-[#042B58] border border-[#F9C03E] shadow-xl shadow-[#F9C03E]/50 scale-105 font-black ring-2 ring-[#F9C03E]/50';
-                  } else {
-                    padClasses = 'bg-[#234C77] text-white border border-[#88A5BF]/80 shadow-lg shadow-[#234C77]/50 scale-105 font-bold ring-1 ring-white/30';
-                  }
-                } else if (isStrong) {
-                  padClasses = 'bg-[#021831]/80 border border-[#F9C03E]/40 text-[#F9C03E] font-semibold';
-                }
-
-                return (
-                  <div
-                    key={idx}
-                    className={`py-3.5 px-2 rounded-xl flex items-center justify-center transition-all duration-75 select-none ${padClasses}`}
-                  >
-                    <span className="text-xl sm:text-2xl font-bold font-mono">
-                      {item.num}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
         {/* Stable Audio Element for Custom Files */}
