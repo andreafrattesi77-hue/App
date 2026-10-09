@@ -398,7 +398,10 @@ class HarmonizedRhythmAudioEngine {
     // 3. BASSO LATINO
     if (this.mixer.bass) {
       if (isSalsa) {
-        // Tumbao Bass (suona sul beat 2.5 e 4; 6.5 e 8)
+        // Tumbao Bass con ancoraggio netto sui tempi 1 e 5 per tempo impeccabile
+        if (beat === 0 || beat === 4) {
+          this.playBassNote(time, chord.bass, 0.52);
+        }
         if (beat === 1 || beat === 5) {
           this.playBassNote(time + halfBeat, chord.bass, 0.45);
         }

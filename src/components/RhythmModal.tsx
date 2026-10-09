@@ -7,7 +7,6 @@ import {
   VolumeX,
   Music,
   Sparkles,
-  Footprints,
   Radio,
   Sliders,
   Upload,
@@ -260,15 +259,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 if (currentSec < nextBeatTime) {
                   const beatNum = beatObj.beat;
                   setActiveBeat(beatNum);
-                  setCurrentChordName(
-                    beatNum === 0
-                      ? 'Tempo 1 (Battere)'
-                      : beatNum === 4
-                      ? 'Tempo 5'
-                      : (beatNum === 3 || beatNum === 7) && currentCustomTrack.genre === 'bachata'
-                      ? 'TAP ✨'
-                      : `Tempo ${beatNum + 1}`
-                  );
+                  setCurrentChordName(`Tempo ${beatNum + 1}`);
 
                   // Guida sonora: scatta esattamente all'inizio di ogni nuovo battito
                   if (customClickEnabled && lastCustomBeatRef.current !== activeIdx) {
@@ -597,30 +588,17 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       ? `${selectedTrack.bpm} BPM`
       : 'Ritmo Dinamico Audio';
 
-  // Labels for 8 beats (nessun movimento o passo: solo tempo musicale pulito)
-  const salsaBeatLabels = [
-    { num: 1, label: 'Tempo 1', sub: 'Battere', strong: true },
-    { num: 2, label: 'Tempo 2', sub: 'Levare', strong: false },
-    { num: 3, label: 'Tempo 3', sub: 'Battere', strong: false },
-    { num: 4, label: 'Tempo 4', sub: 'Pausa', pause: true },
-    { num: 5, label: 'Tempo 5', sub: 'Battere', strong: true },
-    { num: 6, label: 'Tempo 6', sub: 'Levare', strong: false },
-    { num: 7, label: 'Tempo 7', sub: 'Battere', strong: false },
-    { num: 8, label: 'Tempo 8', sub: 'Pausa', pause: true },
+  // 8 Battute musicali (nessun movimento o testo sotto: solo battute a tempo di musica)
+  const beatList = [
+    { num: 1, strong: true },
+    { num: 2, strong: false },
+    { num: 3, strong: false },
+    { num: 4, strong: false },
+    { num: 5, strong: true },
+    { num: 6, strong: false },
+    { num: 7, strong: false },
+    { num: 8, strong: false },
   ];
-
-  const bachataBeatLabels = [
-    { num: 1, label: 'Tempo 1', sub: 'Battere', strong: true },
-    { num: 2, label: 'Tempo 2', sub: 'Levare', strong: false },
-    { num: 3, label: 'Tempo 3', sub: 'Battere', strong: false },
-    { num: 4, label: 'Tempo 4', sub: 'Tap', tap: true },
-    { num: 5, label: 'Tempo 5', sub: 'Battere', strong: true },
-    { num: 6, label: 'Tempo 6', sub: 'Levare', strong: false },
-    { num: 7, label: 'Tempo 7', sub: 'Battere', strong: false },
-    { num: 8, label: 'Tempo 8', sub: 'Tap', tap: true },
-  ];
-
-  const beatLabels = effectiveGenre === 'salsa' ? salsaBeatLabels : bachataBeatLabels;
 
   // Format seconds to mm:ss
   const formatTime = (secs: number) => {
@@ -983,7 +961,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                         </span>
                       </div>
                       <span className="text-[9px] text-[#88A5BF] block mt-0.5">
-                        {currentCustomTrack.genre === 'salsa' ? 'Ciclo a 8 tempi' : 'Ritmo con tap al 4 e 8'}
+                        Ciclo a 8 battute
                       </span>
                     </div>
 
@@ -1002,7 +980,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
                   {/* Selezione Stile per Allenamento */}
                   <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#88A5BF]/20">
-                    <span className="text-xs text-slate-300">Stile del ballo da applicare:</span>
+                    <span className="text-xs text-slate-300">Stile musicale da applicare:</span>
                     <div className="flex gap-1.5">
                       <button
                         onClick={() => handleToggleCustomGenre('salsa')}
@@ -1012,7 +990,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                             : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
                         }`}
                       >
-                        💃 Salsa (8 Tempi)
+                        Salsa (8 Battute)
                       </button>
                       <button
                         onClick={() => handleToggleCustomGenre('bachata')}
@@ -1022,7 +1000,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                             : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
                         }`}
                       >
-                        ✨ Bachata (con Tap)
+                        Bachata (8 Battute)
                       </button>
                     </div>
                   </div>
@@ -1138,99 +1116,65 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           <div className="glass-card p-4 text-center space-y-2.5">
             <div className="flex items-center justify-between pb-1 border-b border-[#88A5BF]/20">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[#88A5BF] flex items-center gap-1.5">
-                <Footprints className="w-3.5 h-3.5 text-[#F9C03E]" />
-                <span>Conteggio Battute (8 Tempi)</span>
+                <Music className="w-3.5 h-3.5 text-[#F9C03E]" />
+                <span>Battute Musicali (1 - 8)</span>
               </span>
               <span className="text-xs font-mono font-bold text-[#F9C03E]">
                 {sourceMode === 'catalog'
-                  ? (currentChordName ? `Accordo: ${currentChordName}` : `${selectedTrack.bpm} BPM`)
-                  : (currentChordName || 'Ritmo Sincronizzato con l\'Audio')}
+                  ? `${selectedTrack.bpm} BPM`
+                  : 'Sincronizzato con l\'Audio'}
               </span>
             </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 pt-1">
-              {beatLabels.map((item, idx) => {
-                // Sincronizzato con precisione audio
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 pt-1">
+              {beatList.map((item, idx) => {
                 const isActive = isPlaying && activeBeat === idx;
                 const isStrong = item.strong;
-                const isTap = 'tap' in item && item.tap;
 
                 let padClasses = 'bg-[#021831]/70 border border-[#88A5BF]/20 text-slate-300';
                 if (isActive) {
                   if (isStrong) {
-                    padClasses = 'bg-[#F9C03E] text-[#042B58] border border-[#F9C03E] shadow-lg shadow-[#F9C03E]/30 scale-105 font-bold';
-                  } else if (isTap) {
-                    padClasses = 'bg-gradient-to-r from-[#F9C03E] to-[#e6a820] text-[#042B58] border border-[#F9C03E] shadow-lg shadow-[#F9C03E]/30 scale-105 font-bold';
+                    padClasses = 'bg-[#F9C03E] text-[#042B58] border border-[#F9C03E] shadow-xl shadow-[#F9C03E]/50 scale-105 font-black ring-2 ring-[#F9C03E]/50';
                   } else {
-                    padClasses = 'bg-[#234C77] text-white border border-[#88A5BF]/60 shadow-md shadow-[#234C77]/40 scale-105 font-bold';
+                    padClasses = 'bg-[#234C77] text-white border border-[#88A5BF]/80 shadow-lg shadow-[#234C77]/50 scale-105 font-bold ring-1 ring-white/30';
                   }
                 } else if (isStrong) {
-                  padClasses = 'bg-[#021831]/80 border border-[#F9C03E]/30 text-[#F9C03E]';
-                } else if (isTap) {
-                  padClasses = 'bg-[#021831]/80 border border-[#F9C03E]/20 text-amber-200/80';
+                  padClasses = 'bg-[#021831]/80 border border-[#F9C03E]/40 text-[#F9C03E] font-semibold';
                 }
 
                 return (
                   <div
                     key={idx}
-                    className={`p-2 rounded-xl flex flex-col items-center justify-center transition-all duration-75 ${padClasses}`}
+                    className={`py-3.5 px-2 rounded-xl flex items-center justify-center transition-all duration-75 select-none ${padClasses}`}
                   >
-                    <span className="text-base sm:text-lg font-bold font-mono">
+                    <span className="text-xl sm:text-2xl font-bold font-mono">
                       {item.num}
-                    </span>
-                    <span
-                      className={`text-[8px] sm:text-[9px] font-semibold uppercase leading-tight truncate w-full text-center mt-0.5 ${
-                        isActive
-                          ? isStrong || isTap
-                            ? 'text-[#042B58]'
-                            : 'text-white'
-                          : isStrong
-                          ? 'text-[#F9C03E]'
-                          : 'text-slate-300'
-                      }`}
-                    >
-                      {item.sub}
                     </span>
                   </div>
                 );
               })}
             </div>
 
-            <div className="pt-1 text-center min-h-[32px] flex items-center justify-center">
+            <div className="pt-1 text-center min-h-[30px] flex items-center justify-center">
               {isPlaying ? (
                 activeBeat >= 0 ? (
-                  activeBeat === 0 ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F9C03E] text-[#042B58] font-bold text-xs shadow-lg shadow-[#F9C03E]/40 animate-pulse scale-105">
-                      🎯 ECCO L'1! Battere / Inizio Frase
-                    </span>
-                  ) : activeBeat === 4 ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#234C77] text-white font-semibold text-xs border border-[#88A5BF]/50">
-                      🔄 TEMPO 5: Seconda Metà Frase
-                    </span>
-                  ) : (activeBeat === 3 || activeBeat === 7) && effectiveGenre === 'bachata' ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-400 text-[#042B58] font-bold text-xs">
-                      ✨ TEMPO {activeBeat + 1} — Il Tap!
-                    </span>
-                  ) : (activeBeat === 3 || activeBeat === 7) && effectiveGenre === 'salsa' ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#234C77] text-slate-200 text-xs border border-[#88A5BF]/40">
-                      Tempo {activeBeat + 1} (Pausa ritmica)
-                    </span>
-                  ) : (
-                    <span className="text-xs text-slate-200">
-                      <strong className="text-white">Tempo {activeBeat + 1}:</strong>{' '}
-                      <span className="text-[#F9C03E] font-medium">
-                        {beatLabels[activeBeat].sub}
-                      </span>
-                    </span>
-                  )
+                  <span className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-mono font-bold transition-all ${
+                    activeBeat === 0
+                      ? 'bg-[#F9C03E] text-[#042B58] shadow-md shadow-[#F9C03E]/40 scale-105'
+                      : activeBeat === 4
+                      ? 'bg-[#234C77] text-white border border-[#88A5BF]/50'
+                      : 'bg-[#021831]/80 text-[#88A5BF] border border-[#88A5BF]/20'
+                  }`}>
+                    Battuta {activeBeat + 1} di 8
+                  </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-900/60 text-blue-200 border border-blue-400/40 text-xs font-medium animate-pulse">
-                    🎵 Intro musicale in corso... La ritmica (Tempo 1) inizia a breve
+                  <span className="text-xs text-blue-200 animate-pulse font-mono">
+                    In attesa della prima battuta...
                   </span>
                 )
               ) : (
-                <span className="text-[11px] text-slate-300">
-                  Musica ferma • Premi Riproduci per ascoltare e vedere il ritmo in tempo reale
+                <span className="text-[11px] text-slate-400">
+                  Musica in pausa • Premi Riproduci per seguire le battute
                 </span>
               )}
             </div>
@@ -1244,8 +1188,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             </div>
             <p className="text-[11px] text-slate-200 leading-relaxed">
               {effectiveGenre === 'salsa'
-                ? '«Nella Salsa non contare nella testa come un robot: ascolta il basso e il pianoforte. Il basso entra sul battere che ti lancia sul tempo 1. Se impari a sentire quel respiro, il tuo corpo si muoverà prima ancora che tu ci pensi.»'
-                : '«Nella Bachata la chitarra canta la melodia, ma è il colpo acuto del bongò che ti chiama il Tap sul tempo 4 e 8. Quando senti il Tap, solleva appena il tallone senza appoggiare il peso: ecco la magia della connessione fluida.»'}
+                ? '«Nella Salsa concentrati sulle battute della musica: ascolta l\'accento sul Tempo 1 e la risposta sul Tempo 5. Quando segui il tempo musicale con precisione e costanza, il ritmo diventa naturale e chiaro.»'
+                : '«Nella Bachata concentrati sulle 8 battute regolari scandite dalla chitarra e dalle percussioni. Rimani centrato sul battito della canzone: la musica ti scandisce il tempo esatto.»'}
             </p>
           </div>
         </div>

@@ -357,24 +357,24 @@ export async function analyzeAudioFile(
 
         if (detectedGenre === 'salsa') {
           // Firma acustica Salsa:
-          // Tempo 1 (f0): Piano montuno, attacco accordo principale (onsets forte), MA basso scarico!
-          if (f0 < analysisFrames) phaseScore += 3.5 * onsets[f0] - 1.2 * bassOnsets[f0];
+          // Tempo 1 (f0): Attacco d'inizio frase forte (onsets piano + percussioni + stacco netto)
+          if (f0 < analysisFrames) phaseScore += 4.2 * onsets[f0] + 1.8 * midOnsets[f0] + 1.0 * bassOnsets[f0];
           // Tempo 2 (f1): Slap della conga
-          if (f1 < analysisFrames) phaseScore += 2.2 * midOnsets[f1];
+          if (f1 < analysisFrames) phaseScore += 2.0 * midOnsets[f1];
           // Tempo 3 (f2): Ritorno pianoforte
           if (f2 < analysisFrames) phaseScore += 1.2 * onsets[f2];
-          // Tempo 4 (f3): Tumbao del basso + toni aperti della conga (MOLTO forte sui bassi)
-          if (f3 < analysisFrames) phaseScore += 4.0 * bassOnsets[f3] + 2.0 * midOnsets[f3];
-          // Tempo 5 (f4): Inizio seconda metà (onsets forte, basso scarico)
-          if (f4 < analysisFrames) phaseScore += 3.0 * onsets[f4] - 0.8 * bassOnsets[f4];
+          // Tempo 4 (f3): Tumbao del basso + toni aperti conga
+          if (f3 < analysisFrames) phaseScore += 2.8 * bassOnsets[f3] + 1.8 * midOnsets[f3];
+          // Tempo 5 (f4): Inizio seconda metà frase (forte attacco)
+          if (f4 < analysisFrames) phaseScore += 3.6 * onsets[f4] + 1.5 * midOnsets[f4] + 1.0 * bassOnsets[f4];
           // Tempo 6 (f5): Slap della conga
-          if (f5 < analysisFrames) phaseScore += 2.2 * midOnsets[f5];
+          if (f5 < analysisFrames) phaseScore += 2.0 * midOnsets[f5];
           // Tempo 7 (f6): Ritorno pianoforte
           if (f6 < analysisFrames) phaseScore += 1.2 * onsets[f6];
-          // Tempo 8 (f7): Tumbao del basso + toni aperti della conga (MOLTO forte sui bassi)
-          if (f7 < analysisFrames) phaseScore += 4.0 * bassOnsets[f7] + 2.0 * midOnsets[f7];
+          // Tempo 8 (f7): Tumbao del basso + toni aperti conga
+          if (f7 < analysisFrames) phaseScore += 2.8 * bassOnsets[f7] + 1.8 * midOnsets[f7];
           // Penalità per disallineamento a metà battito
-          if (fOff < analysisFrames) phaseScore -= 1.8 * onsets[fOff];
+          if (fOff < analysisFrames) phaseScore -= 2.0 * onsets[fOff];
         } else {
           // Firma acustica Bachata:
           // Tempo 1 (f0): Basso netto e cassa marcata sul battere 1
