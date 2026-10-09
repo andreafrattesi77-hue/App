@@ -102,17 +102,17 @@ function playCustomClickSound(beat: number, isSalsa: boolean) {
       osc.stop(now + 0.16);
     } else if (beat === 3 || beat === 7) {
       if (isSalsa) {
-        // Tempo 4 e 8 Salsa: battuta woodblock precisa e udibile
+        // Pausa Salsa sui tempi 4 e 8: respiro soffuso impercettibile
         const osc = customAudioCtx.createOscillator();
         const gain = customAudioCtx.createGain();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(380, now);
-        gain.gain.setValueAtTime(0.24, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.frequency.setValueAtTime(260, now);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
         osc.connect(gain);
         gain.connect(customAudioCtx.destination);
         osc.start(now);
-        osc.stop(now + 0.09);
+        osc.stop(now + 0.06);
       } else {
         // TAP Bachata: tocco acuto del bongò sul 4 e sull'8
         const osc = customAudioCtx.createOscillator();
@@ -127,12 +127,12 @@ function playCustomClickSound(beat: number, isSalsa: boolean) {
         osc.stop(now + 0.1);
       }
     } else {
-      // Altri tempi (2, 3, 6, 7): click discreto di supporto
+      // Tempi 2, 3, 6, 7: click chiaro e pulito a tempo di musica
       const osc = customAudioCtx.createOscillator();
       const gain = customAudioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(420, now);
-      gain.gain.setValueAtTime(0.2, now);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(480, now);
+      gain.gain.setValueAtTime(0.24, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
       osc.connect(gain);
       gain.connect(customAudioCtx.destination);
@@ -1154,43 +1154,6 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 );
               })}
             </div>
-
-            <div className="pt-1 text-center min-h-[30px] flex items-center justify-center">
-              {isPlaying ? (
-                activeBeat >= 0 ? (
-                  <span className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-mono font-bold transition-all ${
-                    activeBeat === 0
-                      ? 'bg-[#F9C03E] text-[#042B58] shadow-md shadow-[#F9C03E]/40 scale-105'
-                      : activeBeat === 4
-                      ? 'bg-[#234C77] text-white border border-[#88A5BF]/50'
-                      : 'bg-[#021831]/80 text-[#88A5BF] border border-[#88A5BF]/20'
-                  }`}>
-                    Battuta {activeBeat + 1} di 8
-                  </span>
-                ) : (
-                  <span className="text-xs text-blue-200 animate-pulse font-mono">
-                    In attesa della prima battuta...
-                  </span>
-                )
-              ) : (
-                <span className="text-[11px] text-slate-400">
-                  Musica in pausa • Premi Riproduci per seguire le battute
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Consiglio di Andrea Frattesi per l'ascolto */}
-          <div className="glass-card p-4 space-y-1.5 text-left border border-[#F9C03E]/30">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#F9C03E]">
-              <Sparkles className="w-3.5 h-3.5 text-[#F9C03E]" />
-              <span>Il Consiglio di Andrea per Sentire la Musica:</span>
-            </div>
-            <p className="text-[11px] text-slate-200 leading-relaxed">
-              {effectiveGenre === 'salsa'
-                ? '«Nella Salsa concentrati sulle battute della musica: ascolta l\'accento sul Tempo 1 e la risposta sul Tempo 5. Quando segui il tempo musicale con precisione e costanza, il ritmo diventa naturale e chiaro.»'
-                : '«Nella Bachata concentrati sulle 8 battute regolari scandite dalla chitarra e dalle percussioni. Rimani centrato sul battito della canzone: la musica ti scandisce il tempo esatto.»'}
-            </p>
           </div>
         </div>
 
