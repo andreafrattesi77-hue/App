@@ -1,8 +1,8 @@
 import { trovaUnitaPertinenti, getUnita, Unita } from '../../content/index';
-import { COACH_50_QUESTIONS, CoachQuestionItem } from './coachQuestionsData';
+import { COACH_100_QUESTIONS, CoachQuestionItem } from './coachQuestionsData';
 
 export type { CoachQuestionItem };
-export const OFFICIAL_COACH_QUESTIONS: CoachQuestionItem[] = COACH_50_QUESTIONS;
+export const OFFICIAL_COACH_QUESTIONS: CoachQuestionItem[] = COACH_100_QUESTIONS;
 
 interface CoachReasoningParams {
   message: string;
@@ -40,8 +40,8 @@ export function generateCoachReasoning(params: CoachReasoningParams): string {
   const studentName = userName?.trim() || '';
   const greeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
 
-  // Controllo prioritario: corrispondenza con una delle 50 domande ufficiali preparate
-  const exactMatch = COACH_50_QUESTIONS.find((item) => {
+  // Controllo prioritario: corrispondenza con una delle 100 domande ufficiali preparate
+  const exactMatch = COACH_100_QUESTIONS.find((item) => {
     const qLower = item.question.toLowerCase().trim();
     const sLower = item.summary.toLowerCase().trim();
     return msgLower === qLower || msgLower === sLower || msgLower.includes(qLower) || qLower.includes(msgLower);

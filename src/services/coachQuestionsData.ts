@@ -1115,3 +1115,10 @@ I principi dell'Effetto Calamita sono leggi universali della dinamica umana:
 Concludi il tuo percorso studiando [[cap16]] e il Piano 21 Serate!`,
   },
 ];
+
+import { COACH_QUESTIONS_51_TO_100 } from './coachQuestions100';
+
+export const COACH_100_QUESTIONS: CoachQuestionItem[] = [
+  ...COACH_50_QUESTIONS,
+  ...COACH_QUESTIONS_51_TO_100,
+];

@@ -203,6 +203,22 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     },
   ];
 
+  // Map category questions to get sequential number 1..N within category (and 1..10 inside each category tab)
+  const getQuestionNumberLabel = (q: CoachQuestionItem) => {
+    if (activeCategory === 'all') {
+      // Nel tab Tutte: mostriamo il numero progressivo nella sua categoria (1..10 o 1..20) e globale
+      const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
+      const catIndex = catQuestions.findIndex((item) => item.id === q.id);
+      const numInCat = catIndex >= 0 ? (catIndex % 10) + 1 : 1;
+      return `${numInCat}`;
+    }
+    // Nel tab di specifica categoria: numerazione da 1 a 10 (o successivi se oltre 10)
+    const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
+    const catIndex = catQuestions.findIndex((item) => item.id === q.id);
+    const numInCat = catIndex >= 0 ? (catIndex % 10) + 1 : 1;
+    return `${numInCat}`;
+  };
+
   // Filter questions
   const filteredQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => {
     const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
@@ -271,7 +287,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
           </div>
           <div>
             <h2 className="text-sm font-bold font-serif text-white">Andrea Frattesi</h2>
-            <p className="text-[10px] text-[#F9C03E] font-medium">Coach Ufficiale • 20 Domande del Metodo</p>
+            <p className="text-[10px] text-[#F9C03E] font-medium">Coach Ufficiale • 100 Domande del Metodo</p>
           </div>
         </div>
 
@@ -299,10 +315,10 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
               </div>
               <p className="text-xs text-slate-200 leading-relaxed">
                 {currentUserName ? `Ciao ${currentUserName}! ` : 'Ciao! '}
-                Per offrirti risposte della massima profondità psicologica e perfettamente allineate al <strong>Metodo Effetto Calamita</strong>, seleziona una delle <strong>20 domande più frequenti</strong> qui sotto.
+                Per offrirti risposte della massima profondità psicologica e perfettamente allineate al <strong>Metodo Effetto Calamita</strong>, seleziona una delle <strong>100 domande del Metodo</strong> qui sotto suddivise per categoria (numerate da 1 a 10).
               </p>
               <div className="p-2 rounded-xl bg-[#021831]/80 border border-[#88A5BF]/20 text-[11px] text-[#88A5BF] flex items-center justify-between">
-                <span>🎯 20 Domande frequenti selezionate</span>
+                <span>🎯 100 Domande ufficiali del Metodo</span>
                 <span className="text-[#F9C03E] font-semibold font-mono">Disponibili: {remainingToday}/20</span>
               </div>
             </div>
@@ -332,29 +348,37 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                 Tocca una domanda per ricevere l'analisi del Coach:
               </span>
 
-              {filteredQuestions.map((q: CoachQuestionItem) => (
-                <button
-                  key={q.id}
-                  onClick={() => handleSendMessage(q.question)}
-                  disabled={remainingToday <= 0 || isLoading}
-                  className="w-full p-3 rounded-2xl bg-[#042B58]/80 hover:bg-[#234C77] border border-[#88A5BF]/25 hover:border-[#F9C03E]/60 text-left transition-all duration-150 flex flex-col gap-1.5 group cursor-pointer shadow-sm disabled:opacity-50"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#021831] text-[#F9C03E] border border-[#F9C03E]/30">
-                      {q.categoryLabel}
+              {filteredQuestions.map((q: CoachQuestionItem) => {
+                const numLabel = getQuestionNumberLabel(q);
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => handleSendMessage(q.question)}
+                    disabled={remainingToday <= 0 || isLoading}
+                    className="w-full p-3 rounded-2xl bg-[#042B58]/80 hover:bg-[#234C77] border border-[#88A5BF]/25 hover:border-[#F9C03E]/60 text-left transition-all duration-150 flex flex-col gap-1.5 group cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-md bg-[#F9C03E] text-[#042B58] font-mono font-black text-[11px] flex items-center justify-center shadow-xs">
+                          {numLabel}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#021831] text-[#F9C03E] border border-[#F9C03E]/30">
+                          {q.categoryLabel}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 group-hover:text-[#F9C03E] transition-colors">
+                        Consulta →
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-white group-hover:text-amber-100 transition-colors leading-snug">
+                      {q.question}
+                    </p>
+                    <span className="text-[11px] text-[#88A5BF]">
+                      💡 {q.summary}
                     </span>
-                    <span className="text-[10px] text-slate-400 group-hover:text-[#F9C03E] transition-colors">
-                      Consulta →
-                    </span>
-                  </div>
-                  <p className="text-xs font-semibold text-white group-hover:text-amber-100 transition-colors leading-snug">
-                    {q.question}
-                  </p>
-                  <span className="text-[11px] text-[#88A5BF]">
-                    💡 {q.summary}
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -440,7 +464,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         </div>
       )}
 
-      {/* Bottom Panel: 20 Questions Directory (Replaces free text input) */}
+      {/* Bottom Panel: 100 Questions Directory (Replaces free text input) */}
       <div className="p-3 bg-[#042B58] border-t border-[#88A5BF]/25 shrink-0 flex flex-col gap-2">
         {/* Toggle button to expand/collapse full question browser when in active conversation */}
         <div className="flex items-center justify-between">
@@ -452,7 +476,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
             <span>
               {isQuestionPickerExpanded
                 ? 'Nascondi lista domande'
-                : 'Scegli una domanda per il Coach (20 disponibili)'}
+                : 'Scegli una domanda per il Coach (100 disponibili)'}
             </span>
             {isQuestionPickerExpanded ? (
               <ChevronDown className="w-3.5 h-3.5 text-[#F9C03E]" />
@@ -490,39 +514,47 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         {/* Expandable / Collapsible Question Drawer */}
         {isQuestionPickerExpanded && (
           <div className="mt-1 space-y-2 max-h-64 overflow-y-auto pr-1 animate-fadeIn border-t border-[#88A5BF]/15 pt-2 text-left">
-            {/* Search box among the 20 questions */}
+            {/* Search box among the 100 questions */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cerca tra le 20 domande (es. salsa, rifiuto, sguardo...)"
+                placeholder="Cerca tra le 100 domande (es. salsa, rifiuto, tempo 1, sguardo...)"
                 className="w-full pl-8 pr-3 py-1.5 bg-[#021831] border border-[#88A5BF]/30 rounded-xl text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#F9C03E]"
               />
             </div>
 
             <div className="space-y-1.5">
-              {filteredQuestions.map((q: CoachQuestionItem) => (
-                <button
-                  key={q.id}
-                  onClick={() => handleSendMessage(q.question)}
-                  disabled={remainingToday <= 0 || isLoading}
-                  className="w-full p-2.5 rounded-xl bg-[#021831]/80 hover:bg-[#234C77] border border-[#88A5BF]/20 hover:border-[#F9C03E]/50 text-left transition-all flex flex-col gap-1 group cursor-pointer disabled:opacity-40"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#F9C03E]">
-                      {q.categoryLabel}
-                    </span>
-                    <span className="text-[10px] text-slate-400 group-hover:text-white font-medium">
-                      Invia →
-                    </span>
-                  </div>
-                  <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug">
-                    {q.question}
-                  </p>
-                </button>
-              ))}
+              {filteredQuestions.map((q: CoachQuestionItem) => {
+                const numLabel = getQuestionNumberLabel(q);
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => handleSendMessage(q.question)}
+                    disabled={remainingToday <= 0 || isLoading}
+                    className="w-full p-2.5 rounded-xl bg-[#021831]/80 hover:bg-[#234C77] border border-[#88A5BF]/20 hover:border-[#F9C03E]/50 text-left transition-all flex flex-col gap-1 group cursor-pointer disabled:opacity-40"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-4 h-4 rounded-md bg-[#F9C03E] text-[#042B58] font-mono font-black text-[10px] flex items-center justify-center">
+                          {numLabel}
+                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#F9C03E]">
+                          {q.categoryLabel}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 group-hover:text-white font-medium">
+                        Invia →
+                      </span>
+                    </div>
+                    <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug">
+                      {q.question}
+                    </p>
+                  </button>
+                );
+              })}
 
               {filteredQuestions.length === 0 && (
                 <div className="p-3 text-center text-xs text-slate-400">
@@ -536,17 +568,22 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         {/* Quick Suggestion buttons when drawer is closed and messages exist */}
         {!isQuestionPickerExpanded && hasMessages && (
           <div className="overflow-x-auto py-1 scrollbar-none flex gap-1.5">
-            {filteredQuestions.slice(0, 4).map((q) => (
-              <button
-                key={q.id}
-                onClick={() => handleSendMessage(q.question)}
-                disabled={remainingToday <= 0 || isLoading}
-                className="text-[11px] whitespace-nowrap px-3 py-1.5 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-200 hover:text-white border border-[#88A5BF]/30 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shrink-0"
-              >
-                <span>💬</span>
-                <span className="max-w-[180px] truncate">{q.summary}</span>
-              </button>
-            ))}
+            {filteredQuestions.slice(0, 5).map((q) => {
+              const numLabel = getQuestionNumberLabel(q);
+              return (
+                <button
+                  key={q.id}
+                  onClick={() => handleSendMessage(q.question)}
+                  disabled={remainingToday <= 0 || isLoading}
+                  className="text-[11px] whitespace-nowrap px-3 py-1.5 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-200 hover:text-white border border-[#88A5BF]/30 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                >
+                  <span className="w-4 h-4 rounded bg-[#F9C03E] text-[#042B58] font-mono font-bold text-[10px] flex items-center justify-center">
+                    {numLabel}
+                  </span>
+                  <span className="max-w-[180px] truncate">{q.summary}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 
