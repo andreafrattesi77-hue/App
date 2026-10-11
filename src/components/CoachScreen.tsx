@@ -348,35 +348,61 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                 Tocca una domanda per ricevere l'analisi del Coach:
               </span>
 
-              {filteredQuestions.map((q: CoachQuestionItem) => {
+              {filteredQuestions.map((q: CoachQuestionItem, idx: number) => {
                 const numLabel = getQuestionNumberLabel(q);
+                const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
+                const catIndex = catQuestions.findIndex((item) => item.id === q.id);
+                const isFirstOfPart1 = activeCategory !== 'all' ? catIndex === 0 : (idx === 0 || filteredQuestions[idx - 1].category !== q.category);
+                const isFirstOfPart2 = activeCategory !== 'all' ? catIndex === 10 : (catIndex === 10);
+
                 return (
-                  <button
-                    key={q.id}
-                    onClick={() => handleSendMessage(q.question)}
-                    disabled={remainingToday <= 0 || isLoading}
-                    className="w-full p-3 rounded-2xl bg-[#042B58]/80 hover:bg-[#234C77] border border-[#88A5BF]/25 hover:border-[#F9C03E]/60 text-left transition-all duration-150 flex flex-col gap-1.5 group cursor-pointer shadow-sm disabled:opacity-50"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-md bg-[#F9C03E] text-[#042B58] font-mono font-black text-[11px] flex items-center justify-center shadow-xs">
-                          {numLabel}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#021831] text-[#F9C03E] border border-[#F9C03E]/30">
-                          {q.categoryLabel}
+                  <React.Fragment key={q.id}>
+                    {isFirstOfPart1 && (
+                      <div className="pt-2 pb-1 flex items-center justify-between text-[11px] font-bold text-[#F9C03E] uppercase tracking-wider border-b border-[#F9C03E]/20">
+                        <span>📋 Parte 1 – Fondamenta & Dinamiche (Domande 1 - 10)</span>
+                        <span className="text-[10px] text-[#88A5BF] font-mono">1 a 10</span>
+                      </div>
+                    )}
+                    {isFirstOfPart2 && (
+                      <div className="pt-3 pb-1 flex items-center justify-between text-[11px] font-bold text-amber-300 uppercase tracking-wider border-b border-amber-300/20">
+                        <span>🎯 Parte 2 – Casi Pratici & Calibrazione (Domande 1 - 10)</span>
+                        <span className="text-[10px] text-[#88A5BF] font-mono">1 a 10</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => handleSendMessage(q.question)}
+                      disabled={remainingToday <= 0 || isLoading}
+                      className="w-full p-3 rounded-2xl bg-[#042B58]/80 hover:bg-[#234C77] border border-[#88A5BF]/25 hover:border-[#F9C03E]/60 text-left transition-all duration-150 flex flex-col gap-2 group cursor-pointer shadow-sm disabled:opacity-50"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-md bg-[#F9C03E] text-[#042B58] font-mono font-black text-xs flex items-center justify-center shadow-xs">
+                            {numLabel}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#021831] text-[#F9C03E] border border-[#F9C03E]/30">
+                            Domanda {numLabel} • {q.categoryLabel}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 group-hover:text-[#F9C03E] transition-colors">
+                          Consulta →
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 group-hover:text-[#F9C03E] transition-colors">
-                        Consulta →
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-white group-hover:text-amber-100 transition-colors leading-snug">
-                      {q.question}
-                    </p>
-                    <span className="text-[11px] text-[#88A5BF]">
-                      💡 {q.summary}
-                    </span>
-                  </button>
+
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-6 h-6 rounded-lg bg-[#F9C03E] text-[#042B58] font-mono font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                          {numLabel}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-white group-hover:text-amber-100 transition-colors leading-snug">
+                            {q.question}
+                          </p>
+                          <span className="text-[11px] text-[#88A5BF] block mt-1">
+                            💡 {q.summary}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -542,16 +568,21 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                           {numLabel}
                         </span>
                         <span className="text-[9px] font-bold uppercase tracking-wider text-[#F9C03E]">
-                          {q.categoryLabel}
+                          Domanda {numLabel} • {q.categoryLabel}
                         </span>
                       </div>
                       <span className="text-[10px] text-slate-400 group-hover:text-white font-medium">
                         Invia →
                       </span>
                     </div>
-                    <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug">
-                      {q.question}
-                    </p>
+                    <div className="flex items-start gap-1.5">
+                      <span className="w-4 h-4 rounded bg-[#F9C03E] text-[#042B58] font-mono font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                        {numLabel}
+                      </span>
+                      <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug flex-1">
+                        {q.question}
+                      </p>
+                    </div>
                   </button>
                 );
               })}

@@ -96,7 +96,7 @@ Dura tra i 2 e i 4 secondi: incontra i suoi occhi, accenna un sorriso autentico 
 2. **Spostamento Lento:** Non scattare via con la testa: sposta lo sguardo con calma verso la musica o il barista.
 3. **Il Cabeceo di Invito:** Se vedi che lei ricambia il sorriso o il suo sguardo torna una seconda volta, fai un cenno morbido con il mento verso la pista: l'invito è già fatto a metà prima di muovere un passo.
 
-Trovi tutti i dettagli tecnici dello Sguardo Ancora in [[cap04]]!`,
+Trovi tutti i dettagli tecnici dello Sguardo Ancora in [[cap12]]!`,
   },
   {
     id: 'q_05_gestione_rifiuto',
@@ -159,7 +159,7 @@ Se il tuo obiettivo è costruire il **Secondo Ballo** (la connessione emotiva), 
 2. **Aspetta il Tempo Medio:** Scegli una salsa romantica o una bachata cadenzata (125-140 BPM). È su quei tempi che puoi respirare, guardarla negli occhi e applicare la Tensione Lenta.
 3. **Se Sei Già in Pista:** Se parte veloce mentre sei con lei, riduci le figure complesse: fai passi base ampi, gioca col ritmo e sorridi senza fare acrobazie.
 
-Rileggi la guida alla musicalità in [[bonus3]]!`,
+Rileggi la selezione strategica delle figure e la gestione del brano in [[cap10]] e [[cap03]]!`,
   },
   {
     id: 'q_08_invito_non_verbale',
@@ -182,7 +182,7 @@ Ripreso dalla tradizione più raffinata del tango e adattato alla salsa/bachata:
 2. Fai la Mirada: aspetta che lei sostenga lo sguardo.
 3. Fai il cenno col capo: se lei annuisce, ti sorride o fa un passo avanti, l'invito è accettato. A quel punto ti incammini verso di lei per prenderle la mano: zero imbarazzo, 100% classe.
 
-Approfondisci i segnali non verbali in [[cap04]]!`,
+Approfondisci i segnali non verbali e lo Sguardo Ancora in [[cap12]] e [[cap07]]!`,
   },
   {
     id: 'q_09_ansia_giudizio_altri',
@@ -224,7 +224,7 @@ Un uomo solo, curato, che si muove con passo sicuro e non si nasconde dietro lo 
 2. **Punto Neutro:** Posizionati a un terzo della pista, mai negli angoli bui o con la schiena al muro.
 3. **Primo Ballo Senza Pretese:** Entro 10 minuti invita una persona sorridente. Vedendoti ballare sereno, le altre donne in sala capiranno subito che sei un leader affidabile.
 
-Studia il Piano per le serate in solitaria in [[bonus4]]!`,
+Studia le dinamiche della presenza in sala e il rituale in [[cap09]] e [[bonus2]]!`,
   },
 
   // ==========================================
@@ -250,7 +250,7 @@ Tu non devi tirare lei verso di te: devi allineare il tuo Asse, aprire il petto 
 2. **L'Invito Corporeo:** Porta la mano destra sulla sua scapola con una pressione leggerissima (3 su 10). Se lei rilassa il peso e si avvicina, accoglila dolcemente; se mantiene la distanza, rispetta il suo spazio con il sorriso.
 3. **Non Stringere Mai:** L'abbraccio deve essere una cornice solida ma traspirante, mai una morsa.
 
-Approfondisci la Scala della Distanza in [[cap09]]!`,
+Approfondisci la Scala della Distanza in [[cap14]]!`,
   },
   {
     id: 'q_12_tensione_lenta',
@@ -272,7 +272,7 @@ Quando crei una pausa morbida, trattieni il respiro per un battito e mantieni il
 2. **Pressione Graduale:** Non muovere le braccia a scatti: ogni transizione deve fluire come se vi muoveste nell'acqua tiepida.
 3. **Sguardo di Sospensione:** Durante un rallentamento, guarda i suoi occhi per 2 secondi senza muovere figure complesse. Sentirai il suo respiro sincronizzarsi al tuo.
 
-Trovi tutti gli esercizi di Tensione Lenta in [[cap09]]!`,
+Trovi tutti gli esercizi di Tensione Lenta in [[cap13]]!`,
   },
   {
     id: 'q_13_bachata_tap',
@@ -294,7 +294,7 @@ La donna muove l'anca spontaneamente quando sente che il tuo peso corporeo è ar
 2. **Braccia Neutre:** Mantieni i gomiti rilassati e stabili. Non tirarla verso l'alto né verso il basso durante il Tap.
 3. **Ascolto del Bongò:** Il colpo acuto del bongò ti avvisa quando arriva il Tap: ascoltalo con l'orecchio e lasciale lo spazio per esprimere la sua femminilità.
 
-Esercitati con l'Allenatore di Ritmo integrato e rileggi [[cap09]]!`,
+Esercitati con l'Allenatore di Ritmo integrato e rileggi [[cap06]] e [[cap11]]!`,
   },
   {
     id: 'q_14_lettura_segnali_bachata',
@@ -316,7 +316,7 @@ Il corpo femminile comunica con una precisione millimetrica attraverso il **Rada
 1. **Test del Rilascio di 5 Centimetri:** Fai un passo indietro di pochi centimetri. Se lei naturalmente ti segue e richiude la distanza, è attratta. Se rimane indietro, mantieni la posizione aperta con totale eleganza.
 2. **Zero Pressione:** Se noti un segnale rosso, allarga immediatamente la presa senza alcun risentimento: apprezzerà il tuo rispetto all'istante.
 
-Trovi il Radar dei Segnali dettagliato in [[cap12]]!`,
+Trovi il Radar dei Segnali dettagliato in [[bonus4]] e la gestione della distanza in [[cap14]]!`,
   },
   {
     id: 'q_15_bachata_dominicana_vs_sensual',
@@ -339,7 +339,7 @@ La musica ti dice cosa fare:
 2. **Annuncia la Transizione col Respiro:** Non tirarla a te di scatto: respira, rallenta il passo base e invitala all'abbraccio ravvicinato.
 3. **Torna in Aperto sui Giri:** Quando il requinto riprende a picchiare sui tempi veloci, riapri la presa per farla girare e divertire.
 
-Rileggi gli accorgimenti musicali in [[cap09]] e [[bonus3]]!`,
+Rileggi la gestione del ritmo e della distanza in [[cap13]] e [[cap14]]!`,
   },
   {
     id: 'q_16_guida_delle_onde',
@@ -360,7 +360,7 @@ Nel Metodo l'onda non si crea con le mani: si crea con il **tuo stesso corpo**. 
 2. **Guida dal Petto:** Inizia il movimento dal tuo sterno, trasferendo l'intenzione attraverso il frame delle braccia.
 3. **Calibrazione dell'Arco:** Non forzare mai archi ampi su ballerine che non conosci: accenna solo un'onda leggera e rispetta il limite naturale della sua flessibilità.
 
-Approfondisci la tecnica del frame morbido in [[cap03]] e [[cap09]]!`,
+Approfondisci la tecnica del frame morbido e dell'Asse in [[cap06]] e [[cap13]]!`,
   },
   {
     id: 'q_17_mano_sinistra_bachata',
@@ -381,7 +381,7 @@ La mano sinistra ha due funzioni: **sicurezza** e **comunicazione**. Nell'abbrac
 2. **Pressione Piuma:** Tieni una presa di 2 su 10. Se dovessi togliere la mano di colpo, la sua mano non dovrebbe cadere né sentirsi tirata.
 3. **Alternativa al Petto:** Puoi portare delicatamente le mani congiunte vicino alla spalla o lasciarla appoggiare sul tuo braccio in modo accogliente.
 
-Trovi tutti i dettagli posturali in [[cap03]]!`,
+Trovi tutti i dettagli posturali e del Contatto Zero in [[cap11]]!`,
   },
   {
     id: 'q_18_evitare_sudorazione_contatto',
@@ -444,7 +444,7 @@ Nel Metodo insegniamo il **Silenzio Pieno**: un uomo a suo agio nel silenzio com
 2. **Sguardo Dolce:** Guarda i suoi occhi con un mezzo sorriso disteso: sentirai che la sua testa si appoggerà naturalmente al tuo petto o alla spalla.
 3. **Riparti sul Battere:** Quando la melodia esplode di nuovo sul tempo 1, riprendi il passo base con decisione: l'effetto emotivo sarà memorabile.
 
-Trovi tutti i segreti della Tensione Lenta in [[cap09]]!`,
+Trovi tutti i segreti della Tensione Lenta in [[cap13]] e le Parole del Filo in [[cap15]]!`,
   },
 
   // ==========================================
@@ -494,7 +494,7 @@ La guida parte dai piedi, passa attraverso l'Asse vertebrale e si trasmette con 
 2. **Guida con il Peso:** Prima di guidare una dama in un giro, fai un passo solido sul tuo Asse e ruota la spalla sinistra: vedrai che lei girerà senza che tu debba fare forza con le dita.
 3. **Respiro Basso:** Quando senti che le braccia si irrigidiscono, espira profondamente e abbassa le spalle.
 
-Studia il capitolo sul Contatto Zero in [[cap03]]!`,
+Studia il capitolo sull'Asse e sul Contatto Zero in [[cap06]] e [[cap11]]!`,
   },
   {
     id: 'q_23_salsa_tempo_1',
@@ -516,7 +516,7 @@ Il **Tempo 1** è annunciato dal basso (Tumbao) e dall'accordo d'apertura del pi
 2. **Il Passo Sinistro sul Battere:** Quando senti l'accordo pieno del pianoforte, quello è l'1: affonda il passo sinistro in avanti con calma e decisione.
 3. **Allenamento Dedicato:** Usa la sezione Musica dell'app con i brani a BPM comodi (148-152) per automatizzare l'orecchio.
 
-Approfondisci la musicalità pratica in [[bonus3]]!`,
+Approfondisci la sequenza naturale e la musicalità in [[cap03]] e [[cap13]]!`,
   },
   {
     id: 'q_24_partner_balla_sola',
@@ -538,7 +538,7 @@ Se lei oppone resistenza, molto spesso ha paura di sbagliare, ha avuto cattive e
 2. **Sospensione di Calibrazione:** Quando senti che lei parte in anticipo, fermati un istante sul passo base, sorridile negli occhi e falla respirare.
 3. **Adattamento:** Accetta il suo livello senza volerle fare da insegnante. Chi insegna in pista perde all'istante ogni fascino seduttivo.
 
-Trovi le regole del Galateo e della Leadership in [[cap05]]!`,
+Trovi le regole della leadership non invasiva in [[cap03]] e [[cap10]]!`,
   },
   {
     id: 'q_25_distinguere_1_e_5',
@@ -561,7 +561,7 @@ Nel ciclo musicale a 8 tempi:
 2. **La Campana (Bongo cowbell):** Nel montuno forte la campana picchia sui tempi 1, 3, 5, 7, ma con accento discendente sull'1.
 3. **Se Sbagli:** Non fermarti di colpo: fai una camminata morbida sul posto di 4 battute e riaggancia il passo sinistro in avanti sul battere successivo!
 
-Allenati ogni giorno con l'Allenatore di Ritmo in [[bonus3]]!`,
+Allenati ogni giorno con l'Allenatore di Ritmo e studia l'Asse in [[cap03]] e [[cap06]]!`,
   },
   {
     id: 'q_26_salsa_cubana_vs_linea',
@@ -583,7 +583,7 @@ Cercare di fare figure in linea con una dama abituata alla cubana (o viceversa) 
 2. **Non Imporre la Tua Scuola:** Adattati al dialetto corporeo della partner con un sorriso.
 3. **Mantieni l'Asse:** In entrambi gli stili, la postura eretta e le spalle rilassate rimangono l'ancora fondamentale.
 
-Approfondisci la calibrazione con la partner in [[cap05]]!`,
+Approfondisci la selezione strategica delle figure in [[cap10]] e [[cap03]]!`,
   },
   {
     id: 'q_27_dile_que_no_fluido',
@@ -626,7 +626,7 @@ Una donna perdona qualsiasi errore di passo, ma non perdona mai un uomo che la l
 2. **Riduci il Raggio:** Fai passi base compatti di 20 centimetri e cancella le figure a braccia aperte.
 3. **Lo Scudo Corporeo:** Se vedi qualcuno cadere all'indietro verso di lei, interponi la tua schiena o il tuo avambraccio per attutire l'urto e stringila dolcemente a te dicendole col sorriso: *"Tranquilla, ci sono io"*.
 
-Approfondisci il ruolo del Leader Protetto in [[cap05]]!`,
+Approfondisci il ruolo del Leader Protetto e l'Asse in [[cap06]] e [[cap10]]!`,
   },
   {
     id: 'q_29_gestire_errore_di_tempo',
@@ -669,7 +669,7 @@ Nei pasitos non vince la ginnastica dei piedi: vince il **godimento corporeo e i
 2. **Passo Base Largo con Spalle:** Fai suzy-q o passo base incrociato semplice, rilassando le ginocchia e le spalle.
 3. **Invito a Tornare:** Dopo 16 battute allunga la mano con calma e riprendila nell'abbraccio con un complimento sussurrato: *"Bello questo stacco!"*.
 
-Approfondisci la presenza scenica in [[cap04]] e [[cap11]]!`,
+Approfondisci la presenza scenica e lo Sguardo Ancora in [[cap06]] e [[cap12]]!`,
   },
 
   // ==========================================
@@ -695,7 +695,7 @@ Se il ballo è stato carino ma la fine è banale o sbrigativa, il valore percepi
 2. **Il Finale Netto:** Chiudi l'ultimo battito con fermezza e un sorriso aperto.
 3. **Mano Ferma:** Non ritrarre le braccia quando il suono tace: mantieni il contatto per due secondi pieni guardandola negli occhi.
 
-Trovi tutti i dettagli del picco e della fine in [[cap04]]!`,
+Trovi tutti i dettagli del picco e della fine in [[cap16]]!`,
   },
   {
     id: 'q_32_chiusura_calamita',
@@ -717,7 +717,7 @@ Quando l'ultimo accordo muore, tu non lasci andare la mano. Resti lì con la pos
 2. **Il Rilascio Dolce:** Fai scivolare via le dita lentamente, senza scatti improvvisi.
 3. **La Transizione:** Apri la postura lateralmente per rompere il congedo automatico e avviare la conversazione ponte.
 
-Rivedi il protocollo Chiusura Calamita in [[cap04]]!`,
+Rivedi il protocollo Chiusura Calamita in [[cap16]] e il Contatto Zero in [[cap11]]!`,
   },
   {
     id: 'q_33_cosa_dire_dopo',
@@ -739,7 +739,7 @@ L'apprezzamento non deve riguardare la bravura tecnica, ma una qualità emotiva 
 2. **La Domanda Ponte:** Subito dopo aggiungi con curiosità genuina: *"Io mi chiamo Marco, tu come ti chiami? E quando non sei qui a ballare, cosa ti appassiona?"*.
 3. **Ascolto Attivo:** Ascolta la risposta senza guardarti attorno e cogli un dettaglio su cui fare ping-pong verbale.
 
-Trovi tutti gli schemi di conversazione in [[cap10]]!`,
+Trovi la frase di apertura in [[cap16]] e il Frasario del Filo in [[bonus1]]!`,
   },
   {
     id: 'q_34_staccarsi_per_primi',
@@ -761,7 +761,7 @@ Dopo 30-45 secondi di chiacchierata brillante e divertente, sei tu a congedarti 
 2. **La Frase di Chiusura Calamita:** Dille guardandola negli occhi: *"Ora ti lascio rifiatare e tornare dalle tue amiche, ma più tardi ne facciamo un'altra."*.
 3. **Congedo Sicuro:** Fai un passo indietro con un sorriso sicuro e allontanati con calma.
 
-Studia l'arte del congedo strategico in [[cap10]]!`,
+Studia l'arte del congedo strategico negli ultimi secondi in [[cap16]]!`,
   },
   {
     id: 'q_35_chiedere_il_secondo_ballo',
@@ -782,7 +782,7 @@ La regola è: **solo se c'è stato un segnale verde inequivocabile** durante il 
 2. **La Frase di Connessione:** Dille con un sorriso: *"Questa non possiamo lasciarla passare: balliamo anche questa."*.
 3. **Leggere la Risposta:** Se dice *"Volentieri!"*, sei a cavallo. Se esita, chiudi immediatamente con grazia: *"Nessun problema, riposati, te la chiedo dopo!"*.
 
-Trovi la strategia dei due balli in [[cap10]]!`,
+Trovi la strategia dei due balli in [[cap16]] e il Radar dei Segnali in [[bonus4]]!`,
   },
   {
     id: 'q_36_invitare_a_bere_al_bar',
@@ -803,7 +803,7 @@ La transizione al bar deve essere giustificata da un **bisogno fisiologico e ril
 2. **L'Invito Leggero:** Guardala e aggiungi con spontaneità: *"Vieni anche tu, due sorsi d'acqua ci rimettono al mondo."*.
 3. **Niente Alcol Forzato:** Non insistere con superalcolici pesanti: un'acqua tonica o un analcolico dimostrano rispetto e lucidità.
 
-Approfondisci la psicologia del bar in [[cap14]]!`,
+Approfondisci la transizione al bar e il primo appuntamento in [[cap16]] e [[bonus5]]!`,
   },
   {
     id: 'q_37_chiedere_il_numero_di_telefono',
@@ -824,7 +824,7 @@ Il contatto si scambia **sul picco emotivo di una conversazione interessante al 
 2. **Il Passaggio Pratico:** Tira fuori il telefono, apri la rubrica e passaglielo con naturalezza: *"Scrivimi qui il tuo numero così domani ti mando il link."*.
 3. **Niente Insistenza:** Se preferisce Instagram, accetta con un sorriso senza batter ciglio. Il valore sta nella calma con cui lo ricevi.
 
-Trovi tutti i copioni per chiedere il numero in [[cap15]]!`,
+Trovi tutti i copioni per chiedere il contatto in [[bonus5]] e [[bonus1]]!`,
   },
   {
     id: 'q_38_primo_messaggio_del_giorno_dopo',
@@ -845,7 +845,7 @@ Il messaggio deve riaccendere un'**emozione vissuta insieme**, contenere un rich
 2. **La Formula del Richiamo:** *"Ciao Elena, sopravvissuta alla maratona di bachata di ieri sera? Mi sto ancora riprendendo da quella seconda canzone a 200 all'ora! Tu come hai iniziato la domenica?"*.
 3. **Regola della Lunghezza:** Non scrivere papiri: mantieni il messaggio breve, fresco e divertente.
 
-Trovi i modelli di testo per le chat in [[cap15]]!`,
+Trovi i modelli di testo per le chat in [[bonus3]]!`,
   },
   {
     id: 'q_39_salutare_a_fine_serata',
@@ -866,7 +866,7 @@ La regola aurea è la **Calibrazione della Disinvoltura**: se la incroci sulla s
 2. **Niente Convenevoli Lunghi:** Non fermarti a chiacchierare per altri 20 minuti al freddo: sei un uomo che ha i suoi impegni e il suo riposo.
 3. **Uscita Sicura:** Esci a testa alta e spalle aperte.
 
-Approfondisci la psicologia della conclusione in [[cap10]]!`,
+Approfondisci la psicologia del congedo in [[cap16]] e il Frasario in [[bonus1]]!`,
   },
   {
     id: 'q_40_se_lei_balla_con_un_altro',
@@ -914,7 +914,7 @@ Nel Metodo insegniamo il **Silenzio Pieno** e la **Tecnica del Ping-Pong**:
 2. **Curiosità Autentica:** Chiedile delle sue passioni, dei suoi viaggi o della musica che preferisce ascoltare in macchina.
 3. **Calibrazione:** Mantieni il tono della voce caldo, leggermente più basso del volume della sala, costringendola ad avvicinarsi per ascoltarti.
 
-Trovi tutti i frasari da pista in [[bonus1]] e [[cap10]]!`,
+Trovi tutti i frasari da pista nel Frasario del Filo in [[bonus1]] e nelle Parole del Filo in [[cap15]]!`,
   },
   {
     id: 'q_42_ballerini_esperti',
@@ -956,7 +956,7 @@ Il **Protocollo Reset di 60 Secondi** serve a interrompere all'istante lo stato 
 2. **Tre Respiri Diaframmatici:** Davanti allo specchio, fai tre respiri profondi espirando molto lentamente, raddrizza la colonna e sorriditi.
 3. **Rientro con Intenzione Chiara:** Rientra in sala con un solo obiettivo: invitare una persona qualunque per il puro piacere della musica, senza pretendere nulla. La serata ripartirà subito col piede giusto.
 
-Trovi il protocollo di emergenza nella Guida Salva-Serata in [[bonus4]]!`,
+Trovi il protocollo di emergenza nel Rituale Pre-Serata in [[bonus2]] e nella gestione dell'Asse in [[cap06]]!`,
   },
   {
     id: 'q_44_rituale_pre_serata_in_macchina',
@@ -998,7 +998,7 @@ Molte donne sono esauste dei ballerini esibizionisti e rumorosi. Ciò che cercan
 2. **Usa l'Ascolto:** Fai una domanda e ascolta davvero: il tuo silenzio attento varrà più di mille battute forzate.
 3. **Presenza Fisica:** Ricorda che il ballo è un linguaggio non verbale: puoi comunicare sicurezza totale senza pronunciare cento parole.
 
-Rileggi la parte sul Risveglio dell'Uomo Magnetico in [[cap02]]!`,
+Rileggi la parte sul Ballerino Invisibile e la solidità dell'Asse in [[cap01]] e [[cap06]]!`,
   },
   {
     id: 'q_46_ballare_dopo_una_separazione',
@@ -1019,7 +1019,7 @@ Nel ballo di coppia, l'età e l'esperienza di vita sono un **enorme vantaggio se
 2. **Eleganza Senza Tempo:** Cura la camicia, un buon profumo e scarpe pulite: la classe batte sempre la giovinezza sguaiata.
 3. **Un Passo alla Volta:** Segui il Piano 21 Serate dell'app come una mappa quotidiana per ricostruire la fiducia dentro e fuori dalla sala.
 
-Approfondisci la guida dedicata alla rinascita in [[rip1]] e [[cap02]]!`,
+Approfondisci la guida dedicata alla rinascita in [[rip1]] e ritrova il tuo valore in [[rip2]]!`,
   },
   {
     id: 'q_47_amico_del_corso_vs_uomo_desiderabile',
@@ -1112,7 +1112,7 @@ I principi dell'Effetto Calamita sono leggi universali della dinamica umana:
 2. **Sguardo di Presenza:** Sostieni lo sguardo dei colleghi per due secondi pieni prima di rispondere.
 3. **Leadership Calma:** Smetti di correre: chi si muove con calma controlla il tempo e lo spazio, nel ballo come nella vita.
 
-Concludi il tuo percorso studiando [[cap16]] e il Piano 21 Serate!`,
+Concludi il tuo percorso studiando la vita oltre la pista in [[next]] e ritrova il tuo valore in [[rip2]]!`,
   },
 ];
 

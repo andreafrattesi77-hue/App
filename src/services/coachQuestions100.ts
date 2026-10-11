@@ -350,7 +350,7 @@ La musica caraibica detta la geometria dello spazio:
 2. **Accenna i Pasitos:** Gioca sui tempi sincopati muovendo i piedi a tempo con la chitarra e guardandola negli occhi col sorriso.
 3. **Richiudi sull'Accordo Lento:** Appena il cantante riprende la strofa melodica, invitala nuovamente all'abbraccio ravvicinato.
 
-Approfondisci la struttura musicale della Bachata in [[bonus3]] e [[cap13]]!`,
+Approfondisci la Tensione Lenta e la musicalità in [[cap13]] e la selezione strategica in [[cap10]]!`,
   },
   {
     id: 'q_67_bachata_testa_e_collo',
@@ -434,7 +434,7 @@ Il corpo deve essere come uno strumento musicale che risponde al brano. Quando l
 2. **Accorcia i Passi:** Riduci l'ampiezza dello spostamento: muoviti con piccoli trasferimenti di peso morbidi.
 3. **Crea Attesa:** Dilata i tempi tra una figura e l'altra, lasciando che sia la melodia a guidare l'abbraccio.
 
-Approfondisci la musicalità e la Tensione Lenta in [[cap13]] e [[bonus3]]!`,
+Approfondisci la Tensione Lenta in [[cap13]] e la scala della distanza in [[cap14]]!`,
   },
 
   // ============================================================
@@ -460,7 +460,7 @@ Molti allievi abituati a ballare sull'1 entrano nel panico quando incontrano bal
 2. **Adattati alla Partner:** Chiedi con un sorriso: *"Balli sull'1 o sul 2?"*. La chiarezza previene ogni equivoco.
 3. **Mantieni l'Asse:** Che tu balli On1 o On2, la fluidità del centro e la leggerezza delle braccia rimangono identiche.
 
-Approfondisci i segreti del ritmo caraibico in [[bonus3]] e [[cap11]]!`,
+Approfondisci la sequenza naturale del ballo in [[cap03]] e la selezione strategica in [[cap10]]!`,
   },
   {
     id: 'q_72_salsa_clave_2_3_vs_3_2',
@@ -475,7 +475,7 @@ I ballerini spesso si spaventano davanti alle spiegazioni teoriche dei musicisti
 
 🧠 **2. IL RAGIONAMENTO DEL METODO:**
 Non devi diventare un percussionista cubano per essere un ottimo ballerino. La Clave ha 5 colpi distribuiti in due misure da 4 tempi:
-- **Clave 3-2:** 3 colpi nella prima misura (tempi 1, 2 e mezzo, 4) e 2 colpi nella seconda (tempi 6 e 7).
+- **Clave 3-2:** 3 colpi nella prima misura (tempi 1, 2 e mezzo, 4) e 2 colpi nella seconda (tempi 6 e tempo 7).
 - **Clave 2-3:** 2 colpi nella prima misura e 3 colpi nella seconda.
 Nel ballo sociale normale, sia la 3-2 che la 2-3 si incastrano sempre nella frase di 8 tempi.
 
@@ -484,7 +484,7 @@ Nel ballo sociale normale, sia la 3-2 che la 2-3 si incastrano sempre nella fras
 2. **Usa l'Accordo del Pianoforte:** Se la clave ti confonde, non cercarla ossessivamente: ascolta il montuno del piano o la campana sul tempo 1.
 3. **Fidati del Corpo:** Lascia che il ritmo entri dalle orecchie e scenda ai piedi senza fare equazioni matematiche mentali.
 
-Approfondisci la musicalità caraibica in [[bonus3]] e [[cap13]]!`,
+Approfondisci la sequenza naturale in [[cap03]] e la Tensione Lenta in [[cap13]]!`,
   },
   {
     id: 'q_73_salsa_anticipare_la_guida',
@@ -550,7 +550,7 @@ I brani di Salsa non si fermano mai a caso: gli arrangiatori inseriscono **segna
 2. **Fermata Netta:** Sull'ultimo colpo fermati sul posto di fronte a lei, blocca il peso e guardala negli occhi per 2 secondi di silenzio condiviso.
 3. **Ripartenza sul Battere:** Quando la campana o il pianoforte ripartono, stacca il passo sinistro in avanti con un sorriso: l'intesa sarà alle stelle.
 
-Trovi tutti gli esercizi di ascolto dei break in [[cap13]] e [[bonus3]]!`,
+Trovi tutti gli esercizi di ascolto dei break nella Tensione Lenta in [[cap13]] e nella selezione in [[cap10]]!`,
   },
   {
     id: 'q_76_salsa_gestione_della_dama_pesante',
@@ -751,7 +751,7 @@ Una donna apprezza enormemente l'uomo che **ha spirito di osservazione ed empati
 2. **La Proposta Spontanea:** Indica due sedie libere a bordo sala: *"Facciamoci due passi fin lì così ti riposi due minuti le caviglie"*.
 3. **Conversazione Rilassata:** Una volta seduti, avrai l'ambiente ideale per una chiacchierata tranquilla e per scambiarvi i contatti con calma.
 
-Rivedi la cura della partner e i segnali di comfort in [[cap05]] e [[cap10]]!`,
+Rivedi la Chiusura Calamita in [[cap16]] e il primo approccio al bar in [[bonus5]]!`,
   },
   {
     id: 'q_85_chiusura_se_arriva_un_amico_di_lei',
@@ -772,7 +772,7 @@ Nel Metodo non vediamo gli amici della partner come ostacoli, ma come **alleati 
 2. **Chiudi con Classe:** Dille guardandola negli occhi: *"Ti lascio alle tue amiche! È stato davvero un piacere ballare con te, ci vediamo dopo in pista!"*.
 3. **Stacco Tempestivo:** Congedati per primo con il sorriso: la lascerai con il desiderio di ritrovarti più tardi.
 
-Approfondisci la gestione della dinamica sociale in [[cap07]] e [[cap10]]!`,
+Approfondisci la gestione della dinamica sociale nei 10 secondi eleganti in [[cap08]] e nella Chiusura Calamita in [[cap16]]!`,
   },
   {
     id: 'q_86_chiusura_complimento_alla_musicalita',

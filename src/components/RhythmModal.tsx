@@ -3,33 +3,30 @@ import {
   X,
   Play,
   Square,
-  Volume2,
-  VolumeX,
   Music,
   Sparkles,
   Radio,
-  Sliders,
   Upload,
   Trash2,
   RotateCcw,
   Plus,
   FileMusic,
   Disc3,
-  Target,
   Bell,
   BellOff,
-  Activity,
   Check,
-  ArrowLeftRight,
+  Clock,
 } from 'lucide-react';
 import {
   harmonizedEngine,
   MUSIC_TRACKS,
   MusicTrack,
   DanceGenre,
-  RhythmMixer,
 } from '../services/rhythmAudio';
-import { analyzeAudioFile, AudioRecognitionResult, BeatEvent } from '../services/audioAnalyzer';
+import {
+  analyzeAudioFile,
+  BeatEvent,
+} from '../services/audioAnalyzer';
 
 export interface CustomTrack {
   id: string;
@@ -131,6 +128,70 @@ function playCustomClickSound(beat: number, isSalsa: boolean) {
   }
 }
 
+// Guida didattica e corporea per insegnare il tempo a chi non lo conosce
+const getStepActionTitle = (genre: DanceGenre, beat: number, playing: boolean): string => {
+  if (!playing || beat < 0) {
+    return 'Ascolto e sincronizzazione automatica dell\'intro in corso...';
+  }
+  if (genre === 'salsa') {
+    switch (beat) {
+      case 0: return 'TEMPO 1 (BATTITO FORTE) ➔ Piede Sinistro AVANTI';
+      case 1: return 'TEMPO 2 ➔ Trasferisci il peso sul posto (Destro)';
+      case 2: return 'TEMPO 3 ➔ Richiama il Sinistro al centro';
+      case 3: return 'TEMPO 4 (PAUSA) ➔ Sospensione morbida (Nessun passo)';
+      case 4: return 'TEMPO 5 (SECONDO ACCENTO) ➔ Piede Destro INDIETRO';
+      case 5: return 'TEMPO 6 ➔ Trasferisci il peso sul posto (Sinistro)';
+      case 6: return 'TEMPO 7 ➔ Richiama il Destro al centro';
+      case 7: return 'TEMPO 8 (PAUSA) ➔ Sospensione morbida (Pronto per l\'1)';
+      default: return 'Ascolta il ritmo musicale...';
+    }
+  } else {
+    // Bachata
+    switch (beat) {
+      case 0: return 'TEMPO 1 (BATTITO FORTE) ➔ Piede Sinistro a LATO';
+      case 1: return 'TEMPO 2 ➔ Piede Destro unisce';
+      case 2: return 'TEMPO 3 ➔ Piede Sinistro a LATO';
+      case 3: return 'TEMPO 4 (TAP ACCENTATO) ➔ Punta destra & Bacino! 🎯';
+      case 4: return 'TEMPO 5 (BATTITO FORTE) ➔ Piede Destro a LATO';
+      case 5: return 'TEMPO 6 ➔ Piede Sinistro unisce';
+      case 6: return 'TEMPO 7 ➔ Piede Destro a LATO';
+      case 7: return 'TEMPO 8 (TAP ACCENTATO) ➔ Punta sinistra & Bacino! 🎯';
+      default: return 'Ascolta il ritmo musicale...';
+    }
+  }
+};
+
+const getStepActionDescription = (genre: DanceGenre, beat: number, playing: boolean): string => {
+  if (!playing || beat < 0) {
+    return 'L\'app calcola l\'attacco in automatico: quando parte l\'1, segui i passi qui sotto.';
+  }
+  if (genre === 'salsa') {
+    switch (beat) {
+      case 0: return 'La tromba o la voce attaccano: è il battito fondamentale da cui parte tutta la figura.';
+      case 1: return 'Mantieni l\'asse eretto senza saltellare, spostando il baricentro in modo fluido.';
+      case 2: return 'Raccogli il piede alla base del baricentro preparandoti alla pausa di sospensione.';
+      case 3: return 'Non muovere i piedi! Il tempo scorre nel respiro e nel corpo, creando l\'attesa per il 5.';
+      case 4: return 'Inizio della seconda battuta: passo indietro sicuro con il piede destro.';
+      case 5: return 'Spingi leggermente in avanti mantenendo la postura solida.';
+      case 6: return 'Ritorno al centro con piedi allineati e sguardo alto.';
+      case 7: return 'Pausa di ascolto: mantieni la calma e preparati mentalmente a ripartire sull\'1 forte!';
+      default: return 'Segui le caselle luminose a tempo di musica.';
+    }
+  } else {
+    // Bachata
+    switch (beat) {
+      case 0: return 'Il requinto e il bongò danno l\'accento principale: apri il primo passo a sinistra.';
+      case 1: return 'Porta il destro vicino al sinistro mantenendo le ginocchia morbide ed elastiche.';
+      case 2: return 'Terzo passo verso sinistra preparando il colpo di bacino sul 4.';
+      case 3: return 'Non appoggiare il peso! Sfiora il pavimento con la punta e accentua l\'anca.';
+      case 4: return 'Ripartenza in direzione opposta: apri a destra con passo morbido sul tempo 5.';
+      case 5: return 'Porta il sinistro vicino al destro mantenendo il contatto a terra.';
+      case 6: return 'Passo a destra per preparare il secondo tap.';
+      case 7: return 'Tap con punta sinistra e colpo d\'anca morbido: ciclo completo di 8 battiti!';
+      default: return 'Segui le caselle luminose a tempo di musica.';
+    }
+  }
+};
 
 export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => {
   // Source selector: 'catalog' (Brani del Metodo) vs 'custom' (Le mie canzoni)
@@ -144,14 +205,6 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeBeat, setActiveBeat] = useState<number>(-1);
   const [currentChordName, setCurrentChordName] = useState<string>('');
-
-  // Mixer for catalog tracks
-  const [mixer, setMixer] = useState<RhythmMixer>({
-    harmony: true,
-    bass: true,
-    countVoice: true,
-    percussion: true,
-  });
 
   // Custom user songs playlist
   const [customTracks, setCustomTracks] = useState<CustomTrack[]>([]);
@@ -330,7 +383,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       if (sourceMode === 'catalog') {
         if (customAudioRef.current) customAudioRef.current.pause();
         harmonizedEngine.selectTrack(selectedTrack.id);
-        harmonizedEngine.mixer = { ...mixer };
+        harmonizedEngine.mixer = { harmony: true, bass: true, countVoice: true, percussion: true };
         harmonizedEngine
           .start()
           .then(() => {
@@ -363,16 +416,6 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         }
       }
     }
-  };
-
-  // Toggle mixer components for catalog tracks
-  const handleToggleMixer = (key: keyof RhythmMixer) => {
-    const updated = {
-      ...mixer,
-      [key]: !mixer[key],
-    };
-    setMixer(updated);
-    harmonizedEngine.mixer = updated;
   };
 
   // Handle uploading a new custom MP3/audio file with automatic rhythm & genre recognition
@@ -514,64 +557,6 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         setSourceMode('catalog');
       }
     }
-  };
-
-  // Genre switch for custom track con ricalibrazione ritmica automatica
-  const handleToggleCustomGenre = (genre: DanceGenre) => {
-    if (!currentCustomTrack) return;
-    setActiveGenre(genre);
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? { ...t, genre } : t))
-    );
-
-    if (currentCustomTrack.file) {
-      setSyncNotice(`⚡ Ricalibrazione ritmo e battute per ${genre.toUpperCase()} in corso...`);
-      analyzeAudioFile(currentCustomTrack.file, genre)
-        .then((result) => {
-          setCustomTracks((prev) =>
-            prev.map((t) =>
-              t.id === currentCustomTrack.id
-                ? {
-                    ...t,
-                    genre: result.genre,
-                    bpm: result.bpm,
-                    beatOffset: result.beatOffset,
-                    beats: result.beats,
-                    details: result.details,
-                  }
-                : t
-            )
-          );
-          setSyncNotice(`✓ Ritmo ${genre.toUpperCase()} sincronizzato: Tempo 1 a ${result.beatOffset.toFixed(2)}s`);
-          setTimeout(() => setSyncNotice(null), 3500);
-        })
-        .catch(() => {});
-    }
-  };
-
-  // Inverti / scambia Tempo 1 e Tempo 5 se la canzone ha fase invertita
-  const handleSwapOneAndFive = () => {
-    if (!currentCustomTrack || !currentCustomTrack.beats) return;
-    const newBeats = currentCustomTrack.beats.map((b) => ({
-      ...b,
-      beat: (b.beat + 4) % 8,
-    }));
-    const newFirst1 = newBeats.find((b) => b.beat === 0)?.time || currentCustomTrack.beatOffset;
-
-    setCustomTracks((prev) =>
-      prev.map((t) =>
-        t.id === currentCustomTrack.id
-          ? {
-              ...t,
-              beatOffset: newFirst1,
-              beats: newBeats,
-              details: `Allineamento 1↔5 scambiato: Tempo 1 a ${newFirst1.toFixed(2)}s`,
-            }
-          : t
-      )
-    );
-    setSyncNotice(`✓ Conteggio invertito: l'1 e il 5 sono stati scambiati con precisione!`);
-    setTimeout(() => setSyncNotice(null), 3500);
   };
 
   // Close modal safely
@@ -728,6 +713,32 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               </span>
             </div>
 
+            {/* Banner Stato: Attesa Intro per sincronizzare l'1 perfetto */}
+            {isPlaying && (
+              <div className="py-0.5 animate-fadeIn">
+                {activeBeat === -1 ? (
+                  <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-amber-500/20 border border-[#F9C03E]/50 text-amber-200 text-xs font-semibold animate-pulse shadow-sm">
+                    <Clock className="w-3.5 h-3.5 text-[#F9C03E] animate-spin shrink-0" />
+                    <span>
+                      Attesa intro... Sincronizzazione dell'1 perfetto in corso
+                      {sourceMode === 'custom' && currentCustomTrack?.beatOffset
+                        ? ` (${Math.max(0, currentCustomTrack.beatOffset - customCurrentTime).toFixed(1)}s)`
+                        : ''}
+                    </span>
+                  </div>
+                ) : activeBeat === 0 ? (
+                  <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-[#F9C03E] text-[#042B58] text-xs font-black shadow-md ring-2 ring-amber-300">
+                    <Sparkles className="w-3.5 h-3.5 fill-[#042B58] text-[#042B58] shrink-0" />
+                    <span>⭐ 1 PERFETTO AGGANCIATO!</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-1.5 py-0.5 px-3 rounded-xl bg-[#021831] border border-[#88A5BF]/30 text-slate-300 text-[11px] font-mono">
+                    <span>Tempo {activeBeat + 1} di 8</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Griglia a 8 caselle fisse pulite (da 1 a 8) */}
             <div className="grid grid-cols-8 gap-1 sm:gap-1.5 pt-1">
               {beatList.map((item, idx) => {
@@ -756,6 +767,42 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   </div>
                 );
               })}
+            </div>
+
+            {/* Guida Didattica Movimento in Tempo Reale */}
+            <div className="mt-2.5 p-3 rounded-2xl bg-[#021831] border border-[#F9C03E]/40 text-left space-y-1.5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#F9C03E]" />
+                  <span>Guida Didattica Passo ({activeGenreLabel})</span>
+                </span>
+                <span className="text-[10px] font-mono font-semibold text-slate-300">
+                  {isPlaying && activeBeat >= 0 ? `Tempo ${activeBeat + 1} di 8` : 'In ascolto'}
+                </span>
+              </div>
+
+              {/* Box Istruzione per il tempo attivo */}
+              <div className="p-2.5 rounded-xl bg-[#042B58]/90 border border-[#88A5BF]/30 flex items-center gap-3">
+                <div
+                  className={`w-9 h-9 rounded-xl font-mono font-black text-base flex items-center justify-center shrink-0 shadow-md ${
+                    isPlaying && activeBeat >= 0
+                      ? activeBeat === 0 || activeBeat === 4
+                        ? 'bg-[#F9C03E] text-[#042B58] ring-2 ring-amber-300'
+                        : 'bg-[#234C77] text-white ring-1 ring-white/40'
+                      : 'bg-[#021831] text-slate-400 border border-[#88A5BF]/30'
+                  }`}
+                >
+                  {isPlaying && activeBeat >= 0 ? activeBeat + 1 : '—'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white leading-tight">
+                    {getStepActionTitle(effectiveGenre, activeBeat, isPlaying)}
+                  </p>
+                  <p className="text-[11px] text-[#88A5BF] leading-snug mt-0.5">
+                    {getStepActionDescription(effectiveGenre, activeBeat, isPlaying)}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -862,64 +909,20 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 </div>
               </div>
 
-              {/* Mixer Strumenti per Brani del Metodo */}
-              <div className="glass-card p-3 space-y-2">
+              {/* Strumentazione Automatica per Brani del Metodo */}
+              <div className="glass-card p-3 space-y-1.5 text-left">
                 <div className="flex items-center justify-between pb-1 border-b border-[#88A5BF]/20">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-[#88A5BF] flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-[#F9C03E]" />
-                    <span>Mixer Strumenti (Attiva/Disattiva)</span>
+                    <Sparkles className="w-3.5 h-3.5 text-[#F9C03E]" />
+                    <span>Strumentazione & Conteggio Automatici</span>
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-medium">
+                    100% Bilanciato
                   </span>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    onClick={() => handleToggleMixer('harmony')}
-                    className={`p-2 rounded-xl border text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
-                      mixer.harmony
-                        ? 'bg-[#234C77] text-white border-[#88A5BF]/50'
-                        : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
-                    }`}
-                  >
-                    <span>{activeGenre === 'salsa' ? 'Piano Montuno' : 'Chitarra'}</span>
-                    {mixer.harmony ? <Volume2 className="w-3.5 h-3.5 text-[#F9C03E]" /> : <VolumeX className="w-3.5 h-3.5" />}
-                  </button>
-
-                  <button
-                    onClick={() => handleToggleMixer('bass')}
-                    className={`p-2 rounded-xl border text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
-                      mixer.bass
-                        ? 'bg-[#234C77] text-white border-[#88A5BF]/50'
-                        : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
-                    }`}
-                  >
-                    <span>Basso Latino</span>
-                    {mixer.bass ? <Volume2 className="w-3.5 h-3.5 text-[#F9C03E]" /> : <VolumeX className="w-3.5 h-3.5" />}
-                  </button>
-
-                  <button
-                    onClick={() => handleToggleMixer('percussion')}
-                    className={`p-2 rounded-xl border text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
-                      mixer.percussion
-                        ? 'bg-[#234C77] text-white border-[#88A5BF]/50'
-                        : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
-                    }`}
-                  >
-                    <span>{activeGenre === 'salsa' ? 'Clave & Congas' : 'Bongò & Güira'}</span>
-                    {mixer.percussion ? <Volume2 className="w-3.5 h-3.5 text-[#F9C03E]" /> : <VolumeX className="w-3.5 h-3.5" />}
-                  </button>
-
-                  <button
-                    onClick={() => handleToggleMixer('countVoice')}
-                    className={`p-2 rounded-xl border text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
-                      mixer.countVoice
-                        ? 'bg-[#234C77] text-white border-[#88A5BF]/50'
-                        : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
-                    }`}
-                  >
-                    <span>Click Guida Tempi</span>
-                    {mixer.countVoice ? <Volume2 className="w-3.5 h-3.5 text-[#F9C03E]" /> : <VolumeX className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
+                <p className="text-[11px] text-slate-300 leading-snug">
+                  Il brano riproduce pianoforte, basso latino, percussioni caraibiche e click guida sui tempi forti in perfetto equilibrio, così puoi imparare a riconoscere la ritmica senza toccare alcun comando.
+                </p>
               </div>
             </div>
           )}
@@ -1037,50 +1040,15 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                     </div>
                   </div>
 
-                  {/* Selezione Stile per Allenamento */}
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#88A5BF]/20">
-                    <span className="text-xs text-slate-300">Stile musicale da applicare:</span>
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => handleToggleCustomGenre('salsa')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer border ${
-                          currentCustomTrack.genre === 'salsa'
-                            ? 'bg-[#234C77] text-white border-[#F9C03E]'
-                            : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
-                        }`}
-                      >
-                        Salsa (8 Battute)
-                      </button>
-                      <button
-                        onClick={() => handleToggleCustomGenre('bachata')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer border ${
-                          currentCustomTrack.genre === 'bachata'
-                            ? 'bg-[#234C77] text-white border-[#F9C03E]'
-                            : 'bg-[#021831] text-slate-400 border-[#88A5BF]/20'
-                        }`}
-                      >
-                        Bachata (8 Battute)
-                      </button>
+                  {/* Modalità 100% Automatica per Principianti */}
+                  <div className="p-3 rounded-xl bg-[#021831] border border-emerald-500/40 space-y-1.5 text-left">
+                    <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs">
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Sincronizzazione Automatica al 100%</span>
                     </div>
-                  </div>
-
-                  {/* Inversione Rapida Tempo 1 ↔ 5 per correzione immediata */}
-                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#021831] border border-[#88A5BF]/30">
-                    <div className="text-left">
-                      <span className="text-xs font-semibold text-white flex items-center gap-1.5">
-                        <ArrowLeftRight className="w-3.5 h-3.5 text-[#F9C03E]" />
-                        <span>Fase 1 ↔ 5</span>
-                      </span>
-                      <p className="text-[10px] text-[#88A5BF]">Se la canzone sembra invertita, scambia l'1 con il 5</p>
-                    </div>
-                    <button
-                      onClick={handleSwapOneAndFive}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#234C77] hover:bg-[#88A5BF]/30 text-amber-300 hover:text-white border border-[#F9C03E]/40 cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm"
-                      title="Scambia l'1 con il 5 se la frase musicale è rovesciata"
-                    >
-                      <ArrowLeftRight className="w-3.5 h-3.5" />
-                      <span>Inverti 1 ↔ 5</span>
-                    </button>
+                    <p className="text-[11px] text-slate-300 leading-snug">
+                      L'app ha individuato lo stile ({currentCustomTrack.genre === 'salsa' ? 'Salsa' : 'Bachata'}), calcolato la velocità ({currentCustomTrack.bpm || 130} BPM) e allineato l'1 perfetto in totale autonomia. Non devi modificare nulla: premi Riproduci e allenati a sentire il ritmo.
+                    </p>
                   </div>
 
                   {/* Guida Sonora per Imparare a Sentire il Tempo 1 */}
@@ -1189,6 +1157,45 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               </div>
             </div>
           )}
+
+          {/* GUIDA METODO: COME IMPARARE A TENERE IL TEMPO A CHI NON LO CONOSCE */}
+          <div className="glass-card p-4 space-y-2.5 text-left border border-[#F9C03E]/30 shadow-md">
+            <div className="flex items-center gap-1.5 pb-1 border-b border-[#88A5BF]/20">
+              <Sparkles className="w-4 h-4 text-[#F9C03E]" />
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                Come Imparare a Sentire il Tempo (Senza Pensieri)
+              </h4>
+            </div>
+
+            <div className="space-y-2 text-[11px] text-slate-200 leading-relaxed">
+              <div className="p-2.5 rounded-xl bg-[#021831] border border-[#88A5BF]/20 space-y-0.5">
+                <span className="text-xs font-bold text-[#F9C03E] flex items-center gap-1">
+                  ⭐ 1. L'1 è la bussola di tutta la canzone
+                </span>
+                <p className="text-slate-300">
+                  La musica caraibica si muove a cicli di 8 battiti. Quando senti il rintocco sonoro e vedi accendersi l'1 dorato, attacca la frase principale. Se impari ad agganciare l'1, non perderai mai il passo.
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-[#021831] border border-[#88A5BF]/20 space-y-0.5">
+                <span className="text-xs font-bold text-[#F9C03E] flex items-center gap-1">
+                  🗣️ 2. Conta ad alta voce all'inizio
+                </span>
+                <p className="text-slate-300">
+                  Non tenere il conteggio a mente: pronunciare ad alta voce <em>"1, 2, 3... 5, 6, 7"</em> costringe il cervello a sincronizzare i piedi col suono della tua voce, sciogliendo l'ansia da prestazione.
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-[#021831] border border-emerald-500/30 space-y-0.5">
+                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                  ⚡ 3. Nessuna regolazione manuale: è tutto automatico
+                </span>
+                <p className="text-slate-300">
+                  Non devi regolare tempi, offset o parametri tecnici. L'app ascolta il brano, riconosce l'intro e calcola i battiti in automatico per farti concentrare solo sul ballo e sulla musica.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Stable Audio Element for Custom Files */}

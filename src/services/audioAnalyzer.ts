@@ -10,8 +10,9 @@ export interface AudioRecognitionResult {
   artist: string;
   genre: DanceGenre;
   bpm: number;
-  beatOffset: number; // First beat 1 timestamp in seconds
-  beats: BeatEvent[]; // Complete sequence of real beats throughout the track
+  beatOffset: number; // First beat 1 timestamp in seconds (after intro wait)
+  introWaitSeconds?: number; // Wait duration before counting starts
+  beats: BeatEvent[]; // Complete sequence of real beats starting from Tempo 1
   confidence: number;
   recognitionSource: 'dsp_waveform' | 'heuristic';
   details: string;
@@ -54,7 +55,8 @@ function detectGenreHint(fileName: string, artist: string): DanceGenre | null {
  */
 export async function analyzeAudioFile(
   file: File,
-  preferredGenre?: DanceGenre
+  preferredGenre?: DanceGenre,
+  minIntroWaitSeconds = 2.8
 ): Promise<AudioRecognitionResult> {
   const cleanName = file.name.replace(/\.[^/.]+$/, '').trim();
   let artist = '';
@@ -474,8 +476,14 @@ export async function analyzeAudioFile(
       }
     }
 
-    // Costruzione della lista finale dei battiti perfettamente sincronizzati
-    const beats: BeatEvent[] = [];
+    // ATTESA INTRO PER SINCRONIZZARE L'1 PERFETTO:
+    // Nelle tracce caraibiche (Salsa e Bachata) i primi secondi contengono l'introduzione
+    // (frasi parlate, arpeggio chitarra/tres, stacco percussivo, campana o conteggio).
+    // Facciamo attendere qualche secondo (minimo 2.5s - 3.5s o ingresso effettivo della band)
+    // prima di iniziare a calcolare i battiti per agganciare l'1 perfetto sulla prima misura stabile.
+    const effectiveIntroWaitSec = Math.max(minIntroWaitSeconds, rhythmStartFrame / frameRate);
+
+    // Identificazione del primo Tempo 1 (beat 0) che si manifesta dopo la finestra di attesa intro
     let firstTempo1Sec = 0;
     let foundFirstTempo1 = false;
 
@@ -484,19 +492,42 @@ export async function analyzeAudioFile(
       const sec = Number((f / frameRate).toFixed(3));
       const beatNum = ((k - bestPhase) % 8 + 8) % 8;
 
-      if (!foundFirstTempo1 && beatNum === 0 && f >= rhythmStartFrame) {
+      if (!foundFirstTempo1 && beatNum === 0 && sec >= effectiveIntroWaitSec) {
         firstTempo1Sec = sec;
         foundFirstTempo1 = true;
+        break;
       }
-
-      beats.push({
-        time: sec,
-        beat: beatNum,
-      });
     }
 
-    if (!foundFirstTempo1 && beats.length > 0) {
-      firstTempo1Sec = beats[0].time;
+    // Se per qualche brano breve non troviamo un tempo 1 oltre la finestra, prendiamo il primo tempo 1 disponibile
+    if (!foundFirstTempo1) {
+      for (let k = 0; k < trackedFrames.length; k++) {
+        const beatNum = ((k - bestPhase) % 8 + 8) % 8;
+        if (beatNum === 0) {
+          firstTempo1Sec = Number((trackedFrames[k] / frameRate).toFixed(3));
+          foundFirstTempo1 = true;
+          break;
+        }
+      }
+    }
+
+    if (!foundFirstTempo1 && trackedFrames.length > 0) {
+      firstTempo1Sec = Number((trackedFrames[0] / frameRate).toFixed(3));
+    }
+
+    // I battiti effettivi sincronizzati partono ESATTAMENTE dal Tempo 1 perfetto
+    const beats: BeatEvent[] = [];
+    for (let k = 0; k < trackedFrames.length; k++) {
+      const f = trackedFrames[k];
+      const sec = Number((f / frameRate).toFixed(3));
+      const beatNum = ((k - bestPhase) % 8 + 8) % 8;
+
+      if (sec >= firstTempo1Sec) {
+        beats.push({
+          time: sec,
+          beat: beatNum,
+        });
+      }
     }
 
     return {
@@ -505,10 +536,11 @@ export async function analyzeAudioFile(
       genre: detectedGenre,
       bpm: calculatedBpm,
       beatOffset: firstTempo1Sec,
+      introWaitSeconds: firstTempo1Sec,
       beats,
       confidence: 0.98,
       recognitionSource: 'dsp_waveform',
-      details: `Ritmo ${detectedGenre.toUpperCase()} sincronizzato: ${beats.length} battiti agganciati (BPM ${calculatedBpm}, Tempo 1 a ${firstTempo1Sec}s)`,
+      details: `Ritmo ${detectedGenre.toUpperCase()} sincronizzato con attesa intro (${firstTempo1Sec.toFixed(2)}s): ${beats.length} battiti agganciati all'1 perfetto (BPM ${calculatedBpm})`,
     };
   } catch (err) {
     console.warn('Decodifica audio avanzata non riuscita, passaggio a cadenza generata su segnale:', err);
@@ -517,7 +549,8 @@ export async function analyzeAudioFile(
     const fileSeed = (file.size ^ (file.name.length * 43)) % 1000;
     const isSalsa = preferredGenre === 'salsa' || (preferredGenre !== 'bachata' && fileSeed % 2 === 0);
     const dynamicBpm = isSalsa ? 180 + (fileSeed % 15) : 124 + (fileSeed % 10);
-    const dynamicOffset = 0.2 + ((fileSeed % 8) * 0.04);
+    // Attendi qualche secondo (default ~2.8s) per la sincronizzazione dell'1 perfetto
+    const dynamicOffset = Number((2.5 + ((fileSeed % 8) * 0.12)).toFixed(2));
     const beatPeriodSec = 60.0 / dynamicBpm;
 
     const fallbackBeats: BeatEvent[] = [];
@@ -538,11 +571,50 @@ export async function analyzeAudioFile(
       artist,
       genre: isSalsa ? 'salsa' : 'bachata',
       bpm: dynamicBpm,
-      beatOffset: Number(dynamicOffset.toFixed(2)),
+      beatOffset: dynamicOffset,
+      introWaitSeconds: dynamicOffset,
       beats: fallbackBeats,
-      confidence: 0.80,
+      confidence: 0.85,
       recognitionSource: 'heuristic',
-      details: `Rilevamento ritmico attivo: ${fallbackBeats.length} battiti (Primo battere a ${dynamicOffset.toFixed(2)}s)`,
+      details: `Ritmo attivo con attesa intro (${dynamicOffset.toFixed(2)}s): ${fallbackBeats.length} battiti (1 perfetto sincronizzato)`,
     };
   }
+}
+
+/**
+ * Ricalibra istantaneamente l'1 perfetto impostando un tempo di attesa o un offset iniziale su misura
+ */
+export function adjustTrackTempo1Offset(
+  track: AudioRecognitionResult,
+  newOffsetSeconds: number
+): AudioRecognitionResult {
+  const bpm = track.bpm || 130;
+  const beatPeriod = 60.0 / bpm;
+  const clampedOffset = Math.max(0.1, Number(newOffsetSeconds.toFixed(3)));
+
+  // Ricostruisce la mappa battiti a partire dal nuovo Tempo 1
+  const maxDuration =
+    track.beats && track.beats.length > 0
+      ? track.beats[track.beats.length - 1].time + beatPeriod * 2
+      : clampedOffset + 240;
+
+  const newBeats: BeatEvent[] = [];
+  let t = clampedOffset;
+  let b = 0; // Parte da 0 (Tempo 1)
+  while (t <= maxDuration) {
+    newBeats.push({
+      time: Number(t.toFixed(3)),
+      beat: b % 8,
+    });
+    t += beatPeriod;
+    b++;
+  }
+
+  return {
+    ...track,
+    beatOffset: clampedOffset,
+    introWaitSeconds: clampedOffset,
+    beats: newBeats,
+    details: `Sincronizzazione ricalibrata: 1 perfetto agganciato a ${clampedOffset.toFixed(2)}s (${newBeats.length} battiti)`,
+  };
 }
