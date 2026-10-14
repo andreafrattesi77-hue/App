@@ -41,10 +41,20 @@ export function generateCoachReasoning(params: CoachReasoningParams): string {
   const greeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
 
   // Controllo prioritario: corrispondenza con una delle 100 domande ufficiali preparate
+  const cleanMsg = msgLower.replace(/^\d+[\.\)\-\s]+/, '').trim();
   const exactMatch = COACH_100_QUESTIONS.find((item) => {
     const qLower = item.question.toLowerCase().trim();
     const sLower = item.summary.toLowerCase().trim();
-    return msgLower === qLower || msgLower === sLower || msgLower.includes(qLower) || qLower.includes(msgLower);
+    return (
+      msgLower === qLower ||
+      msgLower === sLower ||
+      cleanMsg === qLower ||
+      cleanMsg === sLower ||
+      msgLower.includes(qLower) ||
+      cleanMsg.includes(qLower) ||
+      qLower.includes(msgLower) ||
+      qLower.includes(cleanMsg)
+    );
   });
 
   if (exactMatch) {

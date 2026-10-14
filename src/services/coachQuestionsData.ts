@@ -1118,7 +1118,20 @@ Concludi il tuo percorso studiando la vita oltre la pista in [[next]] e ritrova 
 
 import { COACH_QUESTIONS_51_TO_100 } from './coachQuestions100';
 
-export const COACH_100_QUESTIONS: CoachQuestionItem[] = [
+// Raggruppamento per sezione: 5 sezioni, ciascuna con esattamente 20 domande (numerate da 1 a 20)
+const ALL_UNSORTED_QUESTIONS = [
   ...COACH_50_QUESTIONS,
   ...COACH_QUESTIONS_51_TO_100,
 ];
+
+const CATEGORY_ORDER: Array<'approccio' | 'bachata' | 'salsa' | 'chiusura' | 'psicologia'> = [
+  'approccio',
+  'bachata',
+  'salsa',
+  'chiusura',
+  'psicologia',
+];
+
+export const COACH_100_QUESTIONS: CoachQuestionItem[] = CATEGORY_ORDER.flatMap((cat) =>
+  ALL_UNSORTED_QUESTIONS.filter((q) => q.category === cat)
+);

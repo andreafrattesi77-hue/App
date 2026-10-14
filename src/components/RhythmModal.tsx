@@ -108,6 +108,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const isPlayingRef = useRef<boolean>(false);
   const lastCustomBeatRef = useRef<number>(-1);
   const waitingForTempo1Ref = useRef<boolean>(true);
+  const minWaitResumeSecRef = useRef<number>(0);
   const lastAudioSecRef = useRef<number>(-1);
   const smoothedSecRef = useRef<number>(0);
   const lastAudioPerfRef = useRef<number>(performance.now());
@@ -146,7 +147,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           const needsReanalysis =
             !beats ||
             beats.length === 0 ||
-            (s.engineVersion || 0) < 11;
+            (s.engineVersion || 0) < 12;
 
           if (needsReanalysis) {
             try {
@@ -163,7 +164,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 bpm,
                 beatOffset,
                 beats,
-                engineVersion: 11,
+                engineVersion: 12,
               });
             } catch (e) {
               console.warn('Auto-calibrazione traccia:', s.name, e);
@@ -231,9 +232,13 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     lastAudioPerfRef.current = performance.now();
     lastCustomBeatRef.current = -1;
     waitingForTempo1Ref.current = true;
+    const bpm = currentCustomTrack?.bpm || 130;
+    const beatPeriod = 60.0 / bpm;
+    // Si fa attendere qualche secondo per calcolare e riconoscere il ritmo prima di riagganciare il Tempo 1
+    minWaitResumeSecRef.current = newTime + Math.max(1.8, beatPeriod * 2.5);
     setActiveBeat(-1);
     if (isPlayingRef.current) {
-      setCurrentChordName('In ascolto ritmo... (attesa Tempo 1)');
+      setCurrentChordName('In ascolto ritmo... (calcolo tempo e riconoscimento 1 e 5)');
     }
   };
 
@@ -308,7 +313,15 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         if (currentSec < beats[0].time) {
           waitingForTempo1Ref.current = true;
           setActiveBeat(-1);
-          setCurrentChordName('In ascolto intro... (attesa Tempo 1)');
+          setCurrentChordName('In ascolto intro... (calcolo tempo e attesa Tempo 1)');
+          animId = requestAnimationFrame(syncBeatWithAudio);
+          return;
+        }
+
+        // Se siamo nel periodo iniziale di ascolto e calibrazione dopo Play o Seek / Riavvolgimento
+        if (waitingForTempo1Ref.current && currentSec < minWaitResumeSecRef.current) {
+          setActiveBeat(-1);
+          setCurrentChordName('In ascolto ritmo... (calcolo tempo e riconoscimento 1 e 5)');
           animId = requestAnimationFrame(syncBeatWithAudio);
           return;
         }
@@ -333,7 +346,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           const beatNum = beatObj.beat; // 0 = Tempo 1, 4 = Tempo 5
 
           // Quando si riparte dopo Ferma, Stop o Riavvolgimento / Seek:
-          // l'algoritmo attende la prima battuta utile di Tempo 1 per far ripartire il conteggio SEMPRE a tempo dal Tempo 1
+          // l'algoritmo attende qualche secondo di ascolto e aggancia la prima battuta utile di Tempo 1 per far ripartire il conteggio SEMPRE a tempo dal Tempo 1
           if (waitingForTempo1Ref.current) {
             if (beatNum === 0) {
               // Agganciato il Tempo 1: si sblocca la sequenza e parte il conteggio sincronizzato a tempo
@@ -347,7 +360,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             } else {
               // In attesa di raggiungere il prossimo Tempo 1 per partire a tempo
               setActiveBeat(-1);
-              setCurrentChordName('In ascolto ritmo... (attesa Tempo 1)');
+              setCurrentChordName('In ascolto ritmo... (calcolo tempo e attesa Tempo 1)');
             }
           } else {
             setActiveBeat(beatNum);
@@ -412,8 +425,12 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         lastAudioPerfRef.current = performance.now();
         lastCustomBeatRef.current = -1;
         waitingForTempo1Ref.current = true;
+        const bpm = currentCustomTrack.bpm || 130;
+        const beatPeriod = 60.0 / bpm;
+        // Attesa di qualche secondo (o sequenza di battiti) per ascoltare e calcolare con precisione il ritmo prima di ripartire su Tempo 1
+        minWaitResumeSecRef.current = curTime + Math.max(1.8, beatPeriod * 2.5);
         setActiveBeat(-1);
-        setCurrentChordName('In ascolto ritmo... (attesa Tempo 1)');
+        setCurrentChordName('In ascolto ritmo... (calcolo tempo e attesa Tempo 1)');
 
         customAudioRef.current
           .play()
@@ -465,7 +482,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           details: result.details,
         };
 
-        // Salvataggio permanente su IndexedDB con engineVersion: 11
+        // Salvataggio permanente su IndexedDB con engineVersion: 12
         await saveTrackToStorage({
           id: trackId,
           name: trackItem.name,
@@ -477,7 +494,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           audioBlob: file,
           duration: file.size,
           savedAt: Date.now(),
-          engineVersion: 11,
+          engineVersion: 12,
         });
 
         newTracks.push(trackItem);
@@ -564,7 +581,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             beats: updatedTrack.beats,
             audioBlob: track.file,
             savedAt: Date.now(),
-            engineVersion: 9,
+            engineVersion: 12,
           });
         }
 

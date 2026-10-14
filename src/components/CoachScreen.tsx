@@ -203,19 +203,11 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     },
   ];
 
-  // Map category questions to get sequential number 1..N within category (and 1..10 inside each category tab)
+  // Numerazione progressiva da 1 a 20 per ogni sezione/categoria
   const getQuestionNumberLabel = (q: CoachQuestionItem) => {
-    if (activeCategory === 'all') {
-      // Nel tab Tutte: mostriamo il numero progressivo nella sua categoria (1..10 o 1..20) e globale
-      const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
-      const catIndex = catQuestions.findIndex((item) => item.id === q.id);
-      const numInCat = catIndex >= 0 ? (catIndex % 10) + 1 : 1;
-      return `${numInCat}`;
-    }
-    // Nel tab di specifica categoria: numerazione da 1 a 10 (o successivi se oltre 10)
     const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
     const catIndex = catQuestions.findIndex((item) => item.id === q.id);
-    const numInCat = catIndex >= 0 ? (catIndex % 10) + 1 : 1;
+    const numInCat = catIndex >= 0 ? catIndex + 1 : 1;
     return `${numInCat}`;
   };
 
@@ -315,10 +307,10 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
               </div>
               <p className="text-xs text-slate-200 leading-relaxed">
                 {currentUserName ? `Ciao ${currentUserName}! ` : 'Ciao! '}
-                Per offrirti risposte della massima profondità psicologica e perfettamente allineate al <strong>Metodo Effetto Calamita</strong>, seleziona una delle <strong>100 domande del Metodo</strong> qui sotto suddivise per categoria (numerate da 1 a 10).
+                Per offrirti risposte della massima profondità psicologica e perfettamente allineate al <strong>Metodo Effetto Calamita</strong>, seleziona una delle <strong>100 domande del Metodo</strong> qui sotto suddivise per categoria (20 domande numerate da 1 a 20 per ciascuna sezione).
               </p>
               <div className="p-2 rounded-xl bg-[#021831]/80 border border-[#88A5BF]/20 text-[11px] text-[#88A5BF] flex items-center justify-between">
-                <span>🎯 100 Domande ufficiali del Metodo</span>
+                <span>🎯 100 Domande ufficiali (20 per sezione, numerate 1-20)</span>
                 <span className="text-[#F9C03E] font-semibold font-mono">Disponibili: {remainingToday}/20</span>
               </div>
             </div>
@@ -352,21 +344,17 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                 const numLabel = getQuestionNumberLabel(q);
                 const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
                 const catIndex = catQuestions.findIndex((item) => item.id === q.id);
-                const isFirstOfPart1 = activeCategory !== 'all' ? catIndex === 0 : (idx === 0 || filteredQuestions[idx - 1].category !== q.category);
-                const isFirstOfPart2 = activeCategory !== 'all' ? catIndex === 10 : (catIndex === 10);
+                const isFirstOfCategory =
+                  activeCategory !== 'all'
+                    ? catIndex === 0
+                    : idx === 0 || filteredQuestions[idx - 1].category !== q.category;
 
                 return (
                   <React.Fragment key={q.id}>
-                    {isFirstOfPart1 && (
-                      <div className="pt-2 pb-1 flex items-center justify-between text-[11px] font-bold text-[#F9C03E] uppercase tracking-wider border-b border-[#F9C03E]/20">
-                        <span>📋 Parte 1 – Fondamenta & Dinamiche (Domande 1 - 10)</span>
-                        <span className="text-[10px] text-[#88A5BF] font-mono">1 a 10</span>
-                      </div>
-                    )}
-                    {isFirstOfPart2 && (
-                      <div className="pt-3 pb-1 flex items-center justify-between text-[11px] font-bold text-amber-300 uppercase tracking-wider border-b border-amber-300/20">
-                        <span>🎯 Parte 2 – Casi Pratici & Calibrazione (Domande 1 - 10)</span>
-                        <span className="text-[10px] text-[#88A5BF] font-mono">1 a 10</span>
+                    {isFirstOfCategory && (
+                      <div className="pt-2.5 pb-1 flex items-center justify-between text-xs font-bold text-[#F9C03E] uppercase tracking-wider border-b border-[#F9C03E]/30">
+                        <span>{q.categoryLabel} (20 Domande: 1 – 20)</span>
+                        <span className="text-[10px] text-[#88A5BF] font-mono">1 a 20</span>
                       </div>
                     )}
                     <button
@@ -380,7 +368,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                             {numLabel}
                           </span>
                           <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#021831] text-[#F9C03E] border border-[#F9C03E]/30">
-                            Domanda {numLabel} • {q.categoryLabel}
+                            Domanda {numLabel} di 20 • {q.categoryLabel}
                           </span>
                         </div>
                         <span className="text-[10px] text-slate-400 group-hover:text-[#F9C03E] transition-colors">
@@ -394,7 +382,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold text-white group-hover:text-amber-100 transition-colors leading-snug">
-                            {q.question}
+                            {numLabel}. {q.question}
                           </p>
                           <span className="text-[11px] text-[#88A5BF] block mt-1">
                             💡 {q.summary}
@@ -568,7 +556,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                           {numLabel}
                         </span>
                         <span className="text-[9px] font-bold uppercase tracking-wider text-[#F9C03E]">
-                          Domanda {numLabel} • {q.categoryLabel}
+                          Domanda {numLabel} di 20 • {q.categoryLabel}
                         </span>
                       </div>
                       <span className="text-[10px] text-slate-400 group-hover:text-white font-medium">
@@ -580,7 +568,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                         {numLabel}
                       </span>
                       <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug flex-1">
-                        {q.question}
+                        {numLabel}. {q.question}
                       </p>
                     </div>
                   </button>
@@ -611,7 +599,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                   <span className="w-4 h-4 rounded bg-[#F9C03E] text-[#042B58] font-mono font-bold text-[10px] flex items-center justify-center">
                     {numLabel}
                   </span>
-                  <span className="max-w-[180px] truncate">{q.summary}</span>
+                  <span className="max-w-[180px] truncate">{numLabel}. {q.summary}</span>
                 </button>
               );
             })}

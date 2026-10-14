@@ -833,25 +833,25 @@ export async function analyzeAudioFile(
 
     // b. Dove entra la vera sezione ritmica (battere del ritmo / percussioni / basso)
     let rhythmDropFrame = soundStartFrame;
-    const maxDropSearch = Math.min(analysisFrames, soundStartFrame + frameRate * 25);
-    for (let f = soundStartFrame; f < maxDropSearch; f++) {
+    const maxDropSearch = Math.min(analysisFrames, soundStartFrame + frameRate * 30);
+    const dropWindowLen = 60; // ~400ms finestra sostenuta
+    for (let f = soundStartFrame + Math.round(frameRate * 1.5); f < maxDropSearch; f++) {
       let wBass = 0;
       let wOnset = 0;
       let wEnergy = 0;
-      const wLen = 12; // ~80ms
-      for (let w = 0; w < wLen && f + w < analysisFrames; w++) {
+      for (let w = 0; w < dropWindowLen && f + w < analysisFrames; w++) {
         wBass += bassEnergies[f + w];
         wOnset += combinedOnsets[f + w];
         wEnergy += energies[f + w];
       }
-      const localAvgBass = wBass / wLen;
-      const localAvgOnset = wOnset / wLen;
-      const localAvgEnergy = wEnergy / wLen;
+      const localAvgBass = wBass / dropWindowLen;
+      const localAvgOnset = wOnset / dropWindowLen;
+      const localAvgEnergy = wEnergy / dropWindowLen;
 
-      // Ingresso netto della sezione ritmica (drop con basso e percussioni)
+      // Ingresso netto e stabile della sezione ritmica (drop con basso profondo e percussioni regolari)
       if (
-        (localAvgBass > avgBassEnergy * 0.35 && localAvgOnset > 0.20) ||
-        (localAvgEnergy > avgEnergy * 0.35 && localAvgOnset > 0.25)
+        (localAvgBass > avgBassEnergy * 0.45 && localAvgOnset > 0.18) ||
+        (localAvgEnergy > avgEnergy * 0.45 && localAvgOnset > 0.22)
       ) {
         rhythmDropFrame = f;
         break;
@@ -861,10 +861,10 @@ export async function analyzeAudioFile(
     // c. Primo downbeat d'ingresso dell'arrangiamento ritmico (entro il primo battito dall'ingresso del drop)
     let firstDropFrame = rhythmDropFrame;
     let maxInitialOnset = 0;
-    const windowEnd = Math.min(analysisFrames, rhythmDropFrame + Math.round(frameRate * 0.75));
+    const windowEnd = Math.min(analysisFrames, rhythmDropFrame + Math.round(frameRate * 1.2));
     for (let f = rhythmDropFrame; f < windowEnd; f++) {
-      const val = (bassOnsets[f] || 0) * 1.8 + (combinedOnsets[f] || 0) * 1.2;
-      if (val > maxInitialOnset && val > 0.15) {
+      const val = (bassOnsets[f] || 0) * 2.2 + (combinedOnsets[f] || 0) * 1.0;
+      if (val > maxInitialOnset && val > 0.18) {
         maxInitialOnset = val;
         firstDropFrame = f;
       }
@@ -1064,11 +1064,11 @@ export async function analyzeAudioFile(
       // 1. REQUISITO CRUCIALE: IL TEMPO 1 NON È MAI IL TEMPO 2!
       // Sul Tempo 2 (bongo o congas slap) i medi e gli attacchi sono forti, ma il basso fondamentale è debole.
       // Sul vero Tempo 1 il basso fondamentale è sempre preponderante rispetto allo slap del Tempo 2:
-      const hasProperBassDominance = avgBass[0] > avgBass[1] * 1.25;
+      const isTempo2Slap = avgBass[0] <= avgBass[1] * 1.35 || avgMid[0] > avgBass[0] * 1.5;
 
       // 2. Downbeat di basso su Tempo 1 e Tempo 5
-      const downbeatBassScore = avgBass[0] * 3.5 + avgBass[4] * 2.8;
-      const offbeatBassPenalty = (avgBass[1] + avgBass[5]) * 2.5;
+      const downbeatBassScore = avgBass[0] * 4.0 + avgBass[4] * 3.0;
+      const offbeatBassPenalty = (avgBass[1] + avgBass[5]) * 3.5;
 
       // 3. Modello metrico specifico per genere
       let genrePatternScore = 0;
@@ -1076,33 +1076,33 @@ export async function analyzeAudioFile(
         // BACHATA:
         // - Beat 2 e 6 hanno lo slap del bongo (medi alti, basso basso)
         // - Beat 4 e 8 hanno il TAP (attacco rapido di güira/bongo senza nota di basso profondo)
-        const slapScore = (avgMid[1] + avgMid[5]) * 2.2;
+        const slapScore = (avgMid[1] + avgMid[5]) * 2.8;
         const tapScore =
-          (avgOn[3] + avgMid[3] + avgOn[7] + avgMid[7]) * 1.8 -
-          (avgBass[3] + avgBass[7]) * 3.0;
+          (avgOn[3] + avgMid[3] + avgOn[7] + avgMid[7]) * 2.0 -
+          (avgBass[3] + avgBass[7]) * 4.0;
         genrePatternScore = slapScore + tapScore;
       } else {
         // SALSA:
         // - Beat 2 e 6 hanno lo slap delle congas
         // - Beat 4 e 8 hanno il ponche del tumbao
-        const congaSlapScore = (avgMid[1] + avgMid[5]) * 2.2;
-        const tumbaoPonche = (avgBass[3] + avgBass[7]) * 2.0;
+        const congaSlapScore = (avgMid[1] + avgMid[5]) * 2.8;
+        const tumbaoPonche = (avgBass[3] + avgBass[7]) * 2.5;
         genrePatternScore = congaSlapScore + tumbaoPonche;
       }
 
       // 4. DISTINZIONE INEQUIVOCABILE TRA TEMPO 1 E TEMPO 5:
-      // a) Il Tempo 1 è la tonica di battuta (basso più profondo di Tempo 5)
-      const t1SuperiorityBonus = avgBass[0] > avgBass[4] ? 8.0 : -8.0;
+      // a) Il Tempo 1 è la tonica di battuta (basso più profondo e tonica rispetto a Tempo 5)
+      const t1SuperiorityBonus = avgBass[0] > avgBass[4] ? 18.0 : -25.0;
 
       // b) L'ingresso ritmico della canzone (Drop) avviene sul Tempo 1, MAI sul Tempo 5!
       const beatAtDrop = ((mDrop - c) % 8 + 8) % 8;
       let dropAlignmentBonus = 0;
       if (beatAtDrop === 0) {
-        dropAlignmentBonus = 35.0; // Enorme bonus: il drop coincide con il Tempo 1!
+        dropAlignmentBonus = 50.0; // Enorme bonus: il drop coincide esattamente con il Tempo 1!
       } else if (beatAtDrop === 4) {
-        dropAlignmentBonus = -25.0; // Penalità severa: il brano non entra su Tempo 5!
+        dropAlignmentBonus = -45.0; // Penalità severa: il brano non entra su Tempo 5!
       } else {
-        dropAlignmentBonus = -15.0;
+        dropAlignmentBonus = -20.0;
       }
 
       let totalCandidateScore =
@@ -1112,9 +1112,9 @@ export async function analyzeAudioFile(
         t1SuperiorityBonus +
         dropAlignmentBonus;
 
-      // Penalità severissima se parte sul Tempo 2 (basso assente sul beat 0 rispetto a beat 1)
-      if (!hasProperBassDominance) {
-        totalCandidateScore -= 60.0;
+      // Penalità severissima se parte sul Tempo 2 (bongo slap sul beat 0)
+      if (isTempo2Slap) {
+        totalCandidateScore -= 150.0;
       }
 
       if (totalCandidateScore > maxMetricScore) {
@@ -1125,10 +1125,9 @@ export async function analyzeAudioFile(
 
     // 5. Calcolo del timestamp esatto del primo Tempo 1 all'ingresso del ritmo nella canzone
     let mStart = ((bestCandidate % 8) + 8) % 8;
-    while (bestPhi + mStart * exactPeriodFrames < soundStartFrame) {
-      mStart += 8;
-    }
-    while (mStart + 8 <= mDrop + 1) {
+    // Si fa attendere qualche secondo (almeno 4.0s) per consentire l'ascolto e la calibrazione del tempo prima di iniziare a contare i battiti
+    const minIntroWaitFrames = Math.round(frameRate * 4.0);
+    while (bestPhi + mStart * exactPeriodFrames < Math.max(minIntroWaitFrames, firstDropFrame - 2)) {
       mStart += 8;
     }
     const firstT1Frame = bestPhi + mStart * exactPeriodFrames;
