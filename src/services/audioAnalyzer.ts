@@ -1010,9 +1010,9 @@ export async function analyzeAudioFile(
       }
     }
 
-    // 4. FASE 2: RICONOSCIMENTO DI ENTRAMBI I TEMPI 1 E 5 NEL CICLO DI 8 BATTUTE
-    // Identifica in modo univoco quale battito è Tempo 1 (beat 0) e quale è Tempo 5 (beat 4),
-    // impedendo categoricamente di partire sul Tempo 2 (slap) e di scambiare il Tempo 1 con il Tempo 5.
+    // 4. FASE 2: RICONOSCIMENTO INEQUIVOCABILE DEL TEMPO 1 E DEL TEMPO 5
+    // Identifica in modo matematico e musicale quale degli 8 battiti è il vero Tempo 1 (beat 0)
+    // eliminando qualsiasi possibilità di partire sul Tempo 2 o sul Tempo 3.
     let bestCandidate = 0;
     let maxMetricScore = -Infinity;
 
@@ -1023,8 +1023,6 @@ export async function analyzeAudioFile(
     const fullCyclesCount = Math.max(1, Math.floor(mCountTotal / 8));
     const maxEvalBeats = fullCyclesCount * 8;
 
-    const mDrop = Math.max(0, Math.round((firstDropFrame - bestPhi) / exactPeriodFrames));
-
     for (let c = 0; c < 8; c++) {
       const bassByBeat = new Float32Array(8);
       const midByBeat = new Float32Array(8);
@@ -1034,7 +1032,8 @@ export async function analyzeAudioFile(
       let m = 0;
       for (let fEst = bestPhi; fEst < analysisFrames - 2; fEst += exactPeriodFrames, m++) {
         const centerF = Math.round(fEst);
-        if (centerF < soundStartFrame) continue;
+        // Analisi sul corpo stabile della canzone (dopo l'intro incerto)
+        if (centerF < soundStartFrame + Math.round(frameRate * 2.0)) continue;
         if (m >= maxEvalBeats + 10) break;
 
         const beatNum = ((m - c) % 8 + 8) % 8; // 0 = Tempo 1, 1 = Tempo 2, ..., 4 = Tempo 5
@@ -1061,61 +1060,56 @@ export async function analyzeAudioFile(
       const avgMid = Array.from(midByBeat).map((v, i) => v / Math.max(1, countByBeat[i]));
       const avgOn = Array.from(onByBeat).map((v, i) => v / Math.max(1, countByBeat[i]));
 
-      // 1. REQUISITO CRUCIALE: IL TEMPO 1 NON È MAI IL TEMPO 2!
-      // Sul Tempo 2 (bongo o congas slap) i medi e gli attacchi sono forti, ma il basso fondamentale è debole.
-      // Sul vero Tempo 1 il basso fondamentale è sempre preponderante rispetto allo slap del Tempo 2:
-      const isTempo2Slap = avgBass[0] <= avgBass[1] * 1.35 || avgMid[0] > avgBass[0] * 1.5;
+      const b0 = avgBass[0], b4 = avgBass[4];
+      const b1 = avgBass[1], b5 = avgBass[5];
+      const b3 = avgBass[3], b7 = avgBass[7];
+      const m1 = avgMid[1], m5 = avgMid[5];
+      const m0 = avgMid[0], m4 = avgMid[4];
+      const o0 = avgOn[0], o4 = avgOn[4];
 
-      // 2. Downbeat di basso su Tempo 1 e Tempo 5
-      const downbeatBassScore = avgBass[0] * 4.0 + avgBass[4] * 3.0;
-      const offbeatBassPenalty = (avgBass[1] + avgBass[5]) * 3.5;
+      // 1. ATTACCO DEL BASSO E ACCENTI SUI TEMPI 1 E 5:
+      // Nel ballo e nella musica latina il Tempo 1 e il Tempo 5 sono i downbeat di battuta (1 e 5).
+      // I tempi 2 e 6 sono gli slap (bongo/conga).
+      // Dunque i downbeat (0 e 4) hanno basso superiore rispetto agli slap (1 e 5).
+      const downbeatBassScore = (b0 + b4) * 3.5 - (b1 + b5) * 2.5;
 
-      // 3. Modello metrico specifico per genere
-      let genrePatternScore = 0;
+      // 2. SLAP DI BONGO / CONGA SUI TEMPI 2 E 6:
+      // Se il candidato c è allineato correttamente con il Tempo 1, allora gli slap di percussione cadono sui tempi 2 e 6!
+      const slapScore = (m1 + m5) * 3.0 - (m0 + m4) * 0.8;
+
+      // 3. MODELLO SPECIFICO PER GENERE:
+      let patternScore = 0;
       if (isBachataFinal) {
         // BACHATA:
-        // - Beat 2 e 6 hanno lo slap del bongo (medi alti, basso basso)
-        // - Beat 4 e 8 hanno il TAP (attacco rapido di güira/bongo senza nota di basso profondo)
-        const slapScore = (avgMid[1] + avgMid[5]) * 2.8;
-        const tapScore =
-          (avgOn[3] + avgMid[3] + avgOn[7] + avgMid[7]) * 2.0 -
-          (avgBass[3] + avgBass[7]) * 4.0;
-        genrePatternScore = slapScore + tapScore;
+        // - I tempi 4 e 8 sono il TAP (il basso è mutato o quasi nullo).
+        // - Il Tempo 1 è preceduto dal TAP (Tempo 8) -> forte contrasto (b0 - b7).
+        // - Il Tempo 5 è preceduto dal TAP (Tempo 4) -> forte contrasto (b4 - b3).
+        const tapContrast = (b0 - b7) * 3.0 + (b4 - b3) * 2.0;
+        patternScore = tapContrast;
       } else {
         // SALSA:
-        // - Beat 2 e 6 hanno lo slap delle congas
-        // - Beat 4 e 8 hanno il ponche del tumbao
-        const congaSlapScore = (avgMid[1] + avgMid[5]) * 2.8;
-        const tumbaoPonche = (avgBass[3] + avgBass[7]) * 2.5;
-        genrePatternScore = congaSlapScore + tumbaoPonche;
+        // - I tempi 4 e 8 hanno il ponche del tumbao (basso profondo e conga aperto)
+        const poncheScore = (b3 + b7) * 2.5;
+        patternScore = poncheScore;
       }
 
-      // 4. DISTINZIONE INEQUIVOCABILE TRA TEMPO 1 E TEMPO 5:
-      // a) Il Tempo 1 è la tonica di battuta (basso più profondo e tonica rispetto a Tempo 5)
-      const t1SuperiorityBonus = avgBass[0] > avgBass[4] ? 18.0 : -25.0;
+      // 4. SUPERIORITÀ DELLA TONICA SUL TEMPO 1 RISPETTO AL TEMPO 5:
+      // Il Tempo 1 è l'inizio della frase musicale di 8 battiti e ha tonica e presenza maggiore rispetto a Tempo 5.
+      const tonicSuperiorityScore = (b0 >= b4 ? 3.0 : -3.0) + (o0 >= o4 ? 2.0 : -2.0);
 
-      // b) L'ingresso ritmico della canzone (Drop) avviene sul Tempo 1, MAI sul Tempo 5!
-      const beatAtDrop = ((mDrop - c) % 8 + 8) % 8;
-      let dropAlignmentBonus = 0;
-      if (beatAtDrop === 0) {
-        dropAlignmentBonus = 50.0; // Enorme bonus: il drop coincide esattamente con il Tempo 1!
-      } else if (beatAtDrop === 4) {
-        dropAlignmentBonus = -45.0; // Penalità severa: il brano non entra su Tempo 5!
-      } else {
-        dropAlignmentBonus = -20.0;
+      // 5. PENALITÀ SEVERISSIMA SE BEAT 0 È IN REALTÀ LO SLAP DEL TEMPO 2:
+      // Uno slap puro ha bassi debolissimi (b0 < 0.15) e medi acuti altissimi (m0 > m1 * 1.4)
+      let slapPenalty = 0;
+      if (m0 > m1 * 1.4 && b0 < 0.15) {
+        slapPenalty = -120.0;
       }
 
-      let totalCandidateScore =
+      const totalCandidateScore =
         downbeatBassScore +
-        genrePatternScore -
-        offbeatBassPenalty +
-        t1SuperiorityBonus +
-        dropAlignmentBonus;
-
-      // Penalità severissima se parte sul Tempo 2 (bongo slap sul beat 0)
-      if (isTempo2Slap) {
-        totalCandidateScore -= 150.0;
-      }
+        slapScore +
+        patternScore +
+        tonicSuperiorityScore +
+        slapPenalty;
 
       if (totalCandidateScore > maxMetricScore) {
         maxMetricScore = totalCandidateScore;
@@ -1127,26 +1121,38 @@ export async function analyzeAudioFile(
     let mStart = ((bestCandidate % 8) + 8) % 8;
     // Si fa attendere qualche secondo (almeno 4.0s) per consentire l'ascolto e la calibrazione del tempo prima di iniziare a contare i battiti
     const minIntroWaitFrames = Math.round(frameRate * 4.0);
-    while (bestPhi + mStart * exactPeriodFrames < Math.max(minIntroWaitFrames, firstDropFrame - 2)) {
+    while (bestPhi + mStart * exactPeriodFrames < Math.max(soundStartFrame + Math.round(frameRate * 1.5), minIntroWaitFrames)) {
       mStart += 8;
     }
     const firstT1Frame = bestPhi + mStart * exactPeriodFrames;
     const firstTempo1Sec = Number((firstT1Frame / frameRate).toFixed(3));
 
-    // 6. Costruzione della sequenza musicale dei battiti (da 1 a 8 continuo a tempo)
+    // 6. Costruzione della sequenza musicale dei battiti (da 1 a 8 continuo a tempo per l'intero brano)
     const beats: BeatEvent[] = [];
     const maxSongDuration = Math.max(audioDuration, 480);
 
+    // Battiti in avanti dal primo Tempo 1 fino alla fine del brano:
     let tFwd = firstTempo1Sec;
     let kFwd = 0;
     while (tFwd <= maxSongDuration) {
-      const beatNum = kFwd % 8;
       beats.push({
         time: Number(tFwd.toFixed(3)),
-        beat: beatNum,
+        beat: kFwd % 8, // 0 = Tempo 1, 4 = Tempo 5
       });
       tFwd += beatPeriodSec;
       kFwd++;
+    }
+
+    // Battiti all'indietro fino a 0s per coprire anche l'intro e garantire coerenza al riavvolgimento:
+    let tBack = firstTempo1Sec - beatPeriodSec;
+    let kBack = -1;
+    while (tBack >= 0) {
+      beats.push({
+        time: Number(tBack.toFixed(3)),
+        beat: ((kBack % 8) + 8) % 8,
+      });
+      tBack -= beatPeriodSec;
+      kBack--;
     }
 
     beats.sort((a, b) => a.time - b.time);

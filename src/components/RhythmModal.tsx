@@ -147,7 +147,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           const needsReanalysis =
             !beats ||
             beats.length === 0 ||
-            (s.engineVersion || 0) < 12;
+            (s.engineVersion || 0) < 13;
 
           if (needsReanalysis) {
             try {
@@ -164,7 +164,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 bpm,
                 beatOffset,
                 beats,
-                engineVersion: 12,
+                engineVersion: 13,
               });
             } catch (e) {
               console.warn('Auto-calibrazione traccia:', s.name, e);
@@ -482,7 +482,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           details: result.details,
         };
 
-        // Salvataggio permanente su IndexedDB con engineVersion: 12
+        // Salvataggio permanente su IndexedDB con engineVersion: 13
         await saveTrackToStorage({
           id: trackId,
           name: trackItem.name,
@@ -494,7 +494,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           audioBlob: file,
           duration: file.size,
           savedAt: Date.now(),
-          engineVersion: 12,
+          engineVersion: 13,
         });
 
         newTracks.push(trackItem);
@@ -581,7 +581,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             beats: updatedTrack.beats,
             audioBlob: track.file,
             savedAt: Date.now(),
-            engineVersion: 12,
+            engineVersion: 13,
           });
         }
 
