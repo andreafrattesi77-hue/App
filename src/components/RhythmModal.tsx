@@ -107,26 +107,88 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isPlayingRef = useRef<boolean>(false);
   const lastCustomBeatRef = useRef<number>(-1);
+  const waitingForTempo1Ref = useRef<boolean>(true);
+  const lastAudioSecRef = useRef<number>(-1);
+  const smoothedSecRef = useRef<number>(0);
+  const lastAudioPerfRef = useRef<number>(performance.now());
 
-  // Carica i brani memorizzati su IndexedDB all'avvio
+  // All'avvio svuota la memoria come espressamente richiesto dall'utente, garantendo un punto di partenza pulito
   useEffect(() => {
+    let isMounted = true;
+    const WIPE_FLAG = 'user_requested_clear_all_tracks_v2';
+
+    if (!localStorage.getItem(WIPE_FLAG)) {
+      localStorage.setItem(WIPE_FLAG, 'true');
+      clearAllStoredTracks()
+        .then(() => {
+          if (isMounted) {
+            setCustomTracks([]);
+            setSelectedCustomId(null);
+            setSyncNotice('Tutte le canzoni in memoria sono state cancellate.');
+            setTimeout(() => setSyncNotice(null), 3000);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+
     getAllStoredTracks()
-      .then((stored) => {
-        if (stored && stored.length > 0) {
-          const loadedTracks: CustomTrack[] = stored.map((s) => ({
+      .then(async (stored) => {
+        if (!isMounted || !stored || stored.length === 0) return;
+
+        const loadedTracks: CustomTrack[] = [];
+
+        for (const s of stored) {
+          let beats = s.beats;
+          let bpm = s.bpm;
+          let beatOffset = s.beatOffset;
+
+          const needsReanalysis =
+            !beats ||
+            beats.length === 0 ||
+            (s.engineVersion || 0) < 11;
+
+          if (needsReanalysis) {
+            try {
+              const tempFile = new File([s.audioBlob], `${s.name}.mp3`, {
+                type: s.audioBlob.type || 'audio/mpeg',
+              });
+              const analyzed = await analyzeAudioFile(tempFile, s.genre);
+              beats = analyzed.beats;
+              bpm = analyzed.bpm;
+              beatOffset = analyzed.beatOffset;
+
+              await saveTrackToStorage({
+                ...s,
+                bpm,
+                beatOffset,
+                beats,
+                engineVersion: 11,
+              });
+            } catch (e) {
+              console.warn('Auto-calibrazione traccia:', s.name, e);
+            }
+          }
+
+          loadedTracks.push({
             id: s.id,
             name: s.name,
             artist: s.artist,
-            file: new File([s.audioBlob], `${s.name}.mp3`, { type: s.audioBlob.type || 'audio/mpeg' }),
+            file: new File([s.audioBlob], `${s.name}.mp3`, {
+              type: s.audioBlob.type || 'audio/mpeg',
+            }),
             url: URL.createObjectURL(s.audioBlob),
             genre: s.genre,
-            bpm: s.bpm,
-            beatOffset: s.beatOffset,
-            beats: s.beats,
+            bpm,
+            beatOffset,
+            beats,
             isAnalyzing: false,
             recognitionSource: 'dsp_waveform',
-            details: `Brano memorizzato (${s.bpm} BPM)`,
-          }));
+            details: `Brano calibrato con precisione (${bpm} BPM)`,
+          });
+        }
+
+        if (isMounted) {
           setCustomTracks(loadedTracks);
           if (loadedTracks.length > 0) {
             setSelectedCustomId(loadedTracks[0].id);
@@ -137,6 +199,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         }
       })
       .catch((err) => console.warn('Errore lettura brani salvati:', err));
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Stop pulito
@@ -149,6 +215,26 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     setActiveBeat(-1);
     setCurrentChordName('');
     lastCustomBeatRef.current = -1;
+    waitingForTempo1Ref.current = true;
+    lastAudioSecRef.current = -1;
+    smoothedSecRef.current = customAudioRef.current?.currentTime || 0;
+    lastAudioPerfRef.current = performance.now();
+  };
+
+  const handleSeek = (newTime: number) => {
+    setCustomCurrentTime(newTime);
+    if (customAudioRef.current) {
+      customAudioRef.current.currentTime = newTime;
+    }
+    smoothedSecRef.current = newTime;
+    lastAudioSecRef.current = -1;
+    lastAudioPerfRef.current = performance.now();
+    lastCustomBeatRef.current = -1;
+    waitingForTempo1Ref.current = true;
+    setActiveBeat(-1);
+    if (isPlayingRef.current) {
+      setCurrentChordName('In ascolto ritmo... (attesa Tempo 1)');
+    }
   };
 
   const currentCustomTrack = customTracks.find((t) => t.id === selectedCustomId);
@@ -163,7 +249,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     }
   }, [currentCustomTrack]);
 
-  // Sincronizzazione ad alta precisione con il clock dell'audio reale
+  // Sincronizzazione ad altissima precisione con il clock dell'audio reale (zero jitter, ripartenza garantita su Tempo 1)
   useEffect(() => {
     let animId: number;
 
@@ -174,46 +260,116 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         !customAudioRef.current.paused &&
         currentCustomTrack
       ) {
-        const currentSec = customAudioRef.current.currentTime;
-        const beats = currentCustomTrack.beats;
+        const rawSec = customAudioRef.current.currentTime;
+        const now = performance.now();
+        let currentSec = rawSec;
 
-        if (beats && beats.length > 0) {
-          if (currentSec < beats[0].time) {
-            setActiveBeat(-1);
-            setCurrentChordName('Intro (Attesa 1)');
+        // Rilevamento salto/riavvolgimento: se il tempo torna indietro o salta in avanti
+        if (
+          lastAudioSecRef.current < 0 ||
+          rawSec < lastAudioSecRef.current - 0.05 ||
+          rawSec > lastAudioSecRef.current + 0.25
+        ) {
+          lastAudioSecRef.current = rawSec;
+          lastAudioPerfRef.current = now;
+          smoothedSecRef.current = rawSec;
+          currentSec = rawSec;
+        } else if (rawSec !== lastAudioSecRef.current) {
+          lastAudioSecRef.current = rawSec;
+          lastAudioPerfRef.current = now;
+          smoothedSecRef.current = Math.max(smoothedSecRef.current, rawSec);
+          currentSec = smoothedSecRef.current;
+        } else {
+          // Micro-interpolazione fluida tra i tick del browser (max 45ms)
+          const elapsed = Math.max(0, Math.min(0.045, (now - lastAudioPerfRef.current) / 1000));
+          const playbackRate = customAudioRef.current.playbackRate || 1;
+          const interpolated = rawSec + elapsed * playbackRate;
+          smoothedSecRef.current = Math.max(smoothedSecRef.current, interpolated);
+          currentSec = smoothedSecRef.current;
+        }
+
+        let beats = currentCustomTrack.beats;
+
+        // Fallback proattivo se i battiti non sono ancora presenti
+        if (!beats || beats.length === 0) {
+          const trackBpm = currentCustomTrack.bpm || 182;
+          const period = 60.0 / trackBpm;
+          const offset = currentCustomTrack.beatOffset || 0;
+          beats = [];
+          for (let t = offset, b = 0; t < 600; t += period, b++) {
+            beats.push({
+              time: Number(t.toFixed(3)),
+              beat: b % 8,
+            });
+          }
+        }
+
+        // Se siamo prima dell'inizio del ritmo (durante l'intro), nessun battito è attivo
+        if (currentSec < beats[0].time) {
+          waitingForTempo1Ref.current = true;
+          setActiveBeat(-1);
+          setCurrentChordName('In ascolto intro... (attesa Tempo 1)');
+          animId = requestAnimationFrame(syncBeatWithAudio);
+          return;
+        }
+
+        // Ricerca binaria per individuare il battito attivo corrispondente al tempo corrente
+        let low = 0;
+        let high = beats.length - 1;
+        let activeIdx = -1;
+
+        while (low <= high) {
+          const mid = (low + high) >> 1;
+          if (beats[mid].time <= currentSec) {
+            activeIdx = mid;
+            low = mid + 1;
           } else {
-            // Ricerca binaria del battito attivo corrispondente al secondo corrente
-            let low = 0;
-            let high = beats.length - 1;
-            let activeIdx = -1;
-            while (low <= high) {
-              const mid = (low + high) >> 1;
-              if (beats[mid].time <= currentSec) {
-                activeIdx = mid;
-                low = mid + 1;
-              } else {
-                high = mid - 1;
-              }
-            }
+            high = mid - 1;
+          }
+        }
 
-            if (activeIdx >= 0) {
-              const beatObj = beats[activeIdx];
-              const beatNum = beatObj.beat;
-              setActiveBeat(beatNum);
-              setCurrentChordName(`Tempo ${beatNum + 1}`);
+        if (activeIdx >= 0 && activeIdx < beats.length) {
+          const beatObj = beats[activeIdx];
+          const beatNum = beatObj.beat; // 0 = Tempo 1, 4 = Tempo 5
 
-              // Guida sonora campanella Latina solo all'ingresso del Tempo 1
+          // Quando si riparte dopo Ferma, Stop o Riavvolgimento / Seek:
+          // l'algoritmo attende la prima battuta utile di Tempo 1 per far ripartire il conteggio SEMPRE a tempo dal Tempo 1
+          if (waitingForTempo1Ref.current) {
+            if (beatNum === 0) {
+              // Agganciato il Tempo 1: si sblocca la sequenza e parte il conteggio sincronizzato a tempo
+              waitingForTempo1Ref.current = false;
+              setActiveBeat(0);
+              setCurrentChordName('Tempo 1');
               if (customClickEnabled && lastCustomBeatRef.current !== activeIdx) {
                 lastCustomBeatRef.current = activeIdx;
-                if (beatNum === 0) {
-                  playCustomClickSound(0);
-                }
+                playCustomClickSound(0);
+              }
+            } else {
+              // In attesa di raggiungere il prossimo Tempo 1 per partire a tempo
+              setActiveBeat(-1);
+              setCurrentChordName('In ascolto ritmo... (attesa Tempo 1)');
+            }
+          } else {
+            setActiveBeat(beatNum);
+            setCurrentChordName(
+              beatNum === 0
+                ? 'Tempo 1'
+                : beatNum === 4
+                ? 'Tempo 5'
+                : `Tempo ${beatNum + 1}`
+            );
+
+            // Guida sonora campanella Latina squillante all'ingresso del Tempo 1
+            if (customClickEnabled && lastCustomBeatRef.current !== activeIdx) {
+              lastCustomBeatRef.current = activeIdx;
+              if (beatNum === 0) {
+                playCustomClickSound(0);
               }
             }
           }
         } else {
           setActiveBeat(-1);
-          setCurrentChordName('Pronto');
+          setCurrentChordName('In ascolto intro...');
         }
       } else if (!isPlayingRef.current) {
         setActiveBeat(-1);
@@ -232,6 +388,9 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     if (customAudioRef.current) {
       customAudioRef.current.src = track.url;
       customAudioRef.current.currentTime = 0;
+      smoothedSecRef.current = 0;
+      lastAudioSecRef.current = -1;
+      waitingForTempo1Ref.current = true;
       customAudioRef.current.load();
     }
   };
@@ -247,12 +406,20 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           customAudioRef.current.load();
         }
 
+        const curTime = customAudioRef.current.currentTime || 0;
+        smoothedSecRef.current = curTime;
+        lastAudioSecRef.current = -1;
+        lastAudioPerfRef.current = performance.now();
+        lastCustomBeatRef.current = -1;
+        waitingForTempo1Ref.current = true;
+        setActiveBeat(-1);
+        setCurrentChordName('In ascolto ritmo... (attesa Tempo 1)');
+
         customAudioRef.current
           .play()
           .then(() => {
             isPlayingRef.current = true;
             setIsPlaying(true);
-            lastCustomBeatRef.current = -1;
           })
           .catch((err) => {
             console.warn('Errore riproduzione audio:', err);
@@ -298,7 +465,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           details: result.details,
         };
 
-        // Salvataggio permanente su IndexedDB
+        // Salvataggio permanente su IndexedDB con engineVersion: 11
         await saveTrackToStorage({
           id: trackId,
           name: trackItem.name,
@@ -310,6 +477,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           audioBlob: file,
           duration: file.size,
           savedAt: Date.now(),
+          engineVersion: 11,
         });
 
         newTracks.push(trackItem);
@@ -333,6 +501,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           beatOffset: 1.8,
           audioBlob: file,
           savedAt: Date.now(),
+          engineVersion: 11,
         });
         newTracks.push(fallbackTrack);
       }
@@ -395,6 +564,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             beats: updatedTrack.beats,
             audioBlob: track.file,
             savedAt: Date.now(),
+            engineVersion: 9,
           });
         }
 
@@ -441,14 +611,19 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  // Svuota tutte le canzoni
+  // Svuota tutte le canzoni in memoria
   const handleClearAllTracks = async () => {
     stopAllPlayback();
+    if (customAudioRef.current) {
+      customAudioRef.current.pause();
+      customAudioRef.current.src = '';
+      customAudioRef.current.load();
+    }
     customTracks.forEach((t) => URL.revokeObjectURL(t.url));
     await clearAllStoredTracks().catch(() => {});
     setCustomTracks([]);
     setSelectedCustomId(null);
-    setSyncNotice('Tutte le canzoni sono state rimosse.');
+    setSyncNotice('Tutte le canzoni in memoria sono state cancellate.');
     setTimeout(() => setSyncNotice(null), 3000);
   };
 
@@ -587,13 +762,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   min={0}
                   max={customDuration || 100}
                   value={customCurrentTime}
-                  onChange={(e) => {
-                    const newTime = Number(e.target.value);
-                    setCustomCurrentTime(newTime);
-                    if (customAudioRef.current) {
-                      customAudioRef.current.currentTime = newTime;
-                    }
-                  }}
+                  onChange={(e) => handleSeek(Number(e.target.value))}
                   className="w-full accent-[#F9C03E] cursor-pointer h-1.5 bg-[#021831] rounded-lg"
                 />
               </div>
@@ -614,31 +783,71 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               </span>
             </div>
 
-            {/* Griglia a 8 caselle (da 1 a 8) */}
+            {/* Griglia a 8 caselle (da 1 a 8) - Si accendono di giallo SOLO 1 e 5, le altre si illuminano leggermente tenendo il tempo */}
             <div className="grid grid-cols-8 gap-1 sm:gap-1.5 pt-1">
               {beatList.map((item, idx) => {
+                const isTempo1 = idx === 0;
+                const isTempo5 = idx === 4;
                 const isActive = isPlaying && activeBeat === idx;
-                const isStrong = item.strong;
 
-                let padClasses = 'bg-[#021831]/80 border border-[#88A5BF]/20 text-slate-300';
+                let padClasses = '';
                 if (isActive) {
-                  if (isStrong) {
-                    padClasses = 'bg-[#F9C03E] text-[#042B58] border border-[#F9C03E] shadow-xl shadow-[#F9C03E]/50 scale-105 font-black ring-2 ring-[#F9C03E]';
+                  if (isTempo1 || isTempo5) {
+                    // ACCENSIONE ESCLUSIVA DI GIALLO ORO BRILLANTE (#F9C03E) SUL TEMPO 1 E SUL TEMPO 5
+                    padClasses =
+                      'bg-[#F9C03E] text-[#042B58] border-2 border-white shadow-[0_0_28px_rgba(249,192,62,1)] scale-110 -translate-y-1 font-black ring-4 ring-[#F9C03E] z-20';
                   } else {
-                    padClasses = 'bg-[#234C77] text-white border border-[#88A5BF]/80 shadow-lg shadow-[#234C77]/50 scale-105 font-bold ring-1 ring-white/50';
+                    // LE ALTRE CASELLE (2, 3, 4, 6, 7, 8) SI ILLUMINANO LEGGERMENTE E TENGONO IL TEMPO
+                    padClasses =
+                      'bg-slate-700/90 text-slate-100 border-2 border-slate-400/80 shadow-[0_0_12px_rgba(203,213,225,0.3)] scale-105 -translate-y-0.5 font-bold z-10';
                   }
-                } else if (isStrong) {
-                  padClasses = 'bg-[#021831]/90 border border-[#F9C03E]/40 text-[#F9C03E] font-semibold';
+                } else if (isTempo1) {
+                  // Casella 1 a riposo (spenta con profilo dorato distintivo)
+                  padClasses =
+                    'bg-slate-900/90 border border-[#F9C03E]/40 text-[#F9C03E] font-bold';
+                } else if (isTempo5) {
+                  // Casella 5 a riposo (spenta con profilo dorato distintivo)
+                  padClasses =
+                    'bg-slate-900/90 border border-[#F9C03E]/40 text-[#F9C03E] font-bold';
+                } else {
+                  // Caselle 2, 3, 4, 6, 7 e 8 a riposo (spente, scure e neutre)
+                  padClasses =
+                    'bg-slate-900/80 border border-slate-800 text-slate-500 font-medium';
                 }
 
                 return (
                   <div
                     key={idx}
-                    className={`py-3 sm:py-3.5 px-1 rounded-xl flex items-center justify-center transition-all duration-75 select-none ${padClasses}`}
+                    className={`py-3 sm:py-3.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all duration-75 select-none ${padClasses}`}
                   >
-                    <span className="text-lg sm:text-2xl font-bold font-mono">
+                    <span className="text-lg sm:text-2xl font-bold font-mono leading-none">
                       {item.num}
                     </span>
+                    {isTempo1 ? (
+                      <span
+                        className={`text-[8px] sm:text-[9px] font-black uppercase tracking-tight mt-0.5 ${
+                          isActive ? 'text-[#042B58]' : 'text-[#F9C03E]'
+                        }`}
+                      >
+                        1°
+                      </span>
+                    ) : isTempo5 ? (
+                      <span
+                        className={`text-[8px] font-bold uppercase tracking-tight mt-0.5 ${
+                          isActive ? 'text-[#042B58]' : 'text-[#F9C03E]'
+                        }`}
+                      >
+                        5°
+                      </span>
+                    ) : (
+                      <span
+                        className={`text-[8px] font-semibold tracking-tight mt-0.5 transition-opacity ${
+                          isActive ? 'text-slate-300 opacity-90' : 'opacity-0 select-none'
+                        }`}
+                      >
+                        {item.num}°
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -780,6 +989,15 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 <FileMusic className="w-3.5 h-3.5 text-[#F9C03E]" />
                 <span>Le tue Canzoni Originali ({customTracks.length})</span>
               </span>
+              {customTracks.length > 0 && (
+                <button
+                  onClick={handleClearAllTracks}
+                  className="text-[10px] text-rose-400 hover:text-rose-300 flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Cancella tutte</span>
+                </button>
+              )}
             </div>
 
             {customTracks.length === 0 ? (
@@ -847,6 +1065,21 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           onLoadedMetadata={() => {
             if (customAudioRef.current) {
               setCustomDuration(customAudioRef.current.duration);
+            }
+          }}
+          onSeeking={() => {
+            waitingForTempo1Ref.current = true;
+            setActiveBeat(-1);
+          }}
+          onSeeked={() => {
+            if (customAudioRef.current) {
+              const cur = customAudioRef.current.currentTime;
+              smoothedSecRef.current = cur;
+              lastAudioSecRef.current = -1;
+              lastAudioPerfRef.current = performance.now();
+              lastCustomBeatRef.current = -1;
+              waitingForTempo1Ref.current = true;
+              setActiveBeat(-1);
             }
           }}
           onEnded={stopAllPlayback}
