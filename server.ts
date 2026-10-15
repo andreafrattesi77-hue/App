@@ -6,6 +6,7 @@ import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import { METODO, trovaUnitaPertinenti, getUnita } from './content/index';
 import { generateCoachReasoning, generateEveningAdviceReasoning } from './src/services/coachReasoning';
+import { analyzeWithEssentia } from './src/services/essentiaServer';
 
 dotenv.config();
 
@@ -15,7 +16,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.raw({ type: ['application/octet-stream', 'audio/*'], limit: '50mb' }));
 
 // Initialize GoogleGenAI client with standard telemetry
 const ai = new GoogleGenAI({
@@ -428,6 +430,47 @@ ${eveningContext}`,
       previousAdvice: req.body?.previousAdvice,
     });
     res.json({ advice });
+  }
+});
+
+// API: Analisi Ritmica Professionale con Essentia.js MIR
+app.post('/api/audio/analyze-rhythm', (req, res) => {
+  try {
+    let samples: Float32Array | null = null;
+    let sampleRate = 22050;
+    let preferredGenre: 'salsa' | 'bachata' | 'auto' = 'auto';
+
+    if (Buffer.isBuffer(req.body)) {
+      const srHeader = Number(req.headers['x-sample-rate']);
+      if (!isNaN(srHeader) && srHeader > 0) sampleRate = srHeader;
+      const genreHeader = String(req.headers['x-genre'] || '').toLowerCase();
+      if (genreHeader === 'salsa' || genreHeader === 'bachata') preferredGenre = genreHeader;
+      samples = new Float32Array(req.body.buffer, req.body.byteOffset, req.body.byteLength / 4);
+    } else if (req.body) {
+      if (req.body.sampleRate) sampleRate = Number(req.body.sampleRate);
+      if (req.body.preferredGenre) preferredGenre = req.body.preferredGenre;
+
+      if (req.body.samplesBase64) {
+        const buf = Buffer.from(req.body.samplesBase64, 'base64');
+        samples = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+      } else if (Array.isArray(req.body.samples)) {
+        samples = new Float32Array(req.body.samples);
+      }
+    }
+
+    if (!samples || samples.length === 0) {
+      return res.status(400).json({ error: 'Nessun campione audio ricevuto.' });
+    }
+
+    const result = analyzeWithEssentia(samples, sampleRate, preferredGenre);
+    if (!result) {
+      return res.status(500).json({ error: 'Errore durante l\'analisi con Essentia.js.' });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Errore API analyze-rhythm:', error);
+    res.status(500).json({ error: 'Errore interno analisi ritmica.' });
   }
 });
 

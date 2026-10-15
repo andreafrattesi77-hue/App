@@ -17,6 +17,8 @@ export interface StoredAudioTrack {
   duration?: number;
   savedAt: number;
   engineVersion?: number;
+  recognitionSource?: string;
+  details?: string;
 }
 
 const DB_NAME = 'SalsaBachataAudioStore';

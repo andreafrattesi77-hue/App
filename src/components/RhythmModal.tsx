@@ -14,6 +14,7 @@ import {
   Bell,
   BellOff,
   Check,
+  Target,
 } from 'lucide-react';
 import { DanceGenre } from '../services/rhythmAudio';
 import {
@@ -38,7 +39,7 @@ export interface CustomTrack {
   beatOffset: number; // Downbeat (Tempo 1) offset in seconds
   beats?: BeatEvent[]; // Array of exact beat timestamps
   isAnalyzing?: boolean;
-  recognitionSource?: 'catalog' | 'dsp_waveform' | 'heuristic';
+  recognitionSource?: 'catalog' | 'dsp_waveform' | 'heuristic' | 'essentia_mir';
   details?: string;
 }
 
@@ -147,7 +148,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           const needsReanalysis =
             !beats ||
             beats.length === 0 ||
-            (s.engineVersion || 0) < 13;
+            (s.engineVersion || 0) < 14;
+
+          let recSource: CustomTrack['recognitionSource'] = (s.recognitionSource as any) || 'essentia_mir';
+          let detailsText = s.details || `Brano calibrato con Essentia.js (${bpm} BPM)`;
 
           if (needsReanalysis) {
             try {
@@ -158,16 +162,20 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               beats = analyzed.beats;
               bpm = analyzed.bpm;
               beatOffset = analyzed.beatOffset;
+              recSource = analyzed.recognitionSource;
+              detailsText = analyzed.details;
 
               await saveTrackToStorage({
                 ...s,
                 bpm,
                 beatOffset,
                 beats,
-                engineVersion: 13,
+                engineVersion: 14,
+                recognitionSource: recSource,
+                details: detailsText,
               });
             } catch (e) {
-              console.warn('Auto-calibrazione traccia:', s.name, e);
+              console.warn('Auto-calibrazione traccia Essentia:', s.name, e);
             }
           }
 
@@ -184,8 +192,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             beatOffset,
             beats,
             isAnalyzing: false,
-            recognitionSource: 'dsp_waveform',
-            details: `Brano calibrato con precisione (${bpm} BPM)`,
+            recognitionSource: recSource,
+            details: detailsText,
           });
         }
 
@@ -482,7 +490,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           details: result.details,
         };
 
-        // Salvataggio permanente su IndexedDB con engineVersion: 13
+        // Salvataggio permanente su IndexedDB con engineVersion: 14
         await saveTrackToStorage({
           id: trackId,
           name: trackItem.name,
@@ -494,7 +502,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           audioBlob: file,
           duration: file.size,
           savedAt: Date.now(),
-          engineVersion: 13,
+          engineVersion: 14,
         });
 
         newTracks.push(trackItem);
@@ -581,7 +589,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             beats: updatedTrack.beats,
             audioBlob: track.file,
             savedAt: Date.now(),
-            engineVersion: 13,
+            engineVersion: 14,
           });
         }
 
@@ -599,6 +607,106 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           prev.map((t) => (t.id === track.id ? { ...t, isAnalyzing: false } : t))
         );
       });
+  };
+
+  // Aggancia 1 adesso: allinea istantaneamente la griglia al momento esatto del tocco e la memorizza
+  const handleHookTempo1Now = async () => {
+    if (!currentCustomTrack) return;
+
+    const audioEl = customAudioRef.current;
+    const currentAudioTime = audioEl ? audioEl.currentTime : customCurrentTime;
+    if (isNaN(currentAudioTime) || currentAudioTime < 0) return;
+
+    const bpm = currentCustomTrack.bpm || 130;
+    const beatPeriod = 60.0 / bpm;
+    const songDuration = customDuration || 480;
+
+    // Costruisci la nuova griglia con Tempo 1 esattamente al timestamp corrente
+    const newBeats: BeatEvent[] = [];
+    const baseOffset = Number(currentAudioTime.toFixed(3));
+
+    // Battiti in avanti dal punto di aggancio fino alla fine del brano
+    let tFwd = baseOffset;
+    let bFwd = 0;
+    while (tFwd <= songDuration + 60) {
+      newBeats.push({
+        time: Number(tFwd.toFixed(3)),
+        beat: bFwd % 8, // 0 = Tempo 1
+      });
+      tFwd += beatPeriod;
+      bFwd++;
+    }
+
+    // Battiti all'indietro fino a 0s per coprire anche l'intro e il riavvolgimento
+    let tBack = baseOffset - beatPeriod;
+    let bBack = -1;
+    while (tBack >= 0) {
+      newBeats.push({
+        time: Number(tBack.toFixed(3)),
+        beat: ((bBack % 8) + 8) % 8,
+      });
+      tBack -= beatPeriod;
+      bBack--;
+    }
+
+    newBeats.sort((a, b) => a.time - b.time);
+
+    // Aggiorna subito lo stato della traccia attiva
+    const updatedTrack: CustomTrack = {
+      ...currentCustomTrack,
+      beatOffset: baseOffset,
+      beats: newBeats,
+      details: `Tempo 1 agganciato a ${baseOffset.toFixed(2)}s (${bpm} BPM)`,
+    };
+
+    setCustomTracks((prev) =>
+      prev.map((t) => (t.id === currentCustomTrack.id ? updatedTrack : t))
+    );
+
+    // Salva in modo permanente in memoria IndexedDB
+    try {
+      const stored = await getAllStoredTracks();
+      const existing = stored?.find((s) => s.id === currentCustomTrack.id);
+      if (existing) {
+        await saveTrackToStorage({
+          ...existing,
+          beatOffset: baseOffset,
+          beats: newBeats,
+        });
+      } else if (currentCustomTrack.file) {
+        await saveTrackToStorage({
+          id: currentCustomTrack.id,
+          name: currentCustomTrack.name,
+          artist: currentCustomTrack.artist,
+          genre: currentCustomTrack.genre,
+          bpm: currentCustomTrack.bpm,
+          beatOffset: baseOffset,
+          beats: newBeats,
+          audioBlob: currentCustomTrack.file,
+          duration: currentCustomTrack.file.size,
+          savedAt: Date.now(),
+          engineVersion: 13,
+        });
+      }
+    } catch (e) {
+      console.warn('Errore salvataggio permanente Tempo 1:', e);
+    }
+
+    // Sblocca subito il conteggio visivo: si accende istantaneamente il Tempo 1
+    waitingForTempo1Ref.current = false;
+    minWaitResumeSecRef.current = 0;
+    setActiveBeat(0);
+    setCurrentChordName('Tempo 1');
+    lastCustomBeatRef.current = -1;
+
+    if (customClickEnabled) {
+      playCustomClickSound(0);
+    }
+
+    setSyncNotice(
+      `🎯 Tempo 1 agganciato a ${baseOffset.toFixed(2)}s e memorizzato!`
+    );
+    setTimeout(() => setSyncNotice(null), 3500);
   };
 
   // Eliminazione singolo brano
@@ -870,11 +978,28 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               })}
             </div>
 
-            {/* Informazioni sincronizzazione automatica */}
+            {/* Tasto Rapido Richiesto: Aggancia 1 adesso */}
             {currentCustomTrack && (
-              <div className="pt-2 text-center border-t border-[#88A5BF]/15">
+              <div className="pt-2.5 flex flex-col items-center gap-1.5 border-t border-[#88A5BF]/20">
+                <button
+                  type="button"
+                  onClick={handleHookTempo1Now}
+                  className="w-full py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-gradient-to-r from-amber-500 via-[#F9C03E] to-amber-500 hover:brightness-110 text-[#042B58] shadow-[0_0_20px_rgba(249,192,62,0.45)] active:scale-95"
+                >
+                  <Target className="w-4 h-4 text-[#042B58]" />
+                  <span>Aggancia 1 adesso</span>
+                </button>
+                <p className="text-[10px] text-slate-300 text-center leading-tight">
+                  Tocca nell&apos;istante in cui senti il battere: allinea subito il Tempo 1 e lo memorizza per sempre su questa canzone.
+                </p>
+              </div>
+            )}
+
+            {/* Informazioni sincronizzazione */}
+            {currentCustomTrack && (
+              <div className="pt-1 text-center">
                 <span className="text-[11px] text-[#88A5BF] font-mono">
-                  Sincronizzazione automatica: Tempo 1 a {currentCustomTrack.beatOffset.toFixed(2)}s • {currentCustomTrack.bpm} BPM
+                  Tempo 1 a {currentCustomTrack.beatOffset.toFixed(2)}s • {currentCustomTrack.bpm} BPM
                 </span>
               </div>
             )}
@@ -996,6 +1121,15 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   </span>
                 </div>
               </div>
+
+              {currentCustomTrack.details && (
+                <div className="pt-1.5 border-t border-[#88A5BF]/15">
+                  <span className="text-[10px] text-amber-200/90 font-mono flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-[#F9C03E] shrink-0" />
+                    <span>{currentCustomTrack.details}</span>
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

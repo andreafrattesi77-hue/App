@@ -14,7 +14,7 @@ export interface AudioRecognitionResult {
   introWaitSeconds?: number;
   beats: BeatEvent[]; // Complete sequence of real beats starting from Tempo 1
   confidence: number;
-  recognitionSource: 'dsp_waveform' | 'heuristic';
+  recognitionSource: 'dsp_waveform' | 'heuristic' | 'essentia_mir';
   details: string;
 }
 
@@ -718,6 +718,51 @@ export async function analyzeAudioFile(
     const sampleRate = audioBuffer.sampleRate;
     const channelData = audioBuffer.getChannelData(0);
     const audioDuration = audioBuffer.duration;
+
+    // --- ANALISI INTELLIGENTE PROFESSIONALE CON ESSENTIA.JS (MIR WebAssembly) ---
+    try {
+      const targetSr = 22050;
+      const downsampleRatio = Math.max(1, Math.round(sampleRate / targetSr));
+      const maxSeconds = Math.min(audioDuration, 45); // Primi 45s ad altissima fedeltà
+      const maxSamples = Math.floor(maxSeconds * sampleRate);
+      const resampledLength = Math.floor(maxSamples / downsampleRatio);
+      const resampled = new Float32Array(resampledLength);
+
+      for (let i = 0, j = 0; i < maxSamples && j < resampledLength; i += downsampleRatio, j++) {
+        resampled[j] = channelData[i];
+      }
+
+      const effectiveSr = Math.round(sampleRate / downsampleRatio);
+      const res = await fetch('/api/audio/analyze-rhythm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'x-sample-rate': String(effectiveSr),
+          'x-genre': preferredOrDetectedGenre || 'auto',
+        },
+        body: resampled.buffer,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.bpm && Array.isArray(data.beats) && data.beats.length > 0) {
+          return {
+            title,
+            artist,
+            genre: data.genre || preferredOrDetectedGenre || 'salsa',
+            bpm: data.bpm,
+            beatOffset: data.beatOffset,
+            introWaitSeconds: data.beatOffset,
+            beats: data.beats,
+            confidence: data.confidence || 0.99,
+            recognitionSource: 'essentia_mir',
+            details: `✓ Essentia.js MIR: ${data.bpm} BPM • Tempo 1 a ${data.beatOffset.toFixed(2)}s (${data.genre?.toUpperCase()})`,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Essentia.js server endpoint fallback to internal DSP:', e);
+    }
 
     // Risoluzione a 150 FPS (6.67ms per frame)
     const frameRate = 150;
