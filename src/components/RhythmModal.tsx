@@ -148,7 +148,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           const needsReanalysis =
             !beats ||
             beats.length === 0 ||
-            (s.engineVersion || 0) < 14;
+            (s.engineVersion || 0) < 15;
 
           let recSource: CustomTrack['recognitionSource'] = (s.recognitionSource as any) || 'essentia_mir';
           let detailsText = s.details || `Brano calibrato con Essentia.js (${bpm} BPM)`;
@@ -170,7 +170,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 bpm,
                 beatOffset,
                 beats,
-                engineVersion: 14,
+                engineVersion: 15,
                 recognitionSource: recSource,
                 details: detailsText,
               });
@@ -317,11 +317,12 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           }
         }
 
-        // Se siamo prima dell'inizio del ritmo (durante l'intro), nessun battito è attivo
+        // Se siamo prima dell'inizio del ritmo (durante l'intro), nessun battito è attivo: calcolo del tempo in corso
         if (currentSec < beats[0].time) {
           waitingForTempo1Ref.current = true;
           setActiveBeat(-1);
-          setCurrentChordName('In ascolto intro... (calcolo tempo e attesa Tempo 1)');
+          const remaining = Math.max(0, beats[0].time - currentSec).toFixed(1);
+          setCurrentChordName(`Calcolo tempo in corso... (${remaining}s al Tempo 1)`);
           animId = requestAnimationFrame(syncBeatWithAudio);
           return;
         }
@@ -329,7 +330,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         // Se siamo nel periodo iniziale di ascolto e calibrazione dopo Play o Seek / Riavvolgimento
         if (waitingForTempo1Ref.current && currentSec < minWaitResumeSecRef.current) {
           setActiveBeat(-1);
-          setCurrentChordName('In ascolto ritmo... (calcolo tempo e riconoscimento 1 e 5)');
+          const remaining = Math.max(0, minWaitResumeSecRef.current - currentSec).toFixed(1);
+          setCurrentChordName(`Ricalcolo battiti e attesa Tempo 1... (${remaining}s)`);
           animId = requestAnimationFrame(syncBeatWithAudio);
           return;
         }
@@ -502,7 +504,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           audioBlob: file,
           duration: file.size,
           savedAt: Date.now(),
-          engineVersion: 14,
+          engineVersion: 15,
         });
 
         newTracks.push(trackItem);
@@ -589,7 +591,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             beats: updatedTrack.beats,
             audioBlob: track.file,
             savedAt: Date.now(),
-            engineVersion: 14,
+            engineVersion: 15,
           });
         }
 

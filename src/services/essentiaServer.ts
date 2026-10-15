@@ -142,17 +142,29 @@ export function analyzeWithEssentia(
         }
       }
 
-      // Trova il primo Tempo 1 dopo l'ingresso del ritmo (almeno 2.0s di intro)
-      let firstT1 = ticks[0];
+      // Trova il primo Tempo 1 dopo l'ascolto e la calibrazione dell'intro (almeno 5.5s di calcolo prima dell'ingresso)
+      const minIntroSec = 5.5;
+      let firstT1 = -1;
+
       for (let k = 0; k < ticks.length; k++) {
         const beatNum = ((k - bestC) % 8 + 8) % 8;
-        if (beatNum === 0 && ticks[k] >= 2.0) {
+        if (beatNum === 0 && ticks[k] >= minIntroSec) {
           firstT1 = Number(ticks[k].toFixed(3));
           break;
         }
       }
 
-      // Costruisci sequenza completa battiti 1-8
+      if (firstT1 < 0) {
+        // Se tutti i ticks analizzati erano sotto i 5.5s, calcola il primo ciclo di 8 battiti utile oltre 5.5s
+        let candidateT1 = ticks[0] || 1.8;
+        while (candidateT1 < minIntroSec) {
+          candidateT1 += beatPeriod * 8;
+        }
+        firstT1 = Number(candidateT1.toFixed(3));
+      }
+
+      // Costruisci la sequenza dei battiti ESCLUSIVAMENTE a partire dal primo Tempo 1
+      // (nessun battito nell'intro: l'allievo ascolta e si prepara al battere)
       const beats: EssentiaBeatEvent[] = [];
       let t = firstT1;
       let b = 0;
@@ -161,14 +173,6 @@ export function analyzeWithEssentia(
         t += beatPeriod;
         b++;
       }
-      let tBack = firstT1 - beatPeriod;
-      let bBack = -1;
-      while (tBack >= 0) {
-        beats.push({ time: Number(tBack.toFixed(3)), beat: ((bBack % 8) + 8) % 8 });
-        tBack -= beatPeriod;
-        bBack--;
-      }
-      beats.sort((x, y) => x.time - y.time);
 
       return {
         success: true,

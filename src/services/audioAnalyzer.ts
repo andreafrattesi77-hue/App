@@ -1164,15 +1164,16 @@ export async function analyzeAudioFile(
 
     // 5. Calcolo del timestamp esatto del primo Tempo 1 all'ingresso del ritmo nella canzone
     let mStart = ((bestCandidate % 8) + 8) % 8;
-    // Si fa attendere qualche secondo (almeno 4.0s) per consentire l'ascolto e la calibrazione del tempo prima di iniziare a contare i battiti
-    const minIntroWaitFrames = Math.round(frameRate * 4.0);
-    while (bestPhi + mStart * exactPeriodFrames < Math.max(soundStartFrame + Math.round(frameRate * 1.5), minIntroWaitFrames)) {
+    // Si fa attendere qualche secondo (almeno 5.5s) per consentire l'ascolto e la calibrazione del tempo prima di iniziare a contare i battiti
+    const minIntroWaitFrames = Math.round(frameRate * 5.5);
+    while (bestPhi + mStart * exactPeriodFrames < Math.max(soundStartFrame + Math.round(frameRate * 2.0), minIntroWaitFrames)) {
       mStart += 8;
     }
     const firstT1Frame = bestPhi + mStart * exactPeriodFrames;
     const firstTempo1Sec = Number((firstT1Frame / frameRate).toFixed(3));
 
-    // 6. Costruzione della sequenza musicale dei battiti (da 1 a 8 continuo a tempo per l'intero brano)
+    // 6. Costruzione della sequenza musicale dei battiti ESCLUSIVAMENTE a partire dal primo Tempo 1
+    // Durante l'intro non ci sono battiti: il sistema rimane in ascolto e parte all'1 esatto
     const beats: BeatEvent[] = [];
     const maxSongDuration = Math.max(audioDuration, 480);
 
@@ -1187,20 +1188,6 @@ export async function analyzeAudioFile(
       tFwd += beatPeriodSec;
       kFwd++;
     }
-
-    // Battiti all'indietro fino a 0s per coprire anche l'intro e garantire coerenza al riavvolgimento:
-    let tBack = firstTempo1Sec - beatPeriodSec;
-    let kBack = -1;
-    while (tBack >= 0) {
-      beats.push({
-        time: Number(tBack.toFixed(3)),
-        beat: ((kBack % 8) + 8) % 8,
-      });
-      tBack -= beatPeriodSec;
-      kBack--;
-    }
-
-    beats.sort((a, b) => a.time - b.time);
 
     return {
       title,
