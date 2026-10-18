@@ -434,7 +434,7 @@ ${eveningContext}`,
 });
 
 // API: Analisi Ritmica Professionale con Essentia.js MIR
-app.post('/api/audio/analyze-rhythm', (req, res) => {
+app.post(['/api/audio/analyze-rhythm', '/api/analyze-rhythm'], (req, res) => {
   try {
     let samples: Float32Array | null = null;
     let sampleRate = 22050;
@@ -471,6 +471,228 @@ app.post('/api/audio/analyze-rhythm', (req, res) => {
   } catch (error) {
     console.error('Errore API analyze-rhythm:', error);
     res.status(500).json({ error: 'Errore interno analisi ritmica.' });
+  }
+});
+
+// --- LIBRERIA CONDIVISA PERMANENTE DEI BRANI (DISPONIBILE PER TUTTI GLI ALLIEVI) ---
+const TRACKS_DIR = path.resolve(__dirname, 'data', 'tracks');
+const TRACKS_FILE = path.resolve(__dirname, 'data', 'shared_tracks.json');
+
+if (!fs.existsSync(TRACKS_DIR)) {
+  fs.mkdirSync(TRACKS_DIR, { recursive: true });
+}
+
+interface SharedTrackRecord {
+  id: string;
+  name: string;
+  artist?: string;
+  genre: 'salsa' | 'bachata';
+  bpm: number;
+  beatOffset: number;
+  beats: Array<{ time: number; beat: number }>;
+  duration?: number;
+  fileName: string;
+  mimeType: string;
+  uploadedAt: number;
+  isCalibrated: boolean;
+}
+
+function getStoredSharedTracks(): SharedTrackRecord[] {
+  if (fs.existsSync(TRACKS_FILE)) {
+    try {
+      const data = fs.readFileSync(TRACKS_FILE, 'utf-8');
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function saveStoredSharedTracks(tracks: SharedTrackRecord[]) {
+  fs.writeFileSync(TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
+}
+
+// 1. Ottieni la lista di tutti i brani condivisi disponibili per tutti gli allievi
+app.get('/api/shared-tracks', (_req, res) => {
+  try {
+    const list = getStoredSharedTracks();
+    const formatted = list.map((t) => ({
+      ...t,
+      audioUrl: `/api/shared-tracks/audio/${t.id}`,
+    }));
+    res.json(formatted);
+  } catch (err) {
+    console.error('Errore lettura brani condivisi:', err);
+    res.status(500).json({ error: 'Errore lettura libreria condivisa' });
+  }
+});
+
+// 2. Pubblica un nuovo brano o aggiorna la calibrazione (disponibile per tutti)
+app.post('/api/shared-tracks', (req, res) => {
+  try {
+    const {
+      id,
+      name,
+      artist,
+      genre,
+      bpm,
+      beatOffset,
+      beats,
+      duration,
+      audioBase64,
+      fileExtension = 'mp3',
+      mimeType = 'audio/mpeg',
+    } = req.body;
+
+    if (!id || !name || !bpm || beatOffset === undefined) {
+      return res.status(400).json({ error: 'Campi obbligatori mancanti (id, name, bpm, beatOffset).' });
+    }
+
+    const currentTracks = getStoredSharedTracks();
+    let existingIndex = currentTracks.findIndex((t) => t.id === id);
+
+    let fileName = `${id}.${fileExtension.replace(/^\./, '')}`;
+    const filePath = path.join(TRACKS_DIR, fileName);
+
+    // Se è presente l'audio base64, scrivilo su disco
+    if (audioBase64) {
+      const audioBuffer = Buffer.from(audioBase64, 'base64');
+      fs.writeFileSync(filePath, audioBuffer);
+    } else if (existingIndex >= 0) {
+      // Mantieni il fileName precedente
+      fileName = currentTracks[existingIndex].fileName;
+    }
+
+    const record: SharedTrackRecord = {
+      id,
+      name,
+      artist: artist || '',
+      genre: genre === 'salsa' ? 'salsa' : 'bachata',
+      bpm: Number(bpm),
+      beatOffset: Number(beatOffset),
+      beats: Array.isArray(beats) ? beats : [],
+      duration: duration ? Number(duration) : undefined,
+      fileName,
+      mimeType: mimeType || 'audio/mpeg',
+      uploadedAt: existingIndex >= 0 ? currentTracks[existingIndex].uploadedAt : Date.now(),
+      isCalibrated: true,
+    };
+
+    if (existingIndex >= 0) {
+      currentTracks[existingIndex] = record;
+    } else {
+      currentTracks.push(record);
+    }
+
+    saveStoredSharedTracks(currentTracks);
+    res.json({
+      success: true,
+      track: {
+        ...record,
+        audioUrl: `/api/shared-tracks/audio/${record.id}`,
+      },
+    });
+  } catch (err) {
+    console.error('Errore salvataggio brano condiviso:', err);
+    res.status(500).json({ error: 'Errore salvataggio brano condiviso' });
+  }
+});
+
+// 3. Streaming audio del brano condiviso con supporto per Range requests (seek bar)
+app.get('/api/shared-tracks/audio/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const tracks = getStoredSharedTracks();
+    const track = tracks.find((t) => t.id === id);
+
+    if (!track) {
+      return res.status(404).send('Brano non trovato nella libreria condivisa.');
+    }
+
+    const filePath = path.join(TRACKS_DIR, track.fileName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).send('File audio fisico non trovato sul server.');
+    }
+
+    const stat = fs.statSync(filePath);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunksize = end - start + 1;
+      const file = fs.createReadStream(filePath, { start, end });
+      const head = {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunksize,
+        'Content-Type': track.mimeType || 'audio/mpeg',
+      };
+      res.writeHead(206, head);
+      file.pipe(res);
+    } else {
+      const head = {
+        'Content-Length': fileSize,
+        'Content-Type': track.mimeType || 'audio/mpeg',
+      };
+      res.writeHead(200, head);
+      fs.createReadStream(filePath).pipe(res);
+    }
+  } catch (err) {
+    console.error('Errore streaming audio condiviso:', err);
+    res.status(500).send('Errore streaming audio.');
+  }
+});
+
+// 4. Eliminazione brano condiviso
+app.delete('/api/shared-tracks/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    let tracks = getStoredSharedTracks();
+    const track = tracks.find((t) => t.id === id);
+
+    if (track) {
+      const filePath = path.join(TRACKS_DIR, track.fileName);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch {}
+      }
+      tracks = tracks.filter((t) => t.id !== id);
+      saveStoredSharedTracks(tracks);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Errore eliminazione brano condiviso:', err);
+    res.status(500).json({ error: 'Errore eliminazione brano' });
+  }
+});
+
+// 5. Proxy Song BPM Finder embed di The Ghost Production per caricamento fluido senza vincoli iframe
+app.get('/api/tool-embed/song-bpm-finder', async (_req, res) => {
+  try {
+    const upstreamRes = await fetch('https://theghostproduction.com/tool-embed/song-bpm-finder/', {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+    if (!upstreamRes.ok) {
+      return res.status(upstreamRes.status).send('Impossibile caricare il tool Song BPM Finder');
+    }
+    let html = await upstreamRes.text();
+    // Inietta <base> per caricare stili e script da theghostproduction.com
+    html = html.replace('<head>', '<head><base href="https://theghostproduction.com/">');
+    res.setHeader('Content-Type', 'text/html; charset=UTF-8');
+    res.removeHeader('X-Frame-Options');
+    res.send(html);
+  } catch (err) {
+    console.error('Errore proxy Song BPM finder:', err);
+    res.status(500).send('Errore caricamento strumento BPM');
   }
 });
 

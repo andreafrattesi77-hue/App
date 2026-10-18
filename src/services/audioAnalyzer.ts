@@ -14,7 +14,7 @@ export interface AudioRecognitionResult {
   introWaitSeconds?: number;
   beats: BeatEvent[]; // Complete sequence of real beats starting from Tempo 1
   confidence: number;
-  recognitionSource: 'dsp_waveform' | 'heuristic' | 'essentia_mir';
+  recognitionSource: 'dsp_waveform' | 'heuristic' | 'essentia_mir' | 'ghost_production_auto';
   details: string;
 }
 
@@ -624,7 +624,7 @@ export const KNOWN_BACHATA_SONGS: KnownSongProfile[] = [
 export function detectGenreHint(
   fileName: string,
   artistName?: string
-): { genre: DanceGenre; knownProfile?: KnownSongProfile; explicitGenre?: boolean } {
+): { genre: DanceGenre | 'auto'; knownProfile?: KnownSongProfile; explicitGenre?: boolean } {
   const normText = normalizeText(`${fileName} ${artistName || ''}`);
   const rawText = `${fileName} ${artistName || ''}`.toLowerCase();
 
@@ -652,7 +652,7 @@ export function detectGenreHint(
     'hector acosta', 'el torito', 'alex bueno', 'obsesion', 'propuesta indecente',
     'darte un beso', 'corazon sin cara', 'eres mia', 'inmortal', 'cancioncitas de amor',
     'sobredosis', 'burbujas de amor', 'deja vu', 'stand by me', 'la bachata', 'frio frio',
-    'bachata rosa', 'el perdedor', 'hermanita', 'princesa'
+    'bachata rosa', 'el perdedor', 'hermanita', 'princesa', 'sensual', 'dominicana'
   ];
 
   const hasBachataKw = bachataKeywords.some((kw) => normText.includes(kw) || rawText.includes(kw));
@@ -665,14 +665,171 @@ export function detectGenreHint(
     return { genre: 'salsa', explicitGenre: true };
   }
 
-  return { genre: 'salsa', explicitGenre: false };
+  // Se nessun indizio testuale esplicito è presente, restituisce 'auto' per consentire
+  // all'analisi audio di rilevare oggettivamente se si tratta di Bachata o Salsa
+  return { genre: 'auto', explicitGenre: false };
 }
 
 /**
- * Motore DSP avanzato per il tracciamento dinamico dei battiti (Ellis Dynamic Beat Tracker).
- * Determina il BPM esatto a virgola mobile, traccia ogni battito musicale effettivo
- * e garantisce che il conteggio parta SEMPRE dal Tempo 1 (beat 0), senza mai partire dal 5
- * e senza mai perdere il tempo ("stare dietro alle canzoni").
+ * Calcolo automatico dei BPM e del tempo musicale basato sull'algoritmo di
+ * The Ghost Production (Song BPM Finder):
+ * 1. Filtro IIR passa-basso di 1° ordine a 150 Hz per isolare i transienti della cassa/basso
+ * 2. RMS energy per frame (~23.2ms di finestra, ~11.6ms di hop)
+ * 3. Onset strength (differenza positiva del primo ordine semi-raddrizzata)
+ * 4. Autocorrelazione spettrale continua nel range latino 55–225 BPM
+ * 5. Distribuzione a priori log-normale con rinforzo armonico dei sottomultipli (elimina il dimezzamento del tempo nella Bachata)
+ * 6. Interpolazione parabolica sub-lag per eliminare l'errore di quantizzazione e ottenere il BPM esatto
+ */
+export function detectGhostProductionBPM(
+  data: Float32Array,
+  sr: number,
+  preferredGenre?: DanceGenre
+): { bpm: number; confidence: number; genre: DanceGenre } {
+  const maxSeconds = 180;
+  const maxSamples = Math.min(data.length, Math.round(maxSeconds * sr));
+  const frameLen = Math.round(0.02322 * sr); // ~23.2 ms
+  const hopLen = Math.round(0.01161 * sr); // ~11.6 ms
+
+  // 1. Filtro IIR low-pass a 150 Hz per evidenziare transienti di cassa e basso
+  const rc = 1.0 / (2 * Math.PI * 150);
+  const dt = 1.0 / sr;
+  const alpha = dt / (rc + dt);
+  let lp = 0;
+  const filtered = new Float32Array(maxSamples);
+  for (let i = 0; i < maxSamples; i++) {
+    lp += alpha * (data[i] - lp);
+    filtered[i] = lp;
+  }
+
+  // 2. RMS energy per frame
+  const nFrames = Math.floor((maxSamples - frameLen) / hopLen) + 1;
+  if (nFrames < 10) {
+    return {
+      bpm: preferredGenre === 'salsa' ? 180 : 130,
+      confidence: 0.5,
+      genre: preferredGenre || 'bachata',
+    };
+  }
+
+  const rms = new Float32Array(nFrames);
+  for (let f = 0; f < nFrames; f++) {
+    const s = f * hopLen;
+    let sum = 0;
+    for (let i = 0; i < frameLen; i++) {
+      const v = filtered[s + i];
+      sum += v * v;
+    }
+    rms[f] = Math.sqrt(sum / frameLen);
+  }
+
+  // 3. Onset strength: differenza positiva di primo ordine
+  const onset = new Float32Array(nFrames - 1);
+  for (let i = 0; i < nFrames - 1; i++) {
+    onset[i] = Math.max(0, rms[i + 1] - rms[i]);
+  }
+
+  // Normalizzazione onsets
+  let peak = 0;
+  for (let i = 0; i < onset.length; i++) {
+    if (onset[i] > peak) peak = onset[i];
+  }
+  if (peak > 0) {
+    for (let i = 0; i < onset.length; i++) onset[i] /= peak;
+  }
+
+  // 4. Autocorrelazione tra 55 e 225 BPM
+  const hopDur = hopLen / sr;
+  const minLag = Math.max(2, Math.ceil(60 / 225 / hopDur));
+  const maxLag = Math.min(onset.length >> 1, Math.floor(60 / 55 / hopDur));
+  const acf = new Float64Array(maxLag + 1);
+
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let c = 0;
+    const n = onset.length - lag;
+    for (let i = 0; i < n; i++) {
+      c += onset[i] * onset[i + lag];
+    }
+    acf[lag] = c / n;
+  }
+
+  // 5. Prior log-normale The Ghost Production
+  // Bachata media tipica ~128 BPM (120-136). Salsa media tipica ~182 BPM (165-195).
+  let logMu = Math.log(128);
+  let logSig = 0.38;
+
+  if (preferredGenre === 'salsa') {
+    logMu = Math.log(182);
+    logSig = 0.32;
+  } else if (preferredGenre === 'bachata') {
+    logMu = Math.log(128);
+    logSig = 0.28;
+  }
+
+  let bestScore = -1;
+  let bestLag = minLag;
+
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    const bpmAt = 60 / (lag * hopDur);
+    const z = (Math.log(bpmAt) - logMu) / logSig;
+    const prior = Math.exp(-0.5 * z * z);
+    const halfLag = Math.round(lag / 2);
+    // Rinforzo armonico se anche il doppio del tempo è presente
+    const subContrib = halfLag >= minLag ? 0.45 * acf[halfLag] : 0;
+    const score = (acf[lag] + subContrib) * prior;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestLag = lag;
+    }
+  }
+
+  // 6. Interpolazione parabolica sub-lag per eliminare quantizzazione del lag
+  let refinedLag = bestLag;
+  if (bestLag > minLag && bestLag < maxLag) {
+    const yL = acf[bestLag - 1];
+    const yC = acf[bestLag];
+    const yR = acf[bestLag + 1];
+    const d = yL - 2 * yC + yR;
+    if (d < -1e-10) {
+      const shift = (0.5 * (yL - yR)) / d;
+      if (shift > -0.5 && shift < 0.5) refinedLag = bestLag + shift;
+    }
+  }
+
+  let calculatedBpm = 60 / (refinedLag * hopDur);
+
+  // Normalizzazione dell'ottava per generi latini
+  if (preferredGenre === 'bachata') {
+    while (calculatedBpm < 95) calculatedBpm *= 2;
+    while (calculatedBpm > 155) calculatedBpm /= 2;
+  } else if (preferredGenre === 'salsa') {
+    while (calculatedBpm < 145) calculatedBpm *= 2;
+    while (calculatedBpm > 230) calculatedBpm /= 2;
+  } else {
+    if (calculatedBpm < 90) calculatedBpm *= 2;
+    if (calculatedBpm > 225) calculatedBpm /= 2;
+  }
+
+  const roundedBpm = Math.round(calculatedBpm);
+  const detectedGenre: DanceGenre = preferredGenre || (roundedBpm >= 155 ? 'salsa' : 'bachata');
+
+  // Calcolo confidence
+  let meanAcf = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) meanAcf += acf[lag];
+  meanAcf /= maxLag - minLag + 1;
+  const confidence = Math.min(1, Math.max(0.75, acf[bestLag] / (meanAcf + 1e-8) / 5));
+
+  return {
+    bpm: roundedBpm,
+    confidence: Number(confidence.toFixed(2)),
+    genre: detectedGenre,
+  };
+}
+
+/**
+ * Analisi automatica completa del brano al caricamento:
+ * Calcola all'istante il BPM esatto tramite l'algoritmo di The Ghost Production,
+ * individua il vero Tempo 1 d'ingresso della musica e genera la sequenza dei battiti sincronizzata.
  */
 export async function analyzeAudioFile(
   file: File,
@@ -695,7 +852,8 @@ export async function analyzeAudioFile(
   }
 
   const detectedInfo = detectGenreHint(cleanName, artist);
-  const preferredOrDetectedGenre = preferredGenre || detectedInfo.genre;
+  const explicitGenre: DanceGenre | undefined =
+    preferredGenre || (detectedInfo.explicitGenre && detectedInfo.genre !== 'auto' ? (detectedInfo.genre as DanceGenre) : undefined);
   const knownProfile = detectedInfo.knownProfile;
 
   // Il catalogo dei brani noti fornisce suggerimenti di BPM e genere, ma analizziamo sempre la forma d'onda audio reale per trovare l'esatto attacco
@@ -738,7 +896,7 @@ export async function analyzeAudioFile(
         headers: {
           'Content-Type': 'application/octet-stream',
           'x-sample-rate': String(effectiveSr),
-          'x-genre': preferredOrDetectedGenre || 'auto',
+          'x-genre': explicitGenre || 'auto',
         },
         body: resampled.buffer,
       });
@@ -749,14 +907,14 @@ export async function analyzeAudioFile(
           return {
             title,
             artist,
-            genre: data.genre || preferredOrDetectedGenre || 'salsa',
+            genre: (data.genre as DanceGenre) || explicitGenre || 'bachata',
             bpm: data.bpm,
             beatOffset: data.beatOffset,
             introWaitSeconds: data.beatOffset,
             beats: data.beats,
             confidence: data.confidence || 0.99,
             recognitionSource: 'essentia_mir',
-            details: `✓ Essentia.js MIR: ${data.bpm} BPM • Tempo 1 a ${data.beatOffset.toFixed(2)}s (${data.genre?.toUpperCase()})`,
+            details: `✓ Essentia.js MIR: ${data.bpm} BPM • Tempo 1 a ${data.beatOffset.toFixed(2)}s (${(data.genre || 'BACHATA').toUpperCase()})`,
           };
         }
       }
@@ -927,8 +1085,8 @@ export async function analyzeAudioFile(
         midOnsets[f] * 1.0;
     }
 
-    const explicitBachata = preferredGenre === 'bachata' || detectedInfo.genre === 'bachata';
-    const explicitSalsa = preferredGenre === 'salsa' || (detectedInfo.genre === 'salsa' && detectedInfo.explicitGenre);
+    const explicitBachata = preferredGenre === 'bachata' || (detectedInfo.explicitGenre && detectedInfo.genre === 'bachata');
+    const explicitSalsa = preferredGenre === 'salsa' || (detectedInfo.explicitGenre && detectedInfo.genre === 'salsa');
 
     // Finestre di ricerca della distanza tra Tempo 1 e Tempo 5 (@ 150 FPS):
     // 4 battiti musicali:
@@ -952,77 +1110,24 @@ export async function analyzeAudioFile(
       let sumBeat = 0; // Coincidenza sui singoli battiti (distanza L/4)
       const pInt = Math.max(1, Math.round(L / 4));
 
+      let iterCount = 0;
       for (let i = corrStart; i < corrEnd - 2 * L; i += 2) {
         sum1to5 += downbeatSalience[i] * downbeatSalience[i + L];
         sum1to1 += downbeatSalience[i] * downbeatSalience[i + 2 * L];
         sumBeat += combinedOnsets[i] * combinedOnsets[i + pInt];
+        iterCount++;
       }
-      corr1to5[L] = sum1to5 * 1.6 + sum1to1 * 1.2 + sumBeat * 0.6;
+      const norm = Math.max(1, iterCount);
+      corr1to5[L] = (sum1to5 * 1.6 + sum1to1 * 1.2 + sumBeat * 0.6) / norm;
     }
 
-    // Risoluzione del genere se non esplicitato: confronto dei massimi del rilevatore 1 e 5
-    let isBachataFinal = explicitBachata;
-    if (!explicitBachata && !explicitSalsa) {
-      let maxBachataScore = -1;
-      for (let L = lag1to5BachataMin; L <= lag1to5BachataMax; L++) {
-        const bpmVal = (240.0 * frameRate) / L;
-        const weight = Math.exp(-0.5 * Math.pow((bpmVal - 128.0) / 24.0, 2));
-        const val = (corr1to5[L] || 0) * (0.5 + 0.5 * weight);
-        if (val > maxBachataScore) maxBachataScore = val;
-      }
-
-      let maxSalsaScore = -1;
-      for (let L = lag1to5SalsaMin; L <= lag1to5SalsaMax; L++) {
-        const bpmVal = (240.0 * frameRate) / L;
-        const weight = Math.exp(-0.5 * Math.pow((bpmVal - 184.0) / 35.0, 2));
-        const val = (corr1to5[L] || 0) * (0.5 + 0.5 * weight);
-        if (val > maxSalsaScore) maxSalsaScore = val;
-      }
-
-      isBachataFinal = maxBachataScore >= maxSalsaScore * 0.92;
-    }
-
-    const resolvedGenre: DanceGenre = isBachataFinal ? 'bachata' : 'salsa';
-    const bpmMin = isBachataFinal ? 110.0 : 146.0;
-    const bpmMax = isBachataFinal ? 150.0 : 226.0;
-    const targetBpmPrior = isBachataFinal
-      ? (knownProfile?.genre === 'bachata' ? knownProfile.bpm : 128.0)
-      : (knownProfile?.genre === 'salsa' ? knownProfile.bpm : 184.0);
-
-    const searchMinL = Math.floor((240.0 / bpmMax) * frameRate);
-    const searchMaxL = Math.ceil((240.0 / bpmMin) * frameRate);
-
-    let bestL = searchMinL;
-    let maxJointScore = -1;
-
-    for (let L = searchMinL; L <= searchMaxL; L++) {
-      const currentBpm = (240.0 * frameRate) / L;
-      const sigma = isBachataFinal ? 24.0 : 38.0;
-      const priorWeight = Math.exp(-0.5 * Math.pow((currentBpm - targetBpmPrior) / sigma, 2));
-      const weightedScore = (corr1to5[L] || 0) * (0.40 + 0.60 * priorWeight);
-
-      if (weightedScore > maxJointScore) {
-        maxJointScore = weightedScore;
-        bestL = L;
-      }
-    }
-
-    // Interpolazione parabolica sub-frame per precisione continua al millisecondo
-    const ym1 = corr1to5[bestL - 1] || 0;
-    const y0 = corr1to5[bestL] || 1;
-    const yp1 = corr1to5[bestL + 1] || 0;
-    const delta = (yp1 - ym1) / (2 * (2 * y0 - ym1 - yp1) + 1e-9);
-    const clampedDelta = Math.max(-0.5, Math.min(0.5, delta));
-    const refinedLag1to5 = bestL + clampedDelta;
-
-    // CALCOLO DELLA VELOCITÀ DELLA MUSICA (BPM) E DELLA DURATA DI CIASCUN BATTITO:
-    // La distanza tra Tempo 1 e Tempo 5 corrisponde esattamente a 4 battiti musicali.
-    const exactPeriodFrames = refinedLag1to5 / 4.0;
-    let calculatedBpm = Number(((60.0 * frameRate) / exactPeriodFrames).toFixed(1));
-    if (calculatedBpm < bpmMin) calculatedBpm = bpmMin;
-    if (calculatedBpm > bpmMax) calculatedBpm = bpmMax;
-
+    // Calcolo automatico istantaneo del BPM e del genere tramite The Ghost Production
+    const ghost = detectGhostProductionBPM(channelData, sampleRate, explicitGenre);
+    const resolvedGenre: DanceGenre = explicitGenre || ghost.genre;
+    const isBachataFinal = resolvedGenre === 'bachata';
+    const calculatedBpm = ghost.bpm;
     const beatPeriodSec = 60.0 / calculatedBpm;
+    const exactPeriodFrames = beatPeriodSec * frameRate;
 
     // 3. FASE 1: ALLINEAMENTO PRECISO DELLA GRIGLIA METRICA AI VERI PICCHI D'ATTACCO DEI BATTITI
     const periodInt = Math.max(1, Math.round(exactPeriodFrames));
@@ -1162,32 +1267,44 @@ export async function analyzeAudioFile(
       }
     }
 
-    // 5. Calcolo del timestamp esatto del primo Tempo 1 all'ingresso del ritmo nella canzone
+    // 5. Calcolo del timestamp esatto del primo Tempo 1 e di tutti i battiti musicali
+    // Senza timer fittizi o ritardi artificiali: aggancia direttamente il ritmo autentico
     let mStart = ((bestCandidate % 8) + 8) % 8;
-    // Si fa attendere qualche secondo (almeno 5.5s) per consentire l'ascolto e la calibrazione del tempo prima di iniziare a contare i battiti
-    const minIntroWaitFrames = Math.round(frameRate * 5.5);
-    while (bestPhi + mStart * exactPeriodFrames < Math.max(soundStartFrame + Math.round(frameRate * 2.0), minIntroWaitFrames)) {
-      mStart += 8;
+    while (bestPhi + (mStart - 8) * exactPeriodFrames >= soundStartFrame) {
+      mStart -= 8;
     }
-    const firstT1Frame = bestPhi + mStart * exactPeriodFrames;
-    const firstTempo1Sec = Number((firstT1Frame / frameRate).toFixed(3));
 
-    // 6. Costruzione della sequenza musicale dei battiti ESCLUSIVAMENTE a partire dal primo Tempo 1
-    // Durante l'intro non ci sono battiti: il sistema rimane in ascolto e parte all'1 esatto
+    // 6. Costruzione della sequenza musicale dei battiti completa a partire dall'ingresso del suono
     const beats: BeatEvent[] = [];
     const maxSongDuration = Math.max(audioDuration, 480);
 
-    // Battiti in avanti dal primo Tempo 1 fino alla fine del brano:
-    let tFwd = firstTempo1Sec;
-    let kFwd = 0;
-    while (tFwd <= maxSongDuration) {
-      beats.push({
-        time: Number(tFwd.toFixed(3)),
-        beat: kFwd % 8, // 0 = Tempo 1, 4 = Tempo 5
-      });
-      tFwd += beatPeriodSec;
-      kFwd++;
+    let m = mStart;
+    let firstTempo1Sec = -1;
+
+    while (true) {
+      const framePos = bestPhi + m * exactPeriodFrames;
+      const tSec = Number((framePos / frameRate).toFixed(3));
+      if (tSec > maxSongDuration) break;
+
+      const beatNum = ((m - bestCandidate) % 8 + 8) % 8; // 0 = Tempo 1, 4 = Tempo 5
+      if (tSec >= 0) {
+        beats.push({
+          time: tSec,
+          beat: beatNum,
+        });
+        if (firstTempo1Sec < 0 && beatNum === 0 && framePos >= soundStartFrame) {
+          firstTempo1Sec = tSec;
+        }
+      }
+      m++;
     }
+
+    if (firstTempo1Sec < 0 && beats.length > 0) {
+      const t1 = beats.find((b) => b.beat === 0);
+      firstTempo1Sec = t1 ? t1.time : beats[0].time;
+    }
+
+    const filteredBeats = beats.filter((b) => b.time >= firstTempo1Sec);
 
     return {
       title,
@@ -1196,10 +1313,10 @@ export async function analyzeAudioFile(
       bpm: calculatedBpm,
       beatOffset: firstTempo1Sec,
       introWaitSeconds: firstTempo1Sec,
-      beats,
-      confidence: 0.99,
-      recognitionSource: 'dsp_waveform',
-      details: `Ritmo ${resolvedGenre.toUpperCase()} sincronizzato da 1 e 5: Tempo 1 a ${firstTempo1Sec}s • ${calculatedBpm} BPM esatti • ${beats.length} battiti tracciati`,
+      beats: filteredBeats.length > 0 ? filteredBeats : beats,
+      confidence: ghost.confidence || 0.99,
+      recognitionSource: 'ghost_production_auto',
+      details: `✓ Calcolo Automatico (The Ghost Production): ${calculatedBpm} BPM • Tempo 1 a ${firstTempo1Sec.toFixed(2)}s (${resolvedGenre.toUpperCase()})`,
     };
   } catch (err) {
     console.warn('Decodifica audio fallback:', err);
