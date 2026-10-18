@@ -1457,7 +1457,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
-            <span>Didattiche (30)</span>
+            <span>Didattiche ({MUSIC_TRACKS.length})</span>
           </button>
 
           <button
@@ -2118,7 +2118,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                         : 'bg-[#021831] text-slate-400 hover:text-white'
                     }`}
                   >
-                    Tutte (30)
+                    Tutte ({MUSIC_TRACKS.length})
                   </button>
                   <button
                     type="button"
@@ -2129,7 +2129,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                         : 'bg-[#021831] text-slate-400 hover:text-white'
                     }`}
                   >
-                    Bachata (15)
+                    Bachata ({MUSIC_TRACKS.filter((t) => t.genre === 'bachata').length})
                   </button>
                   <button
                     type="button"
@@ -2140,7 +2140,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                         : 'bg-[#021831] text-slate-400 hover:text-white'
                     }`}
                   >
-                    Salsa (15)
+                    Salsa ({MUSIC_TRACKS.filter((t) => t.genre === 'salsa').length})
                   </button>
                 </div>
               </div>
