@@ -2032,10 +2032,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 <div>
                   <span className="text-xs font-bold text-white flex items-center gap-1.5">
                     <FileMusic className="w-4 h-4 text-[#F9C03E]" />
-                    <span>Canzoni Caricate per Calibrazione ({customTracks.length})</span>
+                    <span>Le Mie Canzoni in Memoria ({customTracks.length})</span>
                   </span>
                   <p className="text-[10px] text-[#88A5BF]">
-                    Carica qui le tue Salse e Bachate, calibra il tempo e salvale per tutti.
+                    🔒 <strong>Memoria privata:</strong> rimangono sul tuo dispositivo. Solo se premi &quot;Salva nella Libreria Condivisa&quot; le renderai disponibili anche agli altri.
                   </p>
                 </div>
 
