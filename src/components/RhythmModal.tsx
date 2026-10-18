@@ -189,18 +189,53 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     }
   }, [isOpen]);
 
-  // Carica le canzoni salvate in memoria permanente IndexedDB
+  // Carica le canzoni salvate in memoria permanente dell'app (Server/Cloud + IndexedDB)
   useEffect(() => {
     let isMounted = true;
 
-    getAllStoredTracks()
-      .then(async (stored) => {
+    async function initializeTrackLibrary() {
+      try {
+        // 1. Carica i brani dalla memoria del server (accessibili da qualsiasi dispositivo)
+        const shared = await fetchSharedTracks();
+        if (!isMounted) return;
+
+        let activeId: string | null = null;
+
+        if (shared && shared.length > 0) {
+          setSharedTracks(shared);
+
+          // Converti i brani salvati sul server in CustomTrack per il player integrato
+          const sharedAsCustom: CustomTrack[] = shared.map((s) => ({
+            id: s.id,
+            name: s.name,
+            artist: s.artist,
+            url: s.audioUrl,
+            genre: s.genre,
+            bpm: s.bpm,
+            beatOffset: s.beatOffset,
+            beats: s.beats as BeatEvent[],
+            isAnalyzing: false,
+            details: 'Canzone salvata nella memoria permanente dell\'app',
+          }));
+
+          setCustomTracks(sharedAsCustom);
+          activeId = shared[0].id;
+          setSelectedCustomId(shared[0].id);
+
+          if (customAudioRef.current) {
+            customAudioRef.current.src = shared[0].audioUrl;
+          }
+        }
+
+        // 2. Carica eventuali tracce salvate in IndexedDB e sincronizzale se non sono ancora sul server
+        const stored = await getAllStoredTracks();
         if (!isMounted || !stored || stored.length === 0) return;
 
-        const loadedTracks: CustomTrack[] = [];
+        const sharedIds = new Set((shared || []).map((s) => s.id));
+        const localTracks: CustomTrack[] = [];
 
         for (const s of stored) {
-          loadedTracks.push({
+          const trackItem: CustomTrack = {
             id: s.id,
             name: s.name,
             artist: s.artist,
@@ -215,29 +250,53 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             isAnalyzing: false,
             recognitionSource: s.recognitionSource as any,
             details: s.details,
-          });
-        }
+          };
+          localTracks.push(trackItem);
 
-        if (isMounted) {
-          setCustomTracks(loadedTracks);
-          if (loadedTracks.length > 0) {
-            setSelectedCustomId(loadedTracks[0].id);
-            if (customAudioRef.current) {
-              customAudioRef.current.src = loadedTracks[0].url;
-            }
+          // Se questa traccia salvata in locale non è ancora nella memoria del server, salvala automaticamente!
+          if (!sharedIds.has(s.id)) {
+            publishTrackToServer(
+              {
+                id: s.id,
+                name: s.name,
+                artist: s.artist,
+                genre: s.genre,
+                bpm: s.bpm,
+                beatOffset: s.beatOffset,
+                beats: s.beats || [],
+                duration: s.duration,
+              },
+              s.audioBlob
+            )
+              .then((res) => {
+                if (res.success) {
+                  fetchSharedTracks().then((fresh) => {
+                    if (isMounted && fresh) setSharedTracks(fresh);
+                  });
+                }
+              })
+              .catch(() => {});
           }
         }
-      })
-      .catch((err) => console.warn('Errore lettura tracce salvate:', err));
 
-    // Carica i brani salvati nella libreria condivisa del server (disponibili per tutti gli allievi)
-    fetchSharedTracks()
-      .then((shared) => {
-        if (isMounted && shared) {
-          setSharedTracks(shared);
+        setCustomTracks((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const toAdd = localTracks.filter((l) => !existingIds.has(l.id));
+          return [...prev, ...toAdd];
+        });
+
+        if (!activeId && localTracks.length > 0) {
+          setSelectedCustomId(localTracks[0].id);
+          if (customAudioRef.current) {
+            customAudioRef.current.src = localTracks[0].url;
+          }
         }
-      })
-      .catch((err) => console.warn('Errore lettura brani condivisi:', err));
+      } catch (err) {
+        console.warn('Errore inizializzazione memoria canzoni:', err);
+      }
+    }
+
+    initializeTrackLibrary();
 
     return () => {
       isMounted = false;
@@ -343,39 +402,52 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   // Conferma ed esecuzione eliminazione brano (Server e/o Memoria Locale)
   const confirmDeleteTrack = async () => {
     if (!trackToDelete) return;
-    const { id, name, isShared } = trackToDelete;
+    const { id, name } = trackToDelete;
     stopAllPlayback();
 
     try {
-      if (isShared) {
-        await deleteSharedTrackFromServer(id);
-        setSharedTracks((prev) => prev.filter((t) => t.id !== id));
-      }
+      // Elimina dal server e dalla memoria locale
+      await Promise.all([
+        deleteSharedTrackFromServer(id).catch(() => {}),
+        deleteTrackFromStorage(id).catch(() => {}),
+      ]);
 
-      // Rimuovi anche da IndexedDB se presente
       const local = customTracks.find((t) => t.id === id);
       if (local) {
         try {
           URL.revokeObjectURL(local.url);
         } catch {}
       }
-      await deleteTrackFromStorage(id).catch(() => {});
-      const updatedCustom = customTracks.filter((t) => t.id !== id);
-      setCustomTracks(updatedCustom);
+
+      const remainingShared = sharedTracks.filter((t) => t.id !== id);
+      const remainingCustom = customTracks.filter((t) => t.id !== id);
+      setSharedTracks(remainingShared);
+      setCustomTracks(remainingCustom);
 
       if (selectedCustomId === id) {
-        if (updatedCustom.length > 0) {
-          setSelectedCustomId(updatedCustom[0].id);
+        const nextShared = remainingShared[0];
+        const nextCustom = remainingCustom[0];
+        if (nextShared) {
+          setSelectedCustomId(nextShared.id);
           if (customAudioRef.current) {
-            customAudioRef.current.src = updatedCustom[0].url;
+            customAudioRef.current.src = nextShared.audioUrl;
+            customAudioRef.current.load();
+          }
+        } else if (nextCustom) {
+          setSelectedCustomId(nextCustom.id);
+          if (customAudioRef.current) {
+            customAudioRef.current.src = nextCustom.url;
             customAudioRef.current.load();
           }
         } else {
           setSelectedCustomId(null);
+          if (customAudioRef.current) {
+            customAudioRef.current.src = '';
+          }
         }
       }
 
-      setSyncNotice(`✓ Canzone «${name}» eliminata.`);
+      setSyncNotice(`✓ Canzone «${name}» eliminata dalla memoria dell'app.`);
       setTimeout(() => setSyncNotice(null), 3500);
     } catch (err) {
       console.error('Errore eliminazione:', err);
@@ -440,7 +512,23 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
   const currentDidacticTrack =
     MUSIC_TRACKS.find((t) => t.id === selectedDidacticId) || MUSIC_TRACKS[0];
-  const currentCustomTrack = customTracks.find((t) => t.id === selectedCustomId);
+  const currentSharedTrack = sharedTracks.find((t) => t.id === selectedCustomId);
+  const currentCustomTrack =
+    customTracks.find((t) => t.id === selectedCustomId) ||
+    (currentSharedTrack
+      ? ({
+          id: currentSharedTrack.id,
+          name: currentSharedTrack.name,
+          artist: currentSharedTrack.artist,
+          url: currentSharedTrack.audioUrl,
+          genre: currentSharedTrack.genre,
+          bpm: currentSharedTrack.bpm,
+          beatOffset: currentSharedTrack.beatOffset,
+          beats: currentSharedTrack.beats as BeatEvent[],
+          isAnalyzing: false,
+          details: 'Canzone salvata nella memoria dell\'app',
+        } as CustomTrack)
+      : undefined);
 
   // --- CONTROLLO RIPRODUZIONE CANZONI DIDATTICHE ---
   const handleTogglePlayDidactic = async () => {
@@ -1061,6 +1149,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           details: result.details,
         };
 
+        // Salva in memoria locale IndexedDB
         await saveTrackToStorage({
           id: trackId,
           name: trackItem.name,
@@ -1076,6 +1165,28 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           recognitionSource: result.recognitionSource,
           details: result.details,
         });
+
+        // Salva SUBITO nella memoria permanente dell'app (Server / Cloud) per renderla disponibile su TUTTI i dispositivi
+        try {
+          const pubRes = await publishTrackToServer(
+            {
+              id: trackId,
+              name: trackItem.name,
+              artist: trackItem.artist,
+              genre: trackItem.genre,
+              bpm: trackItem.bpm,
+              beatOffset: trackItem.beatOffset,
+              beats: trackItem.beats || [],
+              duration: file.size,
+            },
+            file
+          );
+          if (pubRes.success && pubRes.track) {
+            trackItem.url = pubRes.track.audioUrl;
+          }
+        } catch (serverErr) {
+          console.warn('Errore salvataggio server durante upload:', serverErr);
+        }
 
         newTracks.push(trackItem);
       } catch (err) {
@@ -1100,6 +1211,25 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           savedAt: Date.now(),
           engineVersion: 18,
         });
+
+        try {
+          const pubRes = await publishTrackToServer(
+            {
+              id: trackId,
+              name: cleanName,
+              genre: 'bachata',
+              bpm: 128,
+              beatOffset: 2.0,
+              beats: [],
+              duration: file.size,
+            },
+            file
+          );
+          if (pubRes.success && pubRes.track) {
+            fallbackTrack.url = pubRes.track.audioUrl;
+          }
+        } catch {}
+
         newTracks.push(fallbackTrack);
       }
     }
@@ -1109,6 +1239,11 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       return updated;
     });
 
+    // Ricarica la libreria permanente dell'app dal server
+    fetchSharedTracks().then((fresh) => {
+      if (fresh) setSharedTracks(fresh);
+    });
+
     if (newTracks.length > 0) {
       const first = newTracks[0];
       setSelectedCustomId(first.id);
@@ -1116,19 +1251,19 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         customAudioRef.current.src = first.url;
         customAudioRef.current.load();
       }
-      setActiveTab('custom');
+      setActiveTab('shared');
     }
 
     if (newTracks.length === 1) {
       setSyncNotice(
-        `✓ «${newTracks[0].name}»: ${newTracks[0].bpm} BPM calcolati in automatico! Canzone pronta.`
+        `✓ «${newTracks[0].name}» salvata nella memoria dell'app (${newTracks[0].bpm} BPM)! Disponibile su tutti i dispositivi.`
       );
     } else {
       setSyncNotice(
-        `✓ ${newTracks.length} canzoni caricate con BPM calcolati in automatico!`
+        `✓ ${newTracks.length} canzoni salvate nella memoria dell'app con BPM calcolati!`
       );
     }
-    setTimeout(() => setSyncNotice(null), 4000);
+    setTimeout(() => setSyncNotice(null), 4500);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -1251,7 +1386,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           </div>
         )}
 
-        {/* Switcher a 3 Tab: Basi per Tutti, Didattiche, Carica & Calibra */}
+        {/* Switcher a 3 Tab: Canzoni in Memoria, Didattiche, Carica Nuova Canzone */}
         <div className="mt-3 grid grid-cols-3 p-1 rounded-2xl bg-[#021831] border border-[#88A5BF]/30 shrink-0">
           <button
             type="button"
@@ -1268,7 +1403,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             }`}
           >
             <Disc3 className="w-3.5 h-3.5" />
-            <span>Basi per Tutti ({sharedTracks.length})</span>
+            <span>Canzoni in Memoria ({sharedTracks.length})</span>
           </button>
 
           <button
@@ -1304,7 +1439,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             }`}
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Carica & Calibra ({customTracks.length})</span>
+            <span>Carica Canzone</span>
           </button>
         </div>
 
@@ -1320,7 +1455,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                     {activeTab === 'didactic'
                       ? 'Traccia Didattica a Tempo'
                       : activeTab === 'shared'
-                      ? '🏛️ Base della Libreria Condivisa'
+                      ? '🎵 Canzone Salvata in Memoria'
                       : '🎧 Canzone in Calibrazione'}
                   </span>
                 </span>
@@ -1797,21 +1932,21 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             )}
           </div>
 
-          {/* TAB 1: BASI PER TUTTI (LIBRERIA CONDIVISA SUL SERVER) */}
+          {/* TAB 1: CANZONI NELLA MEMORIA DELL'APP */}
           {activeTab === 'shared' && (
             <div className="glass-card p-3 sm:p-4 space-y-2.5 text-left">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-white flex items-center gap-1.5">
                     <Disc3 className="w-4 h-4 text-[#F9C03E]" />
-                    <span>Basi Pronte per Tutti gli Allievi ({filteredSharedTracks.length})</span>
+                    <span>Canzoni nella Memoria dell&apos;App ({filteredSharedTracks.length})</span>
                   </span>
                   <p className="text-[10px] text-[#88A5BF]">
-                    Brani calibrati con Tempo 1 esatto: premi Play e balla subito.
+                    Salvate nella memoria dell&apos;app: disponibili da qualsiasi tuo dispositivo.
                   </p>
                 </div>
 
-                {/* Filtro genere per Basi Condivise */}
+                {/* Filtro genere per Canzoni in Memoria */}
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -1852,9 +1987,9 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               {filteredSharedTracks.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-400 space-y-2 border border-dashed border-[#88A5BF]/30 rounded-2xl bg-[#021831]/50">
                   <Cloud className="w-8 h-8 text-[#F9C03E] mx-auto opacity-80" />
-                  <p className="font-semibold text-white">Nessun brano ancora presente nella Libreria Condivisa.</p>
+                  <p className="font-semibold text-white">Nessuna canzone ancora salvata nella memoria dell&apos;app.</p>
                   <p className="text-[11px] text-[#88A5BF] max-w-sm mx-auto">
-                    Vai nella scheda <strong>&quot;Carica & Calibra&quot;</strong>, carica le tue canzoni, imposta il BPM e il Tempo 1, e premi <strong>&quot;Salva nella Libreria Condivisa&quot;</strong>: rimarranno qui per sempre per tutti gli allievi!
+                    Vai nella scheda <strong>&quot;Carica Canzone&quot;</strong>: ogni canzone caricata viene salvata automaticamente nella memoria dell&apos;app e sarà subito disponibile su qualsiasi tuo dispositivo!
                   </p>
                   <button
                     type="button"
@@ -1862,7 +1997,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                     className="mt-2 py-1.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Vai a Carica & Calibra</span>
+                    <span>Carica Canzone</span>
                   </button>
                 </div>
               ) : (
@@ -2032,10 +2167,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 <div>
                   <span className="text-xs font-bold text-white flex items-center gap-1.5">
                     <FileMusic className="w-4 h-4 text-[#F9C03E]" />
-                    <span>Le Mie Canzoni in Memoria ({customTracks.length})</span>
+                    <span>Carica Canzoni MP3</span>
                   </span>
                   <p className="text-[10px] text-[#88A5BF]">
-                    🔒 <strong>Memoria privata:</strong> rimangono sul tuo dispositivo. Solo se premi &quot;Salva nella Libreria Condivisa&quot; le renderai disponibili anche agli altri.
+                    ⚡ <strong>Memoria dell&apos;app:</strong> ogni canzone caricata viene salvata automaticamente nella memoria dell&apos;app e sarà disponibile su tutti i tuoi dispositivi.
                   </p>
                 </div>
 
@@ -2110,11 +2245,11 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
               {/* Lista MP3 caricati */}
               {customTracks.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 space-y-2 border border-dashed border-[#88A5BF]/30 rounded-2xl bg-[#021831]/50">
+                <div className="p-6 text-center text-xs text-slate-400 space-y-2.5 border border-dashed border-[#88A5BF]/30 rounded-2xl bg-[#021831]/50">
                   <Upload className="w-8 h-8 text-[#F9C03E] mx-auto opacity-80" />
-                  <p className="font-semibold text-white">Nessuna canzone MP3 caricata al momento.</p>
-                  <p className="text-[11px] text-[#88A5BF] max-w-xs mx-auto">
-                    Premi il tasto giallo <strong>&quot;Carica Canzoni MP3&quot;</strong> qui sopra e seleziona le tue canzoni preferite da calibrare e salvare per sempre.
+                  <p className="font-semibold text-white">Carica le tue canzoni MP3</p>
+                  <p className="text-[11px] text-[#88A5BF] max-w-sm mx-auto leading-relaxed">
+                    Premi il tasto giallo <strong>&quot;Carica Canzoni MP3&quot;</strong> qui sopra: l&apos;app calcola automaticamente i BPM e salva la canzone nella memoria dell&apos;app, pronta per essere ascoltata da qualsiasi tuo dispositivo!
                   </p>
                 </div>
               ) : (
