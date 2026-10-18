@@ -477,10 +477,19 @@ app.post(['/api/audio/analyze-rhythm', '/api/analyze-rhythm'], (req, res) => {
 // --- LIBRERIA CONDIVISA PERMANENTE DEI BRANI (DISPONIBILE PER TUTTI GLI ALLIEVI) ---
 const TRACKS_DIR = path.resolve(__dirname, 'data', 'tracks');
 const TRACKS_FILE = path.resolve(__dirname, 'data', 'shared_tracks.json');
+const PUBLIC_TRACKS_DIR = path.resolve(__dirname, 'public', 'tracks');
+const PUBLIC_TRACKS_FILE = path.resolve(__dirname, 'public', 'shared_tracks.json');
+const DIST_TRACKS_DIR = path.resolve(__dirname, 'dist', 'tracks');
+const DIST_TRACKS_FILE = path.resolve(__dirname, 'dist', 'shared_tracks.json');
 
 if (!fs.existsSync(TRACKS_DIR)) {
   fs.mkdirSync(TRACKS_DIR, { recursive: true });
 }
+
+// Serve /tracks staticamente da qualsiasi cartella disponibile
+app.use('/tracks', express.static(PUBLIC_TRACKS_DIR));
+app.use('/tracks', express.static(DIST_TRACKS_DIR));
+app.use('/tracks', express.static(TRACKS_DIR));
 
 interface SharedTrackRecord {
   id: string;
@@ -498,19 +507,30 @@ interface SharedTrackRecord {
 }
 
 function getStoredSharedTracks(): SharedTrackRecord[] {
-  if (fs.existsSync(TRACKS_FILE)) {
-    try {
-      const data = fs.readFileSync(TRACKS_FILE, 'utf-8');
-      return JSON.parse(data);
-    } catch {
-      return [];
+  const possibleFiles = [TRACKS_FILE, PUBLIC_TRACKS_FILE, DIST_TRACKS_FILE];
+  for (const file of possibleFiles) {
+    if (fs.existsSync(file)) {
+      try {
+        const data = fs.readFileSync(file, 'utf-8');
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch {}
     }
   }
   return [];
 }
 
 function saveStoredSharedTracks(tracks: SharedTrackRecord[]) {
-  fs.writeFileSync(TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
+  try {
+    fs.writeFileSync(TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
+  } catch {}
+  try {
+    if (fs.existsSync(path.dirname(PUBLIC_TRACKS_FILE))) {
+      fs.writeFileSync(PUBLIC_TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
+    }
+  } catch {}
 }
 
 // 1. Ottieni la lista di tutti i brani condivisi disponibili per tutti gli allievi
@@ -610,7 +630,14 @@ app.get('/api/shared-tracks/audio/:id', (req, res) => {
       return res.status(404).send('Brano non trovato nella libreria condivisa.');
     }
 
-    const filePath = path.join(TRACKS_DIR, track.fileName);
+    let filePath = path.join(TRACKS_DIR, track.fileName);
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(PUBLIC_TRACKS_DIR, track.fileName);
+    }
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(DIST_TRACKS_DIR, track.fileName);
+    }
+
     if (!fs.existsSync(filePath)) {
       return res.status(404).send('File audio fisico non trovato sul server.');
     }

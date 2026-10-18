@@ -46,7 +46,9 @@ import {
   fetchSharedTracks,
   publishTrackToServer,
   deleteSharedTrackFromServer,
+  getDeletedTrackIds,
 } from '../services/sharedTracks';
+import { DEFAULT_SHARED_TRACKS } from '../data/defaultSharedTracks';
 
 export interface CustomTrack {
   id: string;
@@ -141,13 +143,34 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const [didacticFilter, setDidacticFilter] = useState<'all' | 'bachata' | 'salsa'>('all');
 
   // Libreria Condivisa Cloud/Server (disponibile per TUTTI gli allievi)
-  const [sharedTracks, setSharedTracks] = useState<SharedTrack[]>([]);
+  const [sharedTracks, setSharedTracks] = useState<SharedTrack[]>(() => {
+    const deleted = getDeletedTrackIds();
+    return DEFAULT_SHARED_TRACKS.filter((t) => !deleted.has(t.id));
+  });
   const [sharedFilter, setSharedFilter] = useState<'all' | 'bachata' | 'salsa'>('all');
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
 
-  // Canzoni audio MP3 dell'utente (IndexedDB locale)
-  const [customTracks, setCustomTracks] = useState<CustomTrack[]>([]);
-  const [selectedCustomId, setSelectedCustomId] = useState<string | null>(null);
+  // Canzoni audio MP3 dell'utente (Memoria dell'app)
+  const [customTracks, setCustomTracks] = useState<CustomTrack[]>(() => {
+    const deleted = getDeletedTrackIds();
+    return DEFAULT_SHARED_TRACKS.filter((t) => !deleted.has(t.id)).map((s) => ({
+      id: s.id,
+      name: s.name,
+      artist: s.artist,
+      url: s.audioUrl,
+      genre: s.genre,
+      bpm: s.bpm,
+      beatOffset: s.beatOffset,
+      beats: s.beats as BeatEvent[],
+      isAnalyzing: false,
+      details: 'Canzone salvata nella memoria permanente dell\'app',
+    }));
+  });
+  const [selectedCustomId, setSelectedCustomId] = useState<string | null>(() => {
+    const deleted = getDeletedTrackIds();
+    const available = DEFAULT_SHARED_TRACKS.filter((t) => !deleted.has(t.id));
+    return available.length > 0 ? available[0].id : null;
+  });
   const [customFilter, setCustomFilter] = useState<'all' | 'bachata' | 'salsa'>('all');
 
   // Gestione eliminazione canzoni con conferma modale integrata (no alert/confirm nativo)
@@ -182,12 +205,25 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const smoothedSecRef = useRef<number>(0);
   const lastAudioPerfRef = useRef<number>(performance.now());
 
-  // Interrompi ogni riproduzione quando la modale viene chiusa
+  // Interrompi ogni riproduzione quando la modale viene chiusa e precarica audio all'apertura
   useEffect(() => {
     if (!isOpen) {
       stopAllPlayback();
+    } else {
+      if (customAudioRef.current && selectedCustomId) {
+        const found =
+          sharedTracks.find((s) => s.id === selectedCustomId) ||
+          customTracks.find((c) => c.id === selectedCustomId);
+        if (found) {
+          const targetUrl = 'audioUrl' in found ? (found as any).audioUrl : found.url;
+          if (!customAudioRef.current.src || !customAudioRef.current.src.includes(targetUrl)) {
+            customAudioRef.current.src = targetUrl;
+            customAudioRef.current.load();
+          }
+        }
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, selectedCustomId, sharedTracks, customTracks]);
 
   // Carica le canzoni salvate in memoria permanente dell'app (Server/Cloud + IndexedDB)
   useEffect(() => {

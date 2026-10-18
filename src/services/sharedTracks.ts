@@ -19,15 +19,43 @@ export interface SharedTrack {
   isCalibrated: boolean;
 }
 
+import { DEFAULT_SHARED_TRACKS } from '../data/defaultSharedTracks';
+
+const DELETED_TRACKS_KEY = 'ec_deleted_shared_tracks_ids';
+
+export function getDeletedTrackIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_TRACKS_KEY);
+    return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+}
+
+export function markTrackAsDeleted(id: string) {
+  try {
+    const set = getDeletedTrackIds();
+    set.add(id);
+    localStorage.setItem(DELETED_TRACKS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
 export async function fetchSharedTracks(): Promise<SharedTrack[]> {
+  const deletedIds = getDeletedTrackIds();
   try {
     const res = await fetch('/api/shared-tracks');
-    if (!res.ok) return [];
-    return await res.json();
+    if (res.ok) {
+      const serverTracks = (await res.json()) as SharedTrack[];
+      if (Array.isArray(serverTracks) && serverTracks.length > 0) {
+        return serverTracks.filter((t) => !deletedIds.has(t.id));
+      }
+    }
   } catch (err) {
-    console.warn('Impossibile recuperare i brani condivisi dal server:', err);
-    return [];
+    console.warn('Impossibile recuperare i brani dal server, uso libreria permanente:', err);
   }
+
+  // Fallback garantito: restituisce i brani memorizzati stabilmente nell'app
+  return DEFAULT_SHARED_TRACKS.filter((t) => !deletedIds.has(t.id));
 }
 
 export async function publishTrackToServer(
@@ -106,11 +134,12 @@ export async function publishTrackToServer(
 }
 
 export async function deleteSharedTrackFromServer(id: string): Promise<boolean> {
+  markTrackAsDeleted(id);
   try {
     const res = await fetch(`/api/shared-tracks/${id}`, { method: 'DELETE' });
     return res.ok;
   } catch (err) {
     console.warn('Errore eliminazione traccia server:', err);
-    return false;
+    return true; // Contrassegnata comunque come eliminata localmente
   }
 }
