@@ -524,11 +524,16 @@ function getStoredSharedTracks(): SharedTrackRecord[] {
 
 function saveStoredSharedTracks(tracks: SharedTrackRecord[]) {
   try {
+    fs.mkdirSync(path.dirname(TRACKS_FILE), { recursive: true });
     fs.writeFileSync(TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
   } catch {}
   try {
-    if (fs.existsSync(path.dirname(PUBLIC_TRACKS_FILE))) {
-      fs.writeFileSync(PUBLIC_TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
+    fs.mkdirSync(path.dirname(PUBLIC_TRACKS_FILE), { recursive: true });
+    fs.writeFileSync(PUBLIC_TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
+  } catch {}
+  try {
+    if (fs.existsSync(path.dirname(DIST_TRACKS_FILE))) {
+      fs.writeFileSync(DIST_TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
     }
   } catch {}
 }
@@ -575,10 +580,19 @@ app.post('/api/shared-tracks', (req, res) => {
     let fileName = `${id}.${fileExtension.replace(/^\./, '')}`;
     const filePath = path.join(TRACKS_DIR, fileName);
 
-    // Se è presente l'audio base64, scrivilo su disco
+    // Se è presente l'audio base64, scrivilo su disco in tutte le directory disponibili
     if (audioBase64) {
       const audioBuffer = Buffer.from(audioBase64, 'base64');
       fs.writeFileSync(filePath, audioBuffer);
+      try {
+        fs.mkdirSync(PUBLIC_TRACKS_DIR, { recursive: true });
+        fs.writeFileSync(path.join(PUBLIC_TRACKS_DIR, fileName), audioBuffer);
+      } catch {}
+      try {
+        if (fs.existsSync(DIST_TRACKS_DIR)) {
+          fs.writeFileSync(path.join(DIST_TRACKS_DIR, fileName), audioBuffer);
+        }
+      } catch {}
     } else if (existingIndex >= 0) {
       // Mantieni il fileName precedente
       fileName = currentTracks[existingIndex].fileName;
