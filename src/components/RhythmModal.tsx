@@ -22,8 +22,11 @@ import {
   Globe,
   Cloud,
   Share2,
-  Search,
   ExternalLink,
+  Sliders,
+  Wand2,
+  Volume2,
+  Save,
 } from 'lucide-react';
 import {
   DanceGenre,
@@ -63,6 +66,7 @@ export interface CustomTrack {
   isAnalyzing?: boolean;
   recognitionSource?: 'catalog' | 'dsp_waveform' | 'heuristic' | 'essentia_mir' | 'ghost_production_auto';
   details?: string;
+  isSaved?: boolean; // true se salvata nella memoria permanente dell'app
 }
 
 interface RhythmModalProps {
@@ -70,12 +74,17 @@ interface RhythmModalProps {
   onClose: () => void;
 }
 
-// Generatore di suono didattico: Campana Latina su Tempo 1 e click metronomo opzionale
+// Generatore di suono didattico: Campana Latina (1 e 5), Clave Cubana, Metronomo accentato
 let customAudioCtx: AudioContext | null = null;
-function playCustomClickSound(beat: number, mode: 'bell' | 'all' | 'off' = 'bell') {
+function playCustomClickSoundAtTime(
+  beat: number,
+  mode: 'bell' | 'clave' | 'all' | 'off' = 'bell',
+  targetTime?: number,
+  genre: 'salsa' | 'bachata' = 'salsa'
+) {
   try {
     if (mode === 'off') return;
-    if (mode === 'bell' && beat !== 0) return; // Suona solo sul Tempo 1
+    if (mode === 'bell' && beat !== 0 && beat !== 4) return; // Suona su 1 e 5
 
     if (!customAudioCtx) {
       const AudioCtx =
@@ -86,49 +95,91 @@ function playCustomClickSound(beat: number, mode: 'bell' | 'all' | 'off' = 'bell
     if (customAudioCtx.state === 'suspended') {
       customAudioCtx.resume().catch(() => {});
     }
-    const now = customAudioCtx.currentTime;
+    const t = Math.max(customAudioCtx.currentTime, targetTime ?? customAudioCtx.currentTime);
 
-    if (beat === 0) {
-      // TEMPO 1: Campana Latina squillante
+    if (mode === 'bell') {
+      // CAMPANA LATINA (Tempo 1 e Tempo 5)
       const osc1 = customAudioCtx.createOscillator();
       const osc2 = customAudioCtx.createOscillator();
       const gain = customAudioCtx.createGain();
 
+      const isTempo1 = beat === 0;
       osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(840, now);
+      osc1.frequency.setValueAtTime(isTempo1 ? 840 : 640, t);
       osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(1480, now);
+      osc2.frequency.setValueAtTime(isTempo1 ? 1480 : 1120, t);
 
-      gain.gain.setValueAtTime(0.55, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      gain.gain.setValueAtTime(isTempo1 ? 0.60 : 0.42, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + (isTempo1 ? 0.28 : 0.20));
 
       osc1.connect(gain);
       osc2.connect(gain);
       gain.connect(customAudioCtx.destination);
 
-      osc1.start(now);
-      osc2.start(now);
-      osc1.stop(now + 0.3);
-      osc2.stop(now + 0.3);
+      osc1.start(t);
+      osc2.start(t);
+      osc1.stop(t + 0.3);
+      osc2.stop(t + 0.3);
+    } else if (mode === 'clave') {
+      // CLAVE LATINA TRADIZIONALE (suono secco in legno naturale)
+      const osc = customAudioCtx.createOscillator();
+      const gain = customAudioCtx.createGain();
+      const filter = customAudioCtx.createBiquadFilter();
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(2400, t);
+      filter.Q.setValueAtTime(14, t);
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(2400, t);
+
+      const vol = (beat === 0 || beat === 4) ? 0.45 : (beat === 3 || beat === 7 ? (genre === 'bachata' ? 0.32 : 0) : 0.26);
+      if (vol <= 0) return;
+
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(customAudioCtx.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.05);
     } else {
-      // BATTUTE 2-8: Click metronomo secco per verificare l'allineamento a orecchio
+      // METRONOMO ACCENTATO SULLE BATTUTE (1-8)
       const osc = customAudioCtx.createOscillator();
       const gain = customAudioCtx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(beat === 4 ? 1200 : 960, now);
+      let freq = 620;
+      let vol = 0.24;
 
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+      if (beat === 0) {
+        freq = 1200; // Tempo 1 squillante
+        vol = 0.52;
+      } else if (beat === 4) {
+        freq = 960; // Tempo 5 deciso
+        vol = 0.38;
+      } else if (beat === 3 || beat === 7) {
+        if (genre === 'salsa') {
+          return; // Pausa Salsa sui passi 4 e 8: silenzio assoluto
+        } else {
+          freq = 780; // Tap Bachata brillante
+          vol = 0.30;
+        }
+      }
+
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
 
       osc.connect(gain);
       gain.connect(customAudioCtx.destination);
 
-      osc.start(now);
-      osc.stop(now + 0.05);
+      osc.start(t);
+      osc.stop(t + 0.06);
     }
   } catch {
-    // ignore audio errors
+    // ignore
   }
 }
 
@@ -193,13 +244,16 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const [currentChordName, setCurrentChordName] = useState<string>('');
   const [customCurrentTime, setCustomCurrentTime] = useState<number>(0);
   const [customDuration, setCustomDuration] = useState<number>(0);
-  const [clickSoundMode, setClickSoundMode] = useState<'bell' | 'all' | 'off'>('bell');
+  const [clickSoundMode, setClickSoundMode] = useState<'bell' | 'clave' | 'all' | 'off'>('bell');
+  const [showCalibration, setShowCalibration] = useState<boolean>(false);
+  const [isReanalyzing, setIsReanalyzing] = useState<boolean>(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   const customAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isPlayingRef = useRef<boolean>(false);
   const lastCustomBeatRef = useRef<number>(-1);
+  const scheduledBeatsRef = useRef<Set<number>>(new Set());
   const waitingForTempo1Ref = useRef<boolean>(true);
   const lastAudioSecRef = useRef<number>(-1);
   const smoothedSecRef = useRef<number>(0);
@@ -286,6 +340,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             isAnalyzing: false,
             recognitionSource: s.recognitionSource as any,
             details: s.details,
+            isSaved: true,
           };
           localTracks.push(trackItem);
 
@@ -355,6 +410,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
   // Seleziona e prepara un brano della Libreria Condivisa
   const handleSelectSharedTrack = (shared: SharedTrack) => {
+    if (selectedCustomId === shared.id) {
+      handleTogglePlayCustom();
+      return;
+    }
     stopAllPlayback();
     const trackObj: CustomTrack = {
       id: shared.id,
@@ -367,6 +426,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       beats: shared.beats as BeatEvent[],
       isAnalyzing: false,
       details: 'Brano calibrato dalla Libreria Condivisa per tutti',
+      isSaved: true,
     };
     setCustomTracks((prev) => {
       const filtered = prev.filter((t) => t.id !== shared.id);
@@ -378,42 +438,92 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       customAudioRef.current.currentTime = 0;
       smoothedSecRef.current = 0;
       lastAudioSecRef.current = -1;
-      waitingForTempo1Ref.current = true;
+      waitingForTempo1Ref.current = false;
       customAudioRef.current.load();
     }
   };
 
-  // Pubblica il brano calibrato nella Libreria Condivisa per tutti gli allievi
-  const handlePublishCurrentTrack = async () => {
-    if (!currentCustomTrack) return;
+  // Salva la canzone esaminata nella memoria dell'app quando l'utente decide che è a tempo
+  const handleSaveExaminedTrack = async (track: CustomTrack, isUpdate = false) => {
+    if (!track) return;
     setIsPublishing(true);
-    setSyncNotice('💾 Salvataggio nella Libreria Condivisa per tutti gli allievi...');
+    setSyncNotice(
+      isUpdate
+        ? '💾 Aggiornamento calibrazione in memoria...'
+        : '💾 Salvataggio della canzone nella memoria dell\'app...'
+    );
 
     try {
+      // 1. Salva nella memoria locale IndexedDB
+      if (track.file) {
+        await saveTrackToStorage({
+          id: track.id,
+          name: track.name,
+          artist: track.artist,
+          genre: track.genre,
+          bpm: track.bpm,
+          beatOffset: track.beatOffset,
+          beats: track.beats || [],
+          audioBlob: track.file,
+          duration: track.file.size,
+          savedAt: Date.now(),
+          engineVersion: 19,
+          recognitionSource: track.recognitionSource,
+          details: track.details,
+        });
+      } else {
+        const stored = await getAllStoredTracks();
+        const existing = stored?.find((s) => s.id === track.id);
+        if (existing) {
+          await saveTrackToStorage({
+            ...existing,
+            name: track.name,
+            artist: track.artist,
+            genre: track.genre,
+            bpm: track.bpm,
+            beatOffset: track.beatOffset,
+            beats: track.beats || [],
+            engineVersion: 19,
+          });
+        }
+      }
+
+      // 2. Salva nel cloud/server per renderla disponibile su tutti i dispositivi
       const res = await publishTrackToServer(
         {
-          id: currentCustomTrack.id,
-          name: currentCustomTrack.name,
-          artist: currentCustomTrack.artist,
-          genre: currentCustomTrack.genre,
-          bpm: currentCustomTrack.bpm,
-          beatOffset: currentCustomTrack.beatOffset,
-          beats: currentCustomTrack.beats || [],
-          duration: customDuration,
+          id: track.id,
+          name: track.name,
+          artist: track.artist,
+          genre: track.genre,
+          bpm: track.bpm,
+          beatOffset: track.beatOffset,
+          beats: track.beats || [],
+          duration: track.file ? track.file.size : customDuration,
         },
-        currentCustomTrack.file
+        track.file
       );
 
-      if (res.success && res.track) {
-        const fresh = await fetchSharedTracks();
+      // 3. Marca la traccia come salvata nello stato
+      const updatedSavedTrack: CustomTrack = {
+        ...track,
+        isSaved: true,
+        url: res.success && res.track?.audioUrl ? res.track.audioUrl : track.url,
+      };
+
+      setCustomTracks((prev) =>
+        prev.map((t) => (t.id === track.id ? updatedSavedTrack : t))
+      );
+
+      // 4. Aggiorna la libreria condivisa delle canzoni in memoria
+      const fresh = await fetchSharedTracks();
+      if (fresh) {
         setSharedTracks(fresh);
-        setSyncNotice('✓ Brano salvato sul server! Ora è nella Libreria Basi per Tutti.');
-        setActiveTab('shared');
-      } else {
-        setSyncNotice(`Errore pubblicazione: ${res.error || 'Errore server'}`);
       }
+
+      setSyncNotice(`✓ «${track.name}» salvata a tempo nella memoria dell'app!`);
     } catch (err: any) {
-      setSyncNotice('Errore salvataggio brano sul server.');
+      console.error('Errore salvataggio:', err);
+      setSyncNotice('Errore durante il salvataggio nella memoria.');
     } finally {
       setIsPublishing(false);
       setTimeout(() => setSyncNotice(null), 4000);
@@ -584,8 +694,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             ? 'Tempo 5'
             : `Tempo ${beatNum + 1}`
         );
-        if (clickSoundMode !== 'off' && beatNum === 0) {
-          playCustomClickSound(0, clickSoundMode);
+        if (clickSoundMode !== 'off') {
+          playCustomClickSoundAtTime(beatNum, clickSoundMode, undefined, currentDidacticTrack.genre);
         }
       });
 
@@ -605,6 +715,19 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     setSelectedDidacticId(track.id);
     if (wasPlaying) {
       harmonizedEngine.selectTrack(track.id);
+      harmonizedEngine.setOnBeat((beatNum, chordName) => {
+        setActiveBeat(beatNum);
+        setCurrentChordName(
+          beatNum === 0
+            ? 'Tempo 1'
+            : beatNum === 4
+            ? 'Tempo 5'
+            : `Tempo ${beatNum + 1}`
+        );
+        if (clickSoundMode !== 'off') {
+          playCustomClickSoundAtTime(beatNum, clickSoundMode, undefined, track.genre);
+        }
+      });
       harmonizedEngine.start().then(() => {
         isPlayingRef.current = true;
         setIsPlaying(true);
@@ -631,12 +754,12 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         lastCustomBeatRef.current = -1;
 
         const beats = currentCustomTrack.beats;
-        const firstT1 = currentCustomTrack.beatOffset ?? (beats && beats[0] ? beats[0].time : 0);
+        const firstAudioTime = beats && beats.length > 0 ? beats[0].time : 0;
 
-        if (curTime < firstT1) {
+        if (curTime < firstAudioTime) {
           waitingForTempo1Ref.current = true;
           setActiveBeat(-1);
-          setCurrentChordName('Intro musicale... In attesa del Tempo 1');
+          setCurrentChordName('In attesa della prima battuta...');
         } else {
           waitingForTempo1Ref.current = false;
           if (beats && beats.length > 0) {
@@ -681,6 +804,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   };
 
   const handleSelectCustomTrack = (track: CustomTrack) => {
+    if (selectedCustomId === track.id) {
+      handleTogglePlayCustom();
+      return;
+    }
     stopAllPlayback();
     setSelectedCustomId(track.id);
     if (customAudioRef.current) {
@@ -688,7 +815,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       customAudioRef.current.currentTime = 0;
       smoothedSecRef.current = 0;
       lastAudioSecRef.current = -1;
-      waitingForTempo1Ref.current = true;
+      waitingForTempo1Ref.current = false;
       customAudioRef.current.load();
     }
   };
@@ -704,12 +831,12 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     lastCustomBeatRef.current = -1;
 
     const beats = currentCustomTrack?.beats;
-    const firstT1 = currentCustomTrack?.beatOffset ?? (beats && beats[0] ? beats[0].time : 0);
+    const firstAudioTime = beats && beats.length > 0 ? beats[0].time : 0;
 
-    if (newTime < firstT1) {
+    if (newTime < firstAudioTime) {
       waitingForTempo1Ref.current = true;
       setActiveBeat(-1);
-      setCurrentChordName('Intro musicale... In attesa del Tempo 1');
+      setCurrentChordName('In attesa della prima battuta...');
     } else {
       waitingForTempo1Ref.current = false;
       if (beats && beats.length > 0) {
@@ -752,6 +879,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       ) {
         // Lettura diretta dal clock audio hardware: 0 ritardo e 0 rallentamenti
         const currentSec = customAudioRef.current.currentTime;
+        const songGenre = currentCustomTrack.genre || 'bachata';
 
         let beats = currentCustomTrack.beats;
 
@@ -766,20 +894,84 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               beat: b % 8,
             });
           }
+          let tBack = offset - period;
+          let bBack = 7;
+          while (tBack >= 0) {
+            beats.unshift({
+              time: Number(tBack.toFixed(3)),
+              beat: bBack % 8,
+            });
+            tBack -= period;
+            bBack = (bBack - 1 + 8) % 8;
+          }
+        } else if (beats.length > 0 && beats[0].time > 0.25) {
+          // Se la traccia ha battute registrate che iniziano più tardi (es. dopo l'intro),
+          // estrapoliamo all'indietro a tempo fino a 0s per consentire al metronomo e ai tempi 1 e 5 di accendersi subito
+          const trackBpm = currentCustomTrack.bpm || 130;
+          const period = 60.0 / trackBpm;
+          const extended = [...beats];
+          let tBack = extended[0].time - period;
+          let bBack = (extended[0].beat - 1 + 8) % 8;
+          while (tBack >= 0) {
+            extended.unshift({
+              time: Number(tBack.toFixed(3)),
+              beat: bBack % 8,
+            });
+            tBack -= period;
+            bBack = (bBack - 1 + 8) % 8;
+          }
+          beats = extended;
         }
 
-        const firstT1 = currentCustomTrack.beatOffset ?? (beats.find((b) => b.beat === 0)?.time ?? beats[0].time);
+        // 1. SCHEDULER AUDIO LOOKAHEAD AD ALTA PRECISIONE SU WEB AUDIO API
+        // Pre-programma gli oscillatori sui millisecondi esatti del clock hardware
+        if (clickSoundMode !== 'off' && beats.length > 0) {
+          if (!customAudioCtx) {
+            const AudioCtx =
+              window.AudioContext ||
+              (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+            customAudioCtx = new AudioCtx();
+          }
+          if (customAudioCtx.state === 'suspended') {
+            customAudioCtx.resume().catch(() => {});
+          }
 
-        if (currentSec < firstT1) {
+          const lookaheadSec = 0.120; // Finestra di anticipo 120ms
+          const ctxNow = customAudioCtx.currentTime;
+
+          if (scheduledBeatsRef.current.size > 300) {
+            scheduledBeatsRef.current.clear();
+          }
+
+          for (let i = 0; i < beats.length; i++) {
+            const b = beats[i];
+            if (b.time >= currentSec - 0.015 && b.time < currentSec + lookaheadSec) {
+              const beatKey = Math.round(b.time * 1000);
+              if (!scheduledBeatsRef.current.has(beatKey)) {
+                scheduledBeatsRef.current.add(beatKey);
+                const delay = Math.max(0, b.time - currentSec);
+                const targetAudioTime = ctxNow + delay;
+                playCustomClickSoundAtTime(b.beat, clickSoundMode, targetAudioTime, songGenre);
+              }
+            } else if (b.time >= currentSec + lookaheadSec) {
+              break;
+            }
+          }
+        }
+
+        const firstBeatTime = beats[0]?.time ?? 0;
+
+        if (currentSec < firstBeatTime) {
           waitingForTempo1Ref.current = true;
           setActiveBeat(-1);
-          setCurrentChordName('Intro musicale... In attesa del Tempo 1');
+          setCurrentChordName('In attesa della prima battuta...');
           animId = requestAnimationFrame(syncBeatWithAudio);
           return;
         }
 
         waitingForTempo1Ref.current = false;
 
+        // Ricerca binaria per determinare quale battito è visivamente attivo
         let low = 0;
         let high = beats.length - 1;
         let activeIdx = -1;
@@ -806,11 +998,6 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               ? 'Tempo 5'
               : `Tempo ${beatNum + 1}`
           );
-
-          if (clickSoundMode !== 'off' && lastCustomBeatRef.current !== activeIdx) {
-            lastCustomBeatRef.current = activeIdx;
-            playCustomClickSound(beatNum, clickSoundMode);
-          }
         } else {
           setActiveBeat(-1);
           setCurrentChordName('In riproduzione...');
@@ -822,6 +1009,139 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     animId = requestAnimationFrame(syncBeatWithAudio);
     return () => cancelAnimationFrame(animId);
   }, [activeTab, currentCustomTrack, clickSoundMode]);
+
+  // Sincronizzazione centralizzata modifiche traccia (State + IndexedDB + Cloud Server)
+  const syncTrackUpdate = async (updated: CustomTrack, notice?: string) => {
+    // 1. Aggiorna stato React customTracks
+    setCustomTracks((prev) =>
+      prev.map((t) => (t.id === updated.id ? updated : t))
+    );
+
+    // Se la traccia è già salvata nella memoria permanente, sincronizza le modifiche su storage e server
+    if (updated.isSaved) {
+      // 2. Aggiorna stato React sharedTracks se presente
+      setSharedTracks((prev) =>
+        prev.map((t) =>
+          t.id === updated.id
+            ? {
+                ...t,
+                bpm: updated.bpm,
+                beatOffset: updated.beatOffset,
+                beats: updated.beats || [],
+                genre: updated.genre,
+              }
+            : t
+        )
+      );
+
+      // 3. Salva nella memoria locale IndexedDB
+      try {
+        const stored = await getAllStoredTracks();
+        const existing = stored?.find((s) => s.id === updated.id);
+        if (existing) {
+          await saveTrackToStorage({
+            ...existing,
+            bpm: updated.bpm,
+            beatOffset: updated.beatOffset,
+            beats: updated.beats || [],
+            genre: updated.genre,
+            engineVersion: 19,
+          });
+        } else if (updated.file) {
+          await saveTrackToStorage({
+            id: updated.id,
+            name: updated.name,
+            artist: updated.artist,
+            genre: updated.genre,
+            bpm: updated.bpm,
+            beatOffset: updated.beatOffset,
+            beats: updated.beats || [],
+            audioBlob: updated.file,
+            duration: updated.file.size,
+            savedAt: Date.now(),
+            engineVersion: 19,
+          });
+        }
+      } catch (e) {
+        console.warn('Errore IndexedDB sync:', e);
+      }
+
+      // 4. Salva sul server per la sincronizzazione fra tutti i dispositivi
+      try {
+        await publishTrackToServer({
+          id: updated.id,
+          name: updated.name,
+          artist: updated.artist,
+          genre: updated.genre,
+          bpm: updated.bpm,
+          beatOffset: updated.beatOffset,
+          beats: updated.beats || [],
+        });
+      } catch (e) {
+        console.warn('Errore Server cloud sync:', e);
+      }
+    }
+
+    scheduledBeatsRef.current.clear();
+    lastCustomBeatRef.current = -1;
+
+    if (notice) {
+      setSyncNotice(notice);
+      setTimeout(() => setSyncNotice(null), 3000);
+    }
+  };
+
+  // Rianalisi intelligente del ritmo con Essentia MIR ad altissima definizione
+  const handleReanalyzeCurrentTrack = async () => {
+    if (!currentCustomTrack) return;
+    setIsReanalyzing(true);
+    setSyncNotice('🧠 Analisi ritmica profonda con Essentia MIR in corso...');
+
+    try {
+      let audioBlob: Blob | null = null;
+      if (currentCustomTrack.file) {
+        audioBlob = currentCustomTrack.file;
+      } else if (currentCustomTrack.url) {
+        const res = await fetch(currentCustomTrack.url);
+        if (res.ok) {
+          audioBlob = await res.blob();
+        }
+      }
+
+      if (!audioBlob) {
+        throw new Error('File audio non reperibile.');
+      }
+
+      const fileObj = new File([audioBlob], currentCustomTrack.name + '.mp3', {
+        type: audioBlob.type || 'audio/mpeg',
+      });
+      const analysis = await analyzeAudioFile(fileObj, currentCustomTrack.genre);
+
+      if (analysis && analysis.bpm && Array.isArray(analysis.beats) && analysis.beats.length > 0) {
+        const updatedTrack: CustomTrack = {
+          ...currentCustomTrack,
+          bpm: analysis.bpm,
+          beatOffset: analysis.beatOffset,
+          beats: analysis.beats,
+          genre: analysis.genre || currentCustomTrack.genre,
+          details: analysis.details,
+        };
+
+        await syncTrackUpdate(
+          updatedTrack,
+          `✨ Calcolato con precisione: ${analysis.bpm} BPM • Tempo 1 a ${analysis.beatOffset.toFixed(2)}s!`
+        );
+      } else {
+        setSyncNotice('⚠️ Rilevamento ritmico completato con parametri invariati.');
+      }
+    } catch (err) {
+      console.warn('Errore rianalisi automatica:', err);
+      setSyncNotice('⚠️ Impossibile eseguire la rianalisi automatica.');
+    } finally {
+      setIsReanalyzing(false);
+      setTimeout(() => setSyncNotice(null), 3500);
+    }
+  };
 
   // Aggancia 1 adesso: blocca l'1 nell'istante esatto del tocco e ricalcola l'intera canzone
   const handleHookTempo1Now = async () => {
@@ -869,51 +1189,18 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       details: `Tempo 1 agganciato a ${baseOffset.toFixed(2)}s (${bpm} BPM)`,
     };
 
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? updatedTrack : t))
-    );
-
-    // Salva in modo permanente in memoria IndexedDB
-    try {
-      const stored = await getAllStoredTracks();
-      const existing = stored?.find((s) => s.id === currentCustomTrack.id);
-      if (existing) {
-        await saveTrackToStorage({
-          ...existing,
-          beatOffset: baseOffset,
-          beats: newBeats,
-          engineVersion: 18,
-        });
-      } else if (currentCustomTrack.file) {
-        await saveTrackToStorage({
-          id: currentCustomTrack.id,
-          name: currentCustomTrack.name,
-          artist: currentCustomTrack.artist,
-          genre: currentCustomTrack.genre,
-          bpm: currentCustomTrack.bpm,
-          beatOffset: baseOffset,
-          beats: newBeats,
-          audioBlob: currentCustomTrack.file,
-          duration: currentCustomTrack.file.size,
-          savedAt: Date.now(),
-          engineVersion: 18,
-        });
-      }
-    } catch (e) {
-      console.warn('Errore salvataggio permanente Tempo 1:', e);
-    }
-
     waitingForTempo1Ref.current = false;
     setActiveBeat(0);
     setCurrentChordName('Tempo 1');
-    lastCustomBeatRef.current = -1;
 
     if (clickSoundMode !== 'off') {
-      playCustomClickSound(0, clickSoundMode);
+      playCustomClickSoundAtTime(0, clickSoundMode);
     }
 
-    setSyncNotice(`🎯 Tempo 1 bloccato a ${baseOffset.toFixed(2)}s!`);
-    setTimeout(() => setSyncNotice(null), 3000);
+    await syncTrackUpdate(
+      updatedTrack,
+      `🎯 Tempo 1 bloccato a ${baseOffset.toFixed(2)}s! Sincronizzato su tutti i dispositivi.`
+    );
   };
 
   // Sposta la griglia di battiti (+4 = inverte 1 con 5, +1 = anticipa un quarto, -1 = ritarda un quarto)
@@ -956,28 +1243,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       details: `${label} (Tempo 1 a ${newOffset.toFixed(2)}s)`,
     };
 
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? updatedTrack : t))
+    await syncTrackUpdate(
+      updatedTrack,
+      `✓ ${label}! Nuovo Tempo 1: ${newOffset.toFixed(2)}s`
     );
-
-    try {
-      const stored = await getAllStoredTracks();
-      const existing = stored?.find((s) => s.id === currentCustomTrack.id);
-      if (existing) {
-        await saveTrackToStorage({
-          ...existing,
-          beatOffset: newOffset,
-          beats: newBeats,
-          engineVersion: 18,
-        });
-      }
-    } catch (err) {
-      console.warn('Errore salvataggio:', err);
-    }
-
-    lastCustomBeatRef.current = -1;
-    setSyncNotice(`✓ ${label}! Nuovo Tempo 1: ${newOffset.toFixed(2)}s`);
-    setTimeout(() => setSyncNotice(null), 3000);
   };
 
   // Micro-regolazione millimetrica (+/- 50ms)
@@ -1012,27 +1281,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       beats: newBeats,
     };
 
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? updatedTrack : t))
+    await syncTrackUpdate(
+      updatedTrack,
+      `Regolato ${deltaMs > 0 ? '+' : ''}${deltaMs}ms (1 a ${newOffset.toFixed(2)}s)`
     );
-
-    try {
-      const stored = await getAllStoredTracks();
-      const existing = stored?.find((s) => s.id === currentCustomTrack.id);
-      if (existing) {
-        await saveTrackToStorage({
-          ...existing,
-          beatOffset: newOffset,
-          beats: newBeats,
-          engineVersion: 18,
-        });
-      }
-    } catch (err) {
-      console.warn('Errore salvataggio:', err);
-    }
-
-    setSyncNotice(`Regolato ${deltaMs > 0 ? '+' : ''}${deltaMs}ms (1 a ${newOffset.toFixed(2)}s)`);
-    setTimeout(() => setSyncNotice(null), 2000);
   };
 
   // Regolazione BPM (+1, -1, x2, /2)
@@ -1065,27 +1317,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       beats: newBeats,
     };
 
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? updatedTrack : t))
+    await syncTrackUpdate(
+      updatedTrack,
+      `✓ Velocità aggiornata a ${clampedBpm} BPM (Salvata nella memoria dell'app)`
     );
-
-    try {
-      const stored = await getAllStoredTracks();
-      const existing = stored?.find((s) => s.id === currentCustomTrack.id);
-      if (existing) {
-        await saveTrackToStorage({
-          ...existing,
-          bpm: clampedBpm,
-          beats: newBeats,
-          engineVersion: 18,
-        });
-      }
-    } catch (err) {
-      console.warn('Errore salvataggio bpm:', err);
-    }
-
-    setSyncNotice(`✓ Velocità aggiornata a ${clampedBpm} BPM`);
-    setTimeout(() => setSyncNotice(null), 2500);
   };
 
   // Cambio Genere rapido
@@ -1127,37 +1362,19 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       beats: newBeats,
     };
 
-    setCustomTracks((prev) =>
-      prev.map((t) => (t.id === currentCustomTrack.id ? updatedTrack : t))
+    await syncTrackUpdate(
+      updatedTrack,
+      `✓ Impostato come ${newGenre === 'salsa' ? 'Salsa' : 'Bachata'} (${targetBpm} BPM)`
     );
-
-    try {
-      const stored = await getAllStoredTracks();
-      const existing = stored?.find((s) => s.id === currentCustomTrack.id);
-      if (existing) {
-        await saveTrackToStorage({
-          ...existing,
-          genre: newGenre,
-          bpm: targetBpm,
-          beats: newBeats,
-          engineVersion: 18,
-        });
-      }
-    } catch (err) {
-      console.warn('Errore salvataggio genere:', err);
-    }
-
-    setSyncNotice(`✓ Impostato come ${newGenre === 'salsa' ? 'Salsa' : 'Bachata'} (${targetBpm} BPM)`);
-    setTimeout(() => setSyncNotice(null), 3000);
   };
 
-  // Caricamento file audio MP3 originali (anche 30 o più contemporaneamente)
+  // Caricamento file audio MP3 originali per esame e calibrazione (NON salvati automaticamente)
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
     const fileList = Array.from(files);
-    setSyncNotice(`⚡ Caricamento e analisi di ${fileList.length} canzoni...`);
+    setSyncNotice(`⚡ Caricamento ed esame di ${fileList.length} canzoni...`);
 
     const newTracks: CustomTrack[] = [];
 
@@ -1183,46 +1400,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           isAnalyzing: false,
           recognitionSource: result.recognitionSource,
           details: result.details,
+          isSaved: false, // In esame: salvataggio solo su richiesta esplicita dell'utente
         };
-
-        // Salva in memoria locale IndexedDB
-        await saveTrackToStorage({
-          id: trackId,
-          name: trackItem.name,
-          artist: trackItem.artist,
-          genre: trackItem.genre,
-          bpm: trackItem.bpm,
-          beatOffset: trackItem.beatOffset,
-          beats: trackItem.beats,
-          audioBlob: file,
-          duration: file.size,
-          savedAt: Date.now(),
-          engineVersion: 18,
-          recognitionSource: result.recognitionSource,
-          details: result.details,
-        });
-
-        // Salva SUBITO nella memoria permanente dell'app (Server / Cloud) per renderla disponibile su TUTTI i dispositivi
-        try {
-          const pubRes = await publishTrackToServer(
-            {
-              id: trackId,
-              name: trackItem.name,
-              artist: trackItem.artist,
-              genre: trackItem.genre,
-              bpm: trackItem.bpm,
-              beatOffset: trackItem.beatOffset,
-              beats: trackItem.beats || [],
-              duration: file.size,
-            },
-            file
-          );
-          if (pubRes.success && pubRes.track) {
-            trackItem.url = pubRes.track.audioUrl;
-          }
-        } catch (serverErr) {
-          console.warn('Errore salvataggio server durante upload:', serverErr);
-        }
 
         newTracks.push(trackItem);
       } catch (err) {
@@ -1236,35 +1415,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           bpm: 128,
           beatOffset: 2.0,
           isAnalyzing: false,
+          isSaved: false, // In esame: salvataggio solo su richiesta esplicita dell'utente
         };
-        await saveTrackToStorage({
-          id: trackId,
-          name: cleanName,
-          genre: 'bachata',
-          bpm: 128,
-          beatOffset: 2.0,
-          audioBlob: file,
-          savedAt: Date.now(),
-          engineVersion: 18,
-        });
-
-        try {
-          const pubRes = await publishTrackToServer(
-            {
-              id: trackId,
-              name: cleanName,
-              genre: 'bachata',
-              bpm: 128,
-              beatOffset: 2.0,
-              beats: [],
-              duration: file.size,
-            },
-            file
-          );
-          if (pubRes.success && pubRes.track) {
-            fallbackTrack.url = pubRes.track.audioUrl;
-          }
-        } catch {}
 
         newTracks.push(fallbackTrack);
       }
@@ -1275,31 +1427,30 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       return updated;
     });
 
-    // Ricarica la libreria permanente dell'app dal server
-    fetchSharedTracks().then((fresh) => {
-      if (fresh) setSharedTracks(fresh);
-    });
-
     if (newTracks.length > 0) {
       const first = newTracks[0];
       setSelectedCustomId(first.id);
       if (customAudioRef.current) {
         customAudioRef.current.src = first.url;
+        customAudioRef.current.currentTime = 0;
+        smoothedSecRef.current = 0;
+        lastAudioSecRef.current = -1;
+        waitingForTempo1Ref.current = false;
         customAudioRef.current.load();
       }
-      setActiveTab('shared');
+      setActiveTab('custom');
     }
 
     if (newTracks.length === 1) {
       setSyncNotice(
-        `✓ «${newTracks[0].name}» salvata nella memoria dell'app (${newTracks[0].bpm} BPM)! Disponibile su tutti i dispositivi.`
+        `⚡ «${newTracks[0].name}» pronta da esaminare (${newTracks[0].bpm} BPM). Ascoltala e calibrala: quando è a tempo premi "Salva Canzone"!`
       );
     } else {
       setSyncNotice(
-        `✓ ${newTracks.length} canzoni salvate nella memoria dell'app con BPM calcolati!`
+        `⚡ ${newTracks.length} canzoni caricate per l'esame. Ascoltale e salvale quando decidi che sono a tempo!`
       );
     }
-    setTimeout(() => setSyncNotice(null), 4500);
+    setTimeout(() => setSyncNotice(null), 5000);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -1492,7 +1643,9 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                       ? 'Traccia Didattica a Tempo'
                       : activeTab === 'shared'
                       ? '🎵 Canzone Salvata in Memoria'
-                      : '🎧 Canzone in Calibrazione'}
+                      : currentCustomTrack?.isSaved === false
+                      ? '🎧 Canzone in Esame (Non Salvata)'
+                      : '🎧 Canzone MP3'}
                   </span>
                 </span>
                 <h3 className="text-sm font-semibold text-white truncate mt-0.5">
@@ -1505,9 +1658,17 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-[#021831] text-[#F9C03E] border border-[#F9C03E]/40 shrink-0">
                     {activeBpm} BPM
                   </span>
-                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shrink-0">
-                    ⚡ Auto-BPM
-                  </span>
+                  {activeTab !== 'didactic' && currentCustomTrack && (
+                    currentCustomTrack.isSaved === false ? (
+                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40 shrink-0">
+                        ⏳ In Esame (Non Salvata)
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shrink-0">
+                        ✓ Salvata in Memoria
+                      </span>
+                    )
+                  )}
                   {currentChordName && isPlaying && (
                     <span className="text-[10px] text-amber-300 font-mono font-semibold animate-pulse truncate">
                       {currentChordName}
@@ -1516,8 +1677,21 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 </div>
               </div>
 
-              {/* Tasti Controllo Riproduzione ed Eliminazione Canzone */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              {/* Tasti Controllo Riproduzione, Salvataggio ed Eliminazione Canzone */}
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                {activeTab !== 'didactic' && currentCustomTrack && currentCustomTrack.isSaved === false && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveExaminedTrack(currentCustomTrack)}
+                    disabled={isPublishing}
+                    title="Salva questa canzone nella memoria dell'app adesso che hai verificato che è a tempo"
+                    className="py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-[#021831] font-black text-xs flex items-center gap-1.5 shadow-md border border-emerald-300 transition-all cursor-pointer active:scale-95 shrink-0"
+                  >
+                    <Save className="w-3.5 h-3.5 text-[#021831]" />
+                    <span>{isPublishing ? 'Salvataggio...' : 'Salva Canzone a Tempo'}</span>
+                  </button>
+                )}
+
                 <button
                   onClick={activeTab === 'didactic' ? handleTogglePlayDidactic : handleTogglePlayCustom}
                   disabled={activeTab !== 'didactic' && !currentCustomTrack}
@@ -1567,7 +1741,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
             {/* Barra avanzamento solo per MP3 e Basi condivise */}
             {activeTab !== 'didactic' && currentCustomTrack && (
-              <div className="pt-2 border-t border-[#88A5BF]/20 space-y-1">
+              <div className="pt-2 border-t border-[#88A5BF]/20 space-y-2">
                 <div className="flex items-center justify-between text-[10px] text-slate-300 font-mono">
                   <span>{formatTime(customCurrentTime)}</span>
                   <span>{formatTime(customDuration)}</span>
@@ -1580,77 +1754,111 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   onChange={(e) => handleSeekCustom(Number(e.target.value))}
                   className="w-full accent-[#F9C03E] cursor-pointer h-1.5 bg-[#021831] rounded-lg"
                 />
+
+                {/* Banner di avviso se la canzone è in esame e non ancora salvata */}
+                {currentCustomTrack.isSaved === false && (
+                  <div className="p-2 sm:p-2.5 rounded-xl bg-amber-500/15 border border-amber-400/35 flex items-center justify-between gap-2 flex-wrap mt-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#F9C03E] shrink-0" />
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-white block">
+                          Canzone in Esame (Non Salvata)
+                        </span>
+                        <span className="text-[11px] text-amber-200 block">
+                          Ascoltala, verifica le battute 1 e 5. Quando decidi tu che è a tempo, premi il pulsante per salvarla.
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveExaminedTrack(currentCustomTrack)}
+                      disabled={isPublishing}
+                      className="py-1.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-[#021831] text-xs font-black flex items-center gap-1.5 shadow-md border border-emerald-300 transition-all cursor-pointer active:scale-95 shrink-0"
+                    >
+                      <Save className="w-3.5 h-3.5 text-[#021831]" />
+                      <span>{isPublishing ? 'Salvataggio...' : 'Salva Canzone a Tempo'}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* BATTUTE MUSICALI (DA 1 A 8) - SEMPRE PERFETTE */}
+          {/* BATTUTE MUSICALI (DA 1 A 8) */}
           <div className="glass-card p-3 sm:p-4 text-center space-y-2.5">
             <div className="flex items-center justify-between pb-1 border-b border-[#88A5BF]/20">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#88A5BF] flex items-center gap-1.5">
-                <Music className="w-3.5 h-3.5 text-[#F9C03E]" />
-                <span>Battute Musicali (1-8)</span>
+              <span className="text-xs font-semibold text-[#88A5BF]">
+                Battute Musicali (1-8)
               </span>
-              <span className="text-xs font-mono font-bold text-[#F9C03E]">
-                {activeBpm} BPM
+              <span className="text-xs text-slate-400 font-mono">
+                {isPlaying ? (activeBeat >= 0 ? `Battuta ${activeBeat + 1}` : 'In attesa') : 'Fermo'}
               </span>
             </div>
 
             {/* Griglia 1 a 8 - Si accendono in oro brillante SOLO l'1 e il 5 */}
-            <div className="grid grid-cols-8 gap-1 sm:gap-1.5 pt-1">
+            <div className="grid grid-cols-8 gap-1 sm:gap-1.5">
               {beatList.map((item, idx) => {
                 const isTempo1 = idx === 0;
                 const isTempo5 = idx === 4;
+                const isDownbeat = isTempo1 || isTempo5;
                 const isActive = isPlaying && activeBeat === idx;
 
                 let padClasses = '';
                 if (isActive) {
-                  if (isTempo1 || isTempo5) {
+                  if (isDownbeat) {
                     padClasses =
-                      'bg-[#F9C03E] text-[#042B58] border-2 border-white shadow-[0_0_28px_rgba(249,192,62,1)] scale-110 -translate-y-1 font-black ring-4 ring-[#F9C03E] z-20';
+                      'bg-gradient-to-b from-[#FFF59D] via-[#F9C03E] to-[#D99B00] text-[#021831] border-2 border-white shadow-[0_0_35px_rgba(249,192,62,1),0_0_18px_rgba(255,255,255,0.9)] scale-110 -translate-y-1.5 font-black ring-4 ring-[#F9C03E] z-20';
                   } else {
                     padClasses =
-                      'bg-slate-700/90 text-slate-100 border-2 border-slate-400/80 shadow-[0_0_12px_rgba(203,213,225,0.3)] scale-105 -translate-y-0.5 font-bold z-10';
+                      'bg-slate-700/90 text-slate-100 border-2 border-slate-400/80 shadow-[0_0_12px_rgba(203,213,225,0.4)] scale-105 -translate-y-0.5 font-bold z-10';
                   }
-                } else if (isTempo1 || isTempo5) {
+                } else if (isDownbeat) {
                   padClasses =
-                    'bg-slate-900/90 border border-[#F9C03E]/40 text-[#F9C03E] font-bold';
+                    'bg-[#021831]/85 border-2 border-[#F9C03E]/35 text-[#F9C03E]/75 font-bold hover:border-[#F9C03E]/60';
                 } else {
                   padClasses =
-                    'bg-slate-900/80 border border-slate-800 text-slate-500 font-medium';
+                    'bg-[#021831]/60 border border-slate-800 text-slate-500 font-medium';
                 }
 
                 return (
                   <div
                     key={idx}
-                    className={`py-3 sm:py-3.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all duration-75 select-none ${padClasses}`}
+                    className={`py-3 sm:py-3.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all duration-75 select-none relative overflow-hidden ${padClasses}`}
                   >
-                    <span className="text-lg sm:text-2xl font-bold font-mono leading-none">
+                    {/* Aura ripple per 1 e 5 */}
+                    {isActive && isDownbeat && (
+                      <span className="absolute inset-0 rounded-xl bg-white/35 animate-ping pointer-events-none" />
+                    )}
+                    <span
+                      className={`text-lg sm:text-2xl font-bold font-mono leading-none ${
+                        isActive && isDownbeat ? 'text-[#021831] font-black' : ''
+                      }`}
+                    >
                       {item.num}
                     </span>
                     {isTempo1 ? (
                       <span
                         className={`text-[8px] sm:text-[9px] font-black uppercase tracking-tight mt-0.5 ${
-                          isActive ? 'text-[#042B58]' : 'text-[#F9C03E]'
+                          isActive ? 'text-[#021831] font-black' : 'text-[#F9C03E]'
                         }`}
                       >
-                        1°
+                        1° Forte
                       </span>
                     ) : isTempo5 ? (
                       <span
-                        className={`text-[8px] font-bold uppercase tracking-tight mt-0.5 ${
-                          isActive ? 'text-[#042B58]' : 'text-[#F9C03E]'
+                        className={`text-[8px] sm:text-[9px] font-black uppercase tracking-tight mt-0.5 ${
+                          isActive ? 'text-[#021831] font-black' : 'text-[#F9C03E]'
                         }`}
                       >
-                        5°
+                        5° Forte
                       </span>
                     ) : (
                       <span
                         className={`text-[8px] font-semibold tracking-tight mt-0.5 transition-opacity ${
-                          isActive ? 'text-slate-300 opacity-90' : 'opacity-0 select-none'
+                          isActive ? 'text-slate-200 opacity-90' : 'opacity-0 select-none'
                         }`}
                       >
-                        {item.num}°
+                        {item.num === 4 || item.num === 8 ? 'Pausa' : `${item.num}°`}
                       </span>
                     )}
                   </div>
@@ -1658,314 +1866,71 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               })}
             </div>
 
-            {/* PANNELLO DI CALIBRAZIONE RITMICA AVANZATA (Visible on Custom tab or when calibrating) */}
-            {activeTab === 'custom' && currentCustomTrack && (
-              <div className="pt-3 flex flex-col gap-2.5 border-t border-[#88A5BF]/20 text-left bg-[#021831]/60 p-3 rounded-2xl border border-amber-500/20">
-                {/* Intestazione Calibrazione con offset attuale */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Target className="w-4 h-4 text-[#F9C03E]" />
-                    <span>Calibrazione Ritmo & Velocità Esatta</span>
+            {/* SELETTORE SUONO GUIDA RITMO (Disponibile per tutte le modalità) */}
+            <div className="pt-2.5 flex flex-col gap-2.5 border-t border-[#88A5BF]/20 text-left">
+              <div className="p-2.5 rounded-xl bg-[#042B58]/80 border border-[#88A5BF]/25 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  {clickSoundMode === 'off' ? (
+                    <BellOff className="w-4 h-4 text-slate-400 shrink-0" />
+                  ) : (
+                    <Bell className="w-4 h-4 text-[#F9C03E] shrink-0" />
+                  )}
+                  <span className="text-xs text-white font-bold">
+                    Suono Guida Ritmo:
                   </span>
-                  <span className="text-[10px] text-amber-200 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                    1 a {currentCustomTrack.beatOffset?.toFixed(2) || '2.00'}s • {currentCustomTrack.bpm} BPM
-                  </span>
                 </div>
 
-                {/* GUIDA SONORA PER TROVARE IL TEMPO (in memoria per la calibrazione) */}
-                <div className="p-2 rounded-xl bg-[#042B58]/80 border border-[#88A5BF]/20 flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5">
-                    {clickSoundMode !== 'off' ? (
-                      <Bell className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
-                    ) : (
-                      <BellOff className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    )}
-                    <span className="text-[10px] text-slate-200 font-bold">
-                      Suono per Trovare il Tempo:
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setClickSoundMode('bell')}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                        clickSoundMode === 'bell'
-                          ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
-                          : 'bg-[#021831] text-slate-400 hover:text-white border border-[#88A5BF]/20'
-                      }`}
-                    >
-                      🔔 Campana 1
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setClickSoundMode('all')}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                        clickSoundMode === 'all'
-                          ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
-                          : 'bg-[#021831] text-slate-400 hover:text-white border border-[#88A5BF]/20'
-                      }`}
-                    >
-                      ⏱️ Click 1-8
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setClickSoundMode('off')}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                        clickSoundMode === 'off'
-                          ? 'bg-rose-500/30 text-rose-300 border border-rose-400/40'
-                          : 'bg-[#021831] text-slate-400 hover:text-white border border-[#88A5BF]/20'
-                      }`}
-                    >
-                      🔕 Muto
-                    </button>
-                  </div>
-                </div>
-
-                {/* 1. REGOLAZIONE BPM DIRETTA E PRESET ISTANTANEI */}
-                <div className="p-2.5 rounded-xl bg-[#042B58]/80 border border-[#88A5BF]/20 space-y-2">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="text-[11px] text-slate-200 font-bold">
-                      Velocità Canzone (BPM):
-                    </span>
-
-                    {/* Stepper + Input numerico BPM */}
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleChangeBpm((currentCustomTrack.bpm || 130) - 5)}
-                        className="px-2 py-1 rounded bg-[#021831] hover:bg-[#234C77] text-amber-300 text-[10px] font-mono font-bold border border-[#88A5BF]/25 cursor-pointer"
-                      >
-                        -5
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleChangeBpm((currentCustomTrack.bpm || 130) - 1)}
-                        className="px-2 py-1 rounded bg-[#021831] hover:bg-[#234C77] text-white text-[10px] font-mono font-bold border border-[#88A5BF]/25 cursor-pointer"
-                      >
-                        -1
-                      </button>
-
-                      <div className="flex items-center px-2 py-0.5 rounded bg-[#021831] border border-amber-400/50">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="60"
-                          max="260"
-                          value={currentCustomTrack.bpm || 130}
-                          onChange={(e) => handleChangeBpm(Number(e.target.value))}
-                          className="w-12 bg-transparent text-center font-mono font-bold text-amber-300 text-xs focus:outline-none"
-                        />
-                        <span className="text-[9px] text-[#88A5BF] font-bold">BPM</span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleChangeBpm((currentCustomTrack.bpm || 130) + 1)}
-                        className="px-2 py-1 rounded bg-[#021831] hover:bg-[#234C77] text-white text-[10px] font-mono font-bold border border-[#88A5BF]/25 cursor-pointer"
-                      >
-                        +1
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleChangeBpm((currentCustomTrack.bpm || 130) + 5)}
-                        className="px-2 py-1 rounded bg-[#021831] hover:bg-[#234C77] text-amber-300 text-[10px] font-mono font-bold border border-[#88A5BF]/25 cursor-pointer"
-                      >
-                        +5
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleChangeBpm((currentCustomTrack.bpm || 130) / 2)}
-                        title="Dimezza BPM"
-                        className="px-1.5 py-1 rounded bg-slate-800 text-slate-300 text-[9px] font-mono border border-slate-700 cursor-pointer"
-                      >
-                        /2
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleChangeBpm((currentCustomTrack.bpm || 130) * 2)}
-                        title="Raddoppia BPM"
-                        className="px-1.5 py-1 rounded bg-slate-800 text-slate-300 text-[9px] font-mono border border-slate-700 cursor-pointer"
-                      >
-                        x2
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Preset rapidi per genere e Tap Tempo */}
-                  <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-[#88A5BF]/15 flex-wrap">
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <span className="text-[9px] text-[#88A5BF] uppercase font-bold">
-                        Preset {currentCustomTrack.genre === 'salsa' ? 'Salsa' : 'Bachata'}:
-                      </span>
-                      {currentCustomTrack.genre === 'bachata' ? (
-                        <>
-                          {[124, 128, 130, 132, 136].map((bpmVal) => (
-                            <button
-                              key={bpmVal}
-                              type="button"
-                              onClick={() => handleChangeBpm(bpmVal)}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors ${
-                                Math.round(currentCustomTrack.bpm) === bpmVal
-                                  ? 'bg-[#F9C03E] text-[#042B58]'
-                                  : 'bg-[#021831] text-slate-300 hover:text-white border border-[#88A5BF]/20'
-                              }`}
-                            >
-                              {bpmVal}
-                            </button>
-                          ))}
-                        </>
-                      ) : (
-                        <>
-                          {[172, 180, 186, 192, 200].map((bpmVal) => (
-                            <button
-                              key={bpmVal}
-                              type="button"
-                              onClick={() => handleChangeBpm(bpmVal)}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors ${
-                                Math.round(currentCustomTrack.bpm) === bpmVal
-                                  ? 'bg-[#F9C03E] text-[#042B58]'
-                                  : 'bg-[#021831] text-slate-300 hover:text-white border border-[#88A5BF]/20'
-                              }`}
-                            >
-                              {bpmVal}
-                            </button>
-                          ))}
-                        </>
-                      )}
-                    </div>
-
-                    {/* Tasto Tap Tempo */}
-                    <button
-                      type="button"
-                      onClick={handleTapTempo}
-                      className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-                    >
-                      🥁 Tap Tempo ({tapTimes.length > 0 ? `${tapTimes.length} tocchi` : 'Batti qui'})
-                    </button>
-                  </div>
-
-                  {/* Indicatore calcolo automatico BPM */}
-                  <div className="flex items-center justify-between text-[10px] text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-                    <span className="flex items-center gap-1 font-semibold">
-                      <Sparkles className="w-3 h-3 text-[#F9C03E]" />
-                      <span>BPM calcolato in automatico al caricamento</span>
-                    </span>
-                    <span className="font-mono font-bold text-white">{currentCustomTrack.bpm} BPM</span>
-                  </div>
-                </div>
-
-                {/* 2. TASTO PRINCIPALE AGGANCIA 1 ADESSO */}
-                <button
-                  type="button"
-                  onClick={handleHookTempo1Now}
-                  className="w-full py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-gradient-to-r from-amber-500 via-[#F9C03E] to-amber-500 hover:brightness-110 text-[#042B58] shadow-[0_0_20px_rgba(249,192,62,0.45)] active:scale-95"
-                >
-                  <Target className="w-4 h-4 text-[#042B58]" />
-                  <span>🎯 AGGANCIA 1 ADESSO (Tocca sul battere dell&apos;1)</span>
-                </button>
-
-                {/* 3. TASTI DI CORREZIONE RAPIDA DELLE BATTUTE */}
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="flex items-center gap-1 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => handleShiftBeat(-1)}
-                    title="Anticipa la battuta di 1 tempo intero"
-                    className="py-1.5 px-2 rounded-lg bg-[#021831] hover:bg-[#234C77] text-slate-200 border border-[#88A5BF]/30 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                    onClick={() => setClickSoundMode('bell')}
+                    title="Campana Latina autentica sui tempi 1 e 5 (downbeat)"
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                      clickSoundMode === 'bell'
+                        ? 'bg-[#F9C03E] text-[#042B58] shadow-sm font-black'
+                        : 'bg-[#021831] text-slate-300 hover:text-white border border-[#88A5BF]/20'
+                    }`}
                   >
-                    <ChevronLeft className="w-3.5 h-3.5 text-[#F9C03E]" />
-                    <span>-1 Battito</span>
+                    🔔 Campana (1 e 5)
                   </button>
-
                   <button
                     type="button"
-                    onClick={() => handleShiftBeat(4)}
-                    title="Scambia l'1 con il 5 se la battuta è caduta a metà frase (errore più comune nei balli caraibici)"
-                    className="py-1.5 px-2 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 border border-indigo-400/40 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-sm"
+                    onClick={() => setClickSoundMode('clave')}
+                    title="Clave Cubana tradizionale in legno"
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                      clickSoundMode === 'clave'
+                        ? 'bg-[#F9C03E] text-[#042B58] shadow-sm font-black'
+                        : 'bg-[#021831] text-slate-300 hover:text-white border border-[#88A5BF]/20'
+                    }`}
                   >
-                    <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-300" />
-                    <span>Inverti 1 ↔ 5</span>
+                    🪘 Clave
                   </button>
-
                   <button
                     type="button"
-                    onClick={() => handleShiftBeat(1)}
-                    title="Posticipa la battuta di 1 tempo intero"
-                    className="py-1.5 px-2 rounded-lg bg-[#021831] hover:bg-[#234C77] text-slate-200 border border-[#88A5BF]/30 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                    onClick={() => setClickSoundMode('all')}
+                    title="Metronomo accentato su tutte le battute (1-8)"
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                      clickSoundMode === 'all'
+                        ? 'bg-[#F9C03E] text-[#042B58] shadow-sm font-black'
+                        : 'bg-[#021831] text-slate-300 hover:text-white border border-[#88A5BF]/20'
+                    }`}
                   >
-                    <span>+1 Battito</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-[#F9C03E]" />
+                    ⏱️ Click 1-8
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClickSoundMode('off')}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                      clickSoundMode === 'off'
+                        ? 'bg-rose-500/30 text-rose-300 border border-rose-400/40'
+                        : 'bg-[#021831] text-slate-400 hover:text-white border border-[#88A5BF]/20'
+                    }`}
+                  >
+                    🔕 Muto
                   </button>
                 </div>
-
-                {/* 4. RIFINITURA MILLIMETRICA (+/-50ms) E SWITCH GENERE */}
-                <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-[#88A5BF]/15 flex-wrap">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-[#88A5BF]">Micro-Shift:</span>
-                    <button
-                      type="button"
-                      onClick={() => handleNudgeMillis(-50)}
-                      title="Anticipa l'1 di 50 millisecondi"
-                      className="px-2 py-0.5 rounded bg-[#021831] hover:bg-[#234C77] text-slate-300 text-[10px] font-mono border border-[#88A5BF]/25 cursor-pointer"
-                    >
-                      -50ms
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleNudgeMillis(+50)}
-                      title="Ritarda l'1 di 50 millisecondi"
-                      className="px-2 py-0.5 rounded bg-[#021831] hover:bg-[#234C77] text-slate-300 text-[10px] font-mono border border-[#88A5BF]/25 cursor-pointer"
-                    >
-                      +50ms
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1 ml-auto">
-                    <button
-                      type="button"
-                      onClick={() => handleSwitchCustomGenre('salsa')}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                        currentCustomTrack.genre === 'salsa'
-                          ? 'bg-[#F9C03E] text-[#042B58]'
-                          : 'bg-[#021831] text-slate-400 hover:text-white border border-[#88A5BF]/20'
-                      }`}
-                    >
-                      💃 Salsa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSwitchCustomGenre('bachata')}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                        currentCustomTrack.genre === 'bachata'
-                          ? 'bg-[#F9C03E] text-[#042B58]'
-                          : 'bg-[#021831] text-slate-400 hover:text-white border border-[#88A5BF]/20'
-                      }`}
-                    >
-                      ✨ Bachata
-                    </button>
-                  </div>
-                </div>
-
-                {/* 5. IL TASTO D'ORO: SALVA NELLA LIBRERIA CONDIVISA DEL SERVER */}
-                <button
-                  type="button"
-                  onClick={handlePublishCurrentTrack}
-                  disabled={isPublishing}
-                  className="w-full mt-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg active:scale-95 disabled:opacity-50"
-                >
-                  <Share2 className="w-4 h-4 text-white" />
-                  <span>
-                    {isPublishing
-                      ? 'Salvataggio sul server in corso...'
-                      : '💾 SALVA NELLA LIBRERIA CONDIVISA (Disponibile per tutti)'}
-                  </span>
-                </button>
-                <p className="text-[10px] text-slate-300 text-center leading-tight">
-                  Una volta salvato, il brano rimane nella memoria del server per sempre: chiunque apra l&apos;app potrà ballarlo a tempo perfetto senza dover toccare nulla.
-                </p>
               </div>
-            )}
+            </div>
           </div>
 
           {/* TAB 1: CANZONI NELLA MEMORIA DELL'APP */}
@@ -2025,7 +1990,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                   <Cloud className="w-8 h-8 text-[#F9C03E] mx-auto opacity-80" />
                   <p className="font-semibold text-white">Nessuna canzone ancora salvata nella memoria dell&apos;app.</p>
                   <p className="text-[11px] text-[#88A5BF] max-w-sm mx-auto">
-                    Vai nella scheda <strong>&quot;Carica Canzone&quot;</strong>: ogni canzone caricata viene salvata automaticamente nella memoria dell&apos;app e sarà subito disponibile su qualsiasi tuo dispositivo!
+                    Vai nella scheda <strong>&quot;Carica Canzone&quot;</strong>: carica un brano, esaminalo e quando è perfettamente a tempo salvalo nella memoria dell&apos;app per renderlo disponibile su tutti i tuoi dispositivi!
                   </p>
                   <button
                     type="button"
@@ -2206,7 +2171,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                     <span>Carica Canzoni MP3</span>
                   </span>
                   <p className="text-[10px] text-[#88A5BF]">
-                    ⚡ <strong>Memoria dell&apos;app:</strong> ogni canzone caricata viene salvata automaticamente nella memoria dell&apos;app e sarà disponibile su tutti i tuoi dispositivi.
+                    ⚡ <strong>Esamina prima di salvare:</strong> carica qualsiasi canzone MP3 per esaminarla. Verrà salvata nella memoria dell&apos;app solo quando decidi tu premendo il pulsante <strong>&quot;Salva Canzone&quot;</strong>!
                   </p>
                 </div>
 
@@ -2283,15 +2248,16 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
               {customTracks.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-400 space-y-2.5 border border-dashed border-[#88A5BF]/30 rounded-2xl bg-[#021831]/50">
                   <Upload className="w-8 h-8 text-[#F9C03E] mx-auto opacity-80" />
-                  <p className="font-semibold text-white">Carica le tue canzoni MP3</p>
+                  <p className="font-semibold text-white">Carica le tue canzoni MP3 per esaminarle</p>
                   <p className="text-[11px] text-[#88A5BF] max-w-sm mx-auto leading-relaxed">
-                    Premi il tasto giallo <strong>&quot;Carica Canzoni MP3&quot;</strong> qui sopra: l&apos;app calcola automaticamente i BPM e salva la canzone nella memoria dell&apos;app, pronta per essere ascoltata da qualsiasi tuo dispositivo!
+                    Premi il tasto giallo <strong>&quot;Carica Canzoni MP3&quot;</strong> qui sopra: potrai ascoltare la canzone, verificare le battute e salvarla nella memoria dell&apos;app solo quando decidi tu che è perfettamente a tempo!
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-2 pt-1 max-h-64 overflow-y-auto pr-1">
                   {filteredCustomTracks.map((track) => {
                     const isSelected = selectedCustomId === track.id;
+                    const isTrackSaved = track.isSaved !== false;
                     return (
                       <div
                         key={track.id}
@@ -2306,20 +2272,43 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                           <span className="text-xs font-semibold text-white truncate block">
                             {track.name}
                           </span>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="text-[10px] font-bold text-[#F9C03E]">
                               {track.genre === 'salsa' ? '💃 Salsa' : '✨ Bachata'} • {track.bpm} BPM
                             </span>
                             {isSelected && (
-                              <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
-                                <Check className="w-3 h-3" /> In calibrazione
+                              <span className="text-[10px] text-amber-300 flex items-center gap-0.5 font-semibold">
+                                <Check className="w-3 h-3" /> In esame
+                              </span>
+                            )}
+                            {isTrackSaved ? (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                ✓ Salvata in memoria
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                                ⏳ Da esaminare (non salvata)
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {!isTrackSaved && (
+                            <button
+                              type="button"
+                              onClick={() => handleSaveExaminedTrack(track)}
+                              disabled={isPublishing}
+                              title="Salva questa canzone nella memoria dell'app adesso che è a tempo"
+                              className="py-1 px-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-[#021831] font-black text-[10px] flex items-center gap-1 shadow cursor-pointer transition-all active:scale-95"
+                            >
+                              <Save className="w-3 h-3 text-[#021831]" />
+                              <span>Salva</span>
+                            </button>
+                          )}
+
                           <button
+                            type="button"
                             onClick={(e) => handleDeleteCustomTrack(track.id, e)}
                             title="Rimuovi questa canzone"
                             className="w-7 h-7 rounded-lg bg-[#021831] hover:bg-rose-500/30 text-slate-400 hover:text-rose-300 flex items-center justify-center transition-colors cursor-pointer border border-[#88A5BF]/20"

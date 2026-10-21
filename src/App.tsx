@@ -150,10 +150,6 @@ export default function App() {
             }}
             onOpenUnita={(newId, newHeading) => handleOpenUnita(newId, newHeading)}
             onAskCoachWithPrompt={handleAskCoachWithPrompt}
-            onOpenVideocorso={(moduleNum) => {
-              setActiveUnit(null);
-              setCurrentTab('libreria');
-            }}
             onUserDataUpdated={(updated) => setUser(updated)}
           />
         ) : isQuizView ? (
@@ -196,7 +192,6 @@ export default function App() {
                 onOpenRitual={() => setIsRitualView(true)}
                 onOpenRhythm={() => setIsRhythmOpen(true)}
                 onOpenUnita={handleOpenUnita}
-                onOpenVideocorsoTab={() => setCurrentTab('libreria')}
               />
             )}
 

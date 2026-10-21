@@ -33,29 +33,49 @@ export interface EssentiaAnalysisResult {
   details: string;
 }
 
+function resampleTo44100(samples: Float32Array, srcSr: number): Float32Array {
+  if (srcSr === 44100) return samples;
+  const ratio = 44100 / srcSr;
+  const newLen = Math.round(samples.length * ratio);
+  const out = new Float32Array(newLen);
+  for (let i = 0; i < newLen; i++) {
+    const srcPos = i / ratio;
+    const i0 = Math.floor(srcPos);
+    const i1 = Math.min(i0 + 1, samples.length - 1);
+    const frac = srcPos - i0;
+    out[i] = samples[i0] * (1 - frac) + samples[i1] * frac;
+  }
+  return out;
+}
+
 /**
  * Analisi professionale con Essentia.js MIR (Music Information Retrieval)
  * Algoritmo RhythmExtractor2013 + discriminazione del Tempo 1 / Tempo 5
- * Rilevamento automatico puro senza timer, senza countdown e senza scatti casuali.
+ * Rilevamento automatico ad altissima precisione senza timer, senza countdown e senza scatti.
  */
 export function analyzeWithEssentia(
   samples: Float32Array,
-  sampleRate = 22050,
+  sampleRate = 44100,
   preferredGenre: 'salsa' | 'bachata' | 'auto' = 'auto'
 ): EssentiaAnalysisResult | null {
   const essentia = getEssentia();
   if (!essentia) return null;
 
   try {
+    // Essentia.js RhythmExtractor2013 è compilato per lavorare su audio a 44100 Hz.
+    // Resampliamo a 44100 Hz per garantire precisione metronomica assoluta dei tick e dei BPM.
+    const samples44k = resampleTo44100(samples, sampleRate);
+    const effectiveSr = 44100;
+
     // 1. Rilevamento della vera entrata dell'audio/ritmo (Energy RMS scan in finestre da 40ms)
     // Esclude l'eventuale silenzio o rumore di fondo prima che la traccia cominci
-    const windowSamples = Math.round(sampleRate * 0.04);
+    const windowSamples = Math.round(effectiveSr * 0.04);
     let totalRMS = 0;
     let windowCount = 0;
-    for (let i = 0; i < samples.length - windowSamples; i += windowSamples) {
+    for (let i = 0; i < samples44k.length - windowSamples; i += windowSamples) {
       let sumSq = 0;
       for (let j = 0; j < windowSamples; j++) {
-        sumSq += samples[i + j] * samples[i + j];
+        sumSq += samples44k[i + j] * samples44k[i + j];
       }
       totalRMS += Math.sqrt(sumSq / windowSamples);
       windowCount++;
@@ -63,36 +83,53 @@ export function analyzeWithEssentia(
     const avgRMS = windowCount > 0 ? totalRMS / windowCount : 0.01;
 
     let soundStartSec = 0;
-    for (let i = 0; i < samples.length - windowSamples; i += windowSamples) {
+    for (let i = 0; i < samples44k.length - windowSamples; i += windowSamples) {
       let sumSq = 0;
       for (let j = 0; j < windowSamples; j++) {
-        sumSq += samples[i + j] * samples[i + j];
+        sumSq += samples44k[i + j] * samples44k[i + j];
       }
       const localRMS = Math.sqrt(sumSq / windowSamples);
       if (localRMS > avgRMS * 0.12) {
-        soundStartSec = i / sampleRate;
+        soundStartSec = i / effectiveSr;
         break;
       }
     }
 
-    const minTempo = preferredGenre === 'bachata' ? 105 : preferredGenre === 'salsa' ? 145 : 75;
-    const maxTempo = preferredGenre === 'bachata' ? 155 : preferredGenre === 'salsa' ? 225 : 230;
+    const minTempo = preferredGenre === 'bachata' ? 105 : preferredGenre === 'salsa' ? 145 : 70;
+    const maxTempo = preferredGenre === 'bachata' ? 155 : preferredGenre === 'salsa' ? 230 : 235;
 
-    const vec = essentia.arrayToVector(samples);
+    const vec = essentia.arrayToVector(samples44k);
     const res = essentia.RhythmExtractor2013(vec, maxTempo, 'multifeature', minTempo);
     const rawTicks = essentia.vectorToArray(res.ticks);
     const ticks: number[] = Array.from(rawTicks);
 
-    let bpm = Number(res.bpm.toFixed(1));
+    let rawBpm = Number(res.bpm);
     const confidence = Number(res.confidence.toFixed(2));
 
-    if (isNaN(bpm) || bpm < 50 || bpm > 260) {
-      bpm = preferredGenre === 'bachata' ? 128.0 : 182.0;
+    if (isNaN(rawBpm) || rawBpm < 50 || rawBpm > 260) {
+      rawBpm = preferredGenre === 'bachata' ? 128.0 : 182.0;
+    }
+
+    // Calcolo IBI (Inter-Beat Interval) mediano dai tick effettivi rilevati
+    const deltas: number[] = [];
+    for (let i = 1; i < ticks.length; i++) {
+      const d = ticks[i] - ticks[i - 1];
+      if (d >= 0.24 && d <= 1.05) {
+        deltas.push(d);
+      }
+    }
+    deltas.sort((a, b) => a - b);
+    const medianDelta = deltas.length > 3 ? deltas[Math.floor(deltas.length / 2)] : 60.0 / rawBpm;
+    let bpm = Number((60.0 / medianDelta).toFixed(1));
+
+    // Se Essentia res.bpm è stabile e vicino alla mediana, usa res.bpm ad alta definizione
+    if (Math.abs(bpm - rawBpm) < 3.5) {
+      bpm = Number(rawBpm.toFixed(1));
     }
 
     // 2. Risoluzione intelligente del genere e correzione ottava (Semi-Tempo):
-    // Bachata autentica: 110 - 146 BPM
-    // Salsa autentica: 160 - 225 BPM
+    // Bachata autentica: 110 - 150 BPM
+    // Salsa autentica: 155 - 230 BPM
     let resolvedGenre: 'salsa' | 'bachata' = 'salsa';
 
     if (preferredGenre === 'bachata') {
@@ -108,7 +145,7 @@ export function analyzeWithEssentia(
         // Semi-tempo Bachata tipico (es. 64 BPM -> 128 BPM)
         bpm = Number((bpm * 2).toFixed(1));
         resolvedGenre = 'bachata';
-      } else if (bpm >= 110 && bpm <= 146) {
+      } else if (bpm >= 110 && bpm <= 150) {
         // Finestra tipica Bachata
         resolvedGenre = 'bachata';
       } else if (bpm > 75 && bpm < 110) {
@@ -116,7 +153,7 @@ export function analyzeWithEssentia(
         bpm = Number((bpm * 2).toFixed(1));
         resolvedGenre = 'salsa';
       } else {
-        // Sopra 146 BPM è Salsa
+        // Sopra 150 BPM è Salsa
         resolvedGenre = 'salsa';
       }
     }
@@ -124,18 +161,18 @@ export function analyzeWithEssentia(
     const beatPeriod = 60.0 / bpm;
 
     // Filtro passa-basso per isolare la tonica e il basso profondo (< 180 Hz)
-    const alphaBass = (2 * Math.PI * 180) / sampleRate;
-    const bass = new Float32Array(samples.length);
+    const alphaBass = (2 * Math.PI * 180) / effectiveSr;
+    const bass = new Float32Array(samples44k.length);
     let prevB = 0;
-    for (let i = 0; i < samples.length; i++) {
-      prevB += alphaBass * (samples[i] - prevB);
+    for (let i = 0; i < samples44k.length; i++) {
+      prevB += alphaBass * (samples44k[i] - prevB);
       bass[i] = prevB;
     }
 
     // Filtro passa-banda medi (220 Hz - 3200 Hz) per isolare slap e percussioni
-    const alphaMidL = (2 * Math.PI * 220) / sampleRate;
-    const alphaMidH = (2 * Math.PI * 3200) / sampleRate;
-    const mid = new Float32Array(samples.length);
+    const alphaMidL = (2 * Math.PI * 220) / effectiveSr;
+    const alphaMidH = (2 * Math.PI * 3200) / effectiveSr;
+    const mid = new Float32Array(samples44k.length);
     let prevML = 0;
     let prevMH = 0;
     for (let i = 0; i < samples.length; i++) {
@@ -152,14 +189,14 @@ export function analyzeWithEssentia(
     avgBass /= Math.max(1, bass.length / 100);
 
     let rhythmDropSec = soundStartSec;
-    const stepSamples = Math.round(sampleRate * 0.1);
-    for (let i = Math.round(soundStartSec * sampleRate); i < Math.min(samples.length - stepSamples, sampleRate * 25); i += stepSamples) {
+    const stepSamples = Math.round(effectiveSr * 0.1);
+    for (let i = Math.round(soundStartSec * effectiveSr); i < Math.min(samples44k.length - stepSamples, effectiveSr * 25); i += stepSamples) {
       let bSum = 0;
       for (let j = 0; j < stepSamples; j++) {
         bSum += bass[i + j] * bass[i + j];
       }
       if (bSum / stepSamples > avgBass * 0.40) {
-        rhythmDropSec = i / sampleRate;
+        rhythmDropSec = i / effectiveSr;
         break;
       }
     }
@@ -170,7 +207,7 @@ export function analyzeWithEssentia(
     if (realTicks.length >= 4) {
       // Valutazione dei candidati di fase 0..7 per identificare esattamente quale battito è il Tempo 1 (beat 0)
       const scores = new Float32Array(8);
-      const halfWindow = Math.round(sampleRate * 0.08); // 80ms attorno al battito
+      const halfWindow = Math.round(effectiveSr * 0.08); // 80ms attorno al battito
 
       for (let c = 0; c < 8; c++) {
         const bassByBeat = new Float64Array(8);
@@ -179,13 +216,13 @@ export function analyzeWithEssentia(
 
         for (let k = 0; k < realTicks.length; k++) {
           const beatNum = ((k - c) % 8 + 8) % 8;
-          const center = Math.round(realTicks[k] * sampleRate);
+          const center = Math.round(realTicks[k] * effectiveSr);
 
           let localBass = 0;
           let localMid = 0;
           for (let w = -halfWindow; w <= halfWindow; w++) {
             const idx = center + w;
-            if (idx >= 0 && idx < samples.length) {
+            if (idx >= 0 && idx < samples44k.length) {
               localBass += bass[idx] * bass[idx];
               localMid += mid[idx] * mid[idx];
             }
@@ -202,8 +239,8 @@ export function analyzeWithEssentia(
         const b0 = avgB[0], b4 = avgB[4];
         const b1 = avgB[1], b5 = avgB[5];
         const b3 = avgB[3], b7 = avgB[7];
-        const m0 = avgM[0], m4 = avgM[4];
         const m1 = avgM[1], m5 = avgM[5];
+        const m0 = avgM[0], m4 = avgM[4];
 
         let candidateScore = 0;
         if (resolvedGenre === 'bachata') {
@@ -265,32 +302,31 @@ export function analyzeWithEssentia(
 
       const firstTempo1Sec = Number(realTicks[firstT1TickIdx].toFixed(3));
 
-      // 5. Costruisci la sequenza dei battiti che inizia ESATTAMENTE dal primo Tempo 1 autentico
-      // Nessuna estrapolazione artificiale a ritroso nel silenzio o nell'intro!
+      // 5. Costruisci la sequenza isometrica perfetta dei battiti dal Tempo 1 autentico
       const beats: EssentiaBeatEvent[] = [];
 
-      for (let k = firstT1TickIdx; k < realTicks.length; k++) {
-        const beatNum = ((k - bestC) % 8 + 8) % 8;
+      // Avanti dal Tempo 1 fino a 600s
+      let tFwd = firstTempo1Sec;
+      let bFwd = 0;
+      while (tFwd <= 600) {
         beats.push({
-          time: Number(realTicks[k].toFixed(3)),
-          beat: beatNum,
+          time: Number(tFwd.toFixed(3)),
+          beat: bFwd % 8,
         });
+        tFwd += beatPeriod;
+        bFwd++;
       }
 
-      // Estendi in avanti fino alla fine del brano (600s) mantenendo il periodo ritmico costante
-      if (beats.length > 0) {
-        let lastT = beats[beats.length - 1].time;
-        let lastB = beats[beats.length - 1].beat;
-        let tFwd = lastT + beatPeriod;
-        let bFwd = lastB + 1;
-        while (tFwd <= 600) {
-          beats.push({
-            time: Number(tFwd.toFixed(3)),
-            beat: bFwd % 8,
-          });
-          tFwd += beatPeriod;
-          bFwd++;
-        }
+      // A ritroso verso l'inizio per coprire l'intro
+      let tBack = firstTempo1Sec - beatPeriod;
+      let bBack = 7;
+      while (tBack >= 0) {
+        beats.unshift({
+          time: Number(tBack.toFixed(3)),
+          beat: bBack % 8,
+        });
+        tBack -= beatPeriod;
+        bBack = (bBack - 1 + 8) % 8;
       }
 
       return {
@@ -301,7 +337,7 @@ export function analyzeWithEssentia(
         beatOffset: firstTempo1Sec,
         beats,
         recognitionSource: 'essentia_mir',
-        details: `Essentia.js MIR: ${bpm} BPM (${resolvedGenre.toUpperCase()}) • Tempo 1 a ${firstTempo1Sec}s • Riconoscimento automatico`,
+        details: `✓ Essentia MIR: ${bpm} BPM (${resolvedGenre.toUpperCase()}) • Tempo 1 a ${firstTempo1Sec.toFixed(2)}s • Calcolo Ritmico Perfetto`,
       };
     }
 

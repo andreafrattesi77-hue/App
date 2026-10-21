@@ -9,14 +9,14 @@ import {
   ShieldAlert,
   ExternalLink,
   Instagram,
-  Video,
   FileText,
   Music,
+  Video,
 } from 'lucide-react';
 import { wipeAllAppData, saveUserData } from '../services/storage';
 import { exportAndPrintReport } from '../services/reportExport';
 import { logoutFirebase } from '../services/firebase';
-import { VIDEOCORSO_URL, AREA_RISERVATA_URL, INSTAGRAM_URL } from '../config';
+import { AREA_RISERVATA_URL, INSTAGRAM_URL } from '../config';
 import { UserData } from '../types';
 
 interface SettingsModalProps {
@@ -158,32 +158,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             )}
 
-            {/* Videocorso link */}
+
+            {/* Accedi al Videocorso */}
             <a
-              href={VIDEOCORSO_URL}
+              href={AREA_RISERVATA_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="p-2.5 rounded-xl bg-[#021831] hover:bg-[#234C77]/50 border border-amber-400/40 text-xs text-white flex items-center justify-between transition-colors"
             >
               <div className="flex items-center gap-2">
                 <Video className="w-4 h-4 text-[#F9C03E]" />
-                <span>Scopri il videocorso</span>
+                <span className="font-semibold text-white">Accedi al videocorso</span>
               </div>
               <ExternalLink className="w-3.5 h-3.5 text-[#F9C03E]" />
-            </a>
-
-            {/* Area Riservata Videocorso */}
-            <a
-              href={AREA_RISERVATA_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2.5 rounded-xl bg-[#021831] hover:bg-[#234C77]/50 border border-[#88A5BF]/30 text-xs text-white flex items-center justify-between transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <ExternalLink className="w-4 h-4 text-[#88A5BF]" />
-                <span>Area Riservata (Systeme)</span>
-              </div>
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
             </a>
 
             {/* Instagram */}

@@ -810,8 +810,8 @@ export function detectGhostProductionBPM(
     if (calculatedBpm > 225) calculatedBpm /= 2;
   }
 
-  const roundedBpm = Math.round(calculatedBpm);
-  const detectedGenre: DanceGenre = preferredGenre || (roundedBpm >= 155 ? 'salsa' : 'bachata');
+  const preciseBpm = Number(calculatedBpm.toFixed(1));
+  const detectedGenre: DanceGenre = preferredGenre || (preciseBpm >= 155 ? 'salsa' : 'bachata');
 
   // Calcolo confidence
   let meanAcf = 0;
@@ -820,7 +820,7 @@ export function detectGhostProductionBPM(
   const confidence = Math.min(1, Math.max(0.75, acf[bestLag] / (meanAcf + 1e-8) / 5));
 
   return {
-    bpm: roundedBpm,
+    bpm: preciseBpm,
     confidence: Number(confidence.toFixed(2)),
     genre: detectedGenre,
   };
@@ -828,7 +828,7 @@ export function detectGhostProductionBPM(
 
 /**
  * Analisi automatica completa del brano al caricamento:
- * Calcola all'istante il BPM esatto tramite l'algoritmo di The Ghost Production,
+ * Calcola all'istante il BPM esatto tramite l'algoritmo di Essentia.js MIR e The Ghost Production,
  * individua il vero Tempo 1 d'ingresso della musica e genera la sequenza dei battiti sincronizzata.
  */
 export async function analyzeAudioFile(
@@ -854,9 +854,6 @@ export async function analyzeAudioFile(
   const detectedInfo = detectGenreHint(cleanName, artist);
   const explicitGenre: DanceGenre | undefined =
     preferredGenre || (detectedInfo.explicitGenre && detectedInfo.genre !== 'auto' ? (detectedInfo.genre as DanceGenre) : undefined);
-  const knownProfile = detectedInfo.knownProfile;
-
-  // Il catalogo dei brani noti fornisce suggerimenti di BPM e genere, ma analizziamo sempre la forma d'onda audio reale per trovare l'esatto attacco
 
   // --- ANALISI DSP AD ALTA DEFINIZIONE CON WEB AUDIO API ---
   const AudioCtx =
@@ -879,23 +876,25 @@ export async function analyzeAudioFile(
 
     // --- ANALISI INTELLIGENTE PROFESSIONALE CON ESSENTIA.JS (MIR WebAssembly) ---
     try {
-      const targetSr = 22050;
-      const downsampleRatio = Math.max(1, Math.round(sampleRate / targetSr));
-      const maxSeconds = Math.min(audioDuration, 45); // Primi 45s ad altissima fedeltà
-      const maxSamples = Math.floor(maxSeconds * sampleRate);
-      const resampledLength = Math.floor(maxSamples / downsampleRatio);
+      const targetSr = 44100;
+      const maxSeconds = Math.min(audioDuration, 90); // 90 secondi ad alta fedeltà per coprire intro e ritornello
+      const maxSrcSamples = Math.floor(maxSeconds * sampleRate);
+      const resampledLength = Math.round(maxSrcSamples * (targetSr / sampleRate));
       const resampled = new Float32Array(resampledLength);
 
-      for (let i = 0, j = 0; i < maxSamples && j < resampledLength; i += downsampleRatio, j++) {
-        resampled[j] = channelData[i];
+      for (let i = 0; i < resampledLength; i++) {
+        const srcPos = (i * sampleRate) / targetSr;
+        const i0 = Math.floor(srcPos);
+        const i1 = Math.min(i0 + 1, channelData.length - 1);
+        const frac = srcPos - i0;
+        resampled[i] = channelData[i0] * (1 - frac) + channelData[i1] * frac;
       }
 
-      const effectiveSr = Math.round(sampleRate / downsampleRatio);
       const res = await fetch('/api/audio/analyze-rhythm', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/octet-stream',
-          'x-sample-rate': String(effectiveSr),
+          'x-sample-rate': '44100',
           'x-genre': explicitGenre || 'auto',
         },
         body: resampled.buffer,
@@ -914,7 +913,7 @@ export async function analyzeAudioFile(
             beats: data.beats,
             confidence: data.confidence || 0.99,
             recognitionSource: 'essentia_mir',
-            details: `✓ Essentia.js MIR: ${data.bpm} BPM • Tempo 1 a ${data.beatOffset.toFixed(2)}s (${(data.genre || 'BACHATA').toUpperCase()})`,
+            details: `✓ Essentia MIR: ${data.bpm} BPM • Tempo 1 a ${data.beatOffset.toFixed(2)}s (${(data.genre || 'BACHATA').toUpperCase()})`,
           };
         }
       }

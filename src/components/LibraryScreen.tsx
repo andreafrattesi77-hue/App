@@ -7,7 +7,6 @@ import {
   Clock,
   Compass,
   Zap,
-  Video,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -21,13 +20,11 @@ import {
   RIPARTIRE,
   BONUS,
   TUTTE_LE_UNITA,
-  VIDEOCORSO,
   Unita,
   cercaNellaLibreria,
   getUnita,
 } from '../../content/index';
 import { UserData } from '../types';
-import { VideocorsoView } from './VideocorsoView';
 
 interface LibraryScreenProps {
   user: UserData;
@@ -35,7 +32,7 @@ interface LibraryScreenProps {
   onUserDataUpdated: (updated: UserData) => void;
 }
 
-type LibraryTab = 'tutto' | 'ebook' | 'ripartire' | 'bonus' | 'strumenti' | 'videocorso';
+type LibraryTab = 'tutto' | 'ebook' | 'ripartire' | 'bonus' | 'strumenti';
 
 export const LibraryScreen: React.FC<LibraryScreenProps> = ({
   user,
@@ -198,14 +195,13 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
       ) : (
         <>
           {/* Grid of Sections for Instant Navigation without Hidden Horizontal Scroll */}
-          <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+          <div className="grid grid-cols-5 gap-1 pt-0.5">
             {[
               { id: 'tutto', label: 'Tutto', count: totalUnitsCount, icon: Layers },
               { id: 'ebook', label: 'Ebook', count: EBOOK.length, icon: BookOpen },
               { id: 'ripartire', label: 'Ripartire', count: RIPARTIRE.length, icon: Compass },
               { id: 'bonus', label: 'Bonus', count: BONUS.length, icon: Sparkles },
               { id: 'strumenti', label: 'Strumenti', count: rapidTools.length, icon: Zap },
-              { id: 'videocorso', label: 'Videocorso', count: VIDEOCORSO.length, icon: Video },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -468,17 +464,6 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* VIDEOCORSO SECTION */}
-          {(activeTab === 'tutto' || activeTab === 'videocorso') && (
-            <div className="pt-1">
-              <VideocorsoView
-                user={user}
-                onOpenUnita={onOpenUnita}
-                onUserDataUpdated={onUserDataUpdated}
-              />
             </div>
           )}
         </>

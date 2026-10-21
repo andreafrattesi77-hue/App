@@ -9,11 +9,10 @@ import {
   ShieldAlert,
   Award,
   Calendar,
-  Video,
   ExternalLink,
   Music,
 } from 'lucide-react';
-import { MISSIONS_21, PROFILES, OFFICIAL_SIGNATURE, VIDEOCORSO_URL } from '../config';
+import { MISSIONS_21, PROFILES, OFFICIAL_SIGNATURE } from '../config';
 import { getUnita } from '../../content/index';
 import { UserData, EveningEntry, MissionProgress } from '../types';
 
@@ -27,7 +26,7 @@ interface HomeScreenProps {
   onOpenRitual: () => void;
   onOpenRhythm: () => void;
   onOpenUnita: (id: string) => void;
-  onOpenVideocorsoTab: () => void;
+  onOpenVideocorsoTab?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -40,7 +39,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenRitual,
   onOpenRhythm,
   onOpenUnita,
-  onOpenVideocorsoTab,
 }) => {
   // Current active mission in 21 plan
   const currentMission =
@@ -202,32 +200,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {diaryEntries.length > 0 ? `${Math.min(5, diaryEntries.length)} serate registrate` : 'Fai il primo ballo'}
           </p>
         </div>
-      </div>
-
-      {/* Card "Videocorso" */}
-      <div className="glass-card p-4 border border-[#F9C03E]/40 flex items-center justify-between gap-3 bg-[#021831]/80">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#234C77] flex items-center justify-center text-[#F9C03E]">
-            <Video className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-[#F9C03E]">
-              <span>Videocorso in pista</span>
-            </div>
-            <h4 className="text-xs font-bold text-white">
-              Guarda il metodo in pista: 120 minuti di video pratici
-            </h4>
-          </div>
-        </div>
-        <a
-          href={VIDEOCORSO_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="py-2.5 px-3 rounded-xl gold-gradient-btn text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer"
-        >
-          <span>Scopri il videocorso</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
       </div>
 
       {/* Card "Allenatore di Ritmo (Salsa & Bachata)" */}

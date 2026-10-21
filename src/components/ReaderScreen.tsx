@@ -11,14 +11,12 @@ import {
   MessageSquare,
   Moon,
   Sun,
-  Video,
   ChevronLeft,
   ChevronRight,
   Share2,
   ExternalLink,
 } from 'lucide-react';
-import { Unita, TUTTE_LE_UNITA, getUnita, VIDEOCORSO } from '../../content/index';
-import { VIDEOCORSO_URL } from '../config';
+import { Unita, TUTTE_LE_UNITA, getUnita } from '../../content/index';
 import { UserData } from '../types';
 import { saveUserData } from '../services/storage';
 
@@ -29,7 +27,7 @@ interface ReaderScreenProps {
   onBack: () => void;
   onOpenUnita: (id: string, targetHeading?: string) => void;
   onAskCoachWithPrompt: (prompt: string, unitId?: string) => void;
-  onOpenVideocorso: (moduleNum?: number) => void;
+  onOpenVideocorso?: (moduleNum?: number) => void;
   onUserDataUpdated: (updated: UserData) => void;
 }
 
@@ -40,7 +38,6 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
   onBack,
   onOpenUnita,
   onAskCoachWithPrompt,
-  onOpenVideocorso,
   onUserDataUpdated,
 }) => {
   const [theme, setTheme] = useState<'notte' | 'giorno'>(user.readerTheme || 'notte');
@@ -163,8 +160,6 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
   const prevUnit = currentIndex > 0 ? TUTTE_LE_UNITA[currentIndex - 1] : null;
   const nextUnit = currentIndex < TUTTE_LE_UNITA.length - 1 ? TUTTE_LE_UNITA[currentIndex + 1] : null;
 
-  // Find linked video modules
-  const linkedVideo = VIDEOCORSO.find((v) => (v.collegati || []).includes(unita.id));
 
   // Connected units
   const connectedUnits = (unita.collegati || [])
@@ -444,37 +439,6 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
             <span>Chiedi al Coach su questo capitolo</span>
           </button>
 
-          {/* Linked Videocorso Card (if any) */}
-          {linkedVideo && (
-            <a
-              href={VIDEOCORSO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between group ${
-                isNight
-                  ? 'bg-[#021831]/80 border-[#F9C03E]/40 hover:border-[#F9C03E]'
-                  : 'bg-white border-amber-300 hover:border-amber-400'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#234C77] flex items-center justify-center text-[#F9C03E] group-hover:scale-105 transition-transform">
-                  <Video className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase font-bold text-[#F9C03E]">
-                      Videocorso • Modulo {linkedVideo.numero}
-                    </span>
-                  </div>
-                  <h4 className="text-xs font-bold">{linkedVideo.titolo}</h4>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-[#F9C03E] shrink-0">
-                <span className="hidden sm:inline">Scopri il videocorso</span>
-                <ExternalLink className="w-4 h-4 text-[#F9C03E]" />
-              </div>
-            </a>
-          )}
 
           {/* Connected Units / Approfondisci */}
           {connectedUnits.length > 0 && (
