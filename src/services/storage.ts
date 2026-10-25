@@ -117,9 +117,20 @@ export function saveUserData(data: Partial<UserData>): UserData {
 export function isTrialUser(user?: UserData | null): boolean {
   if (!user) return false;
   const cleanCode = (user.accessCode || '').trim().toUpperCase();
-  const email = (user.email || '').trim().toLowerCase();
 
-  // L'account autore/amministratore ha sempre accesso completo a tutti i contenuti e videocorsi
+  // Se l'utente ha inserito un codice di acquisto ufficiale valido, è sbloccato a vita
+  const validPurchaseCodes = ['MAGNETICO', 'CODICE', 'CALAMITA2026', 'CALAMITA'];
+  if (validPurchaseCodes.includes(cleanCode)) {
+    return false;
+  }
+
+  // Se l'utente ha scelto esplicitamente la prova gratuita (TRIAL, DEMO o isTrial = true)
+  if (user.isTrial === true || cleanCode === 'TRIAL' || cleanCode === 'DEMO') {
+    return true;
+  }
+
+  // Se non è in prova esplicita e ha l'email dell'autore/amministratore
+  const email = (user.email || '').trim().toLowerCase();
   if (
     email.includes('andreafrattesi') ||
     email === 'andreafrattesi77@gmail.com' ||
@@ -128,11 +139,7 @@ export function isTrialUser(user?: UserData | null): boolean {
     return false;
   }
 
-  // Se l'utente ha inserito un codice di acquisto valido (diverso da TRIAL e DEMO), NON è mai trial
-  if (cleanCode && cleanCode !== 'TRIAL' && cleanCode !== 'DEMO') {
-    return false;
-  }
-  return !!user.isTrial || cleanCode === 'TRIAL' || cleanCode === 'DEMO';
+  return !!user.isTrial;
 }
 
 export function getTrialCoachRemaining(user?: UserData | null): number {

@@ -202,18 +202,16 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
   );
   const [didacticFilter, setDidacticFilter] = useState<'all' | 'bachata' | 'salsa'>('all');
 
-  // Libreria Condivisa Cloud/Server (disponibile per TUTTI gli allievi)
+  // Libreria Condivisa Cloud/Server (disponibile per TUTTI gli allievi: 15 Bachata + 15 Salsa)
   const [sharedTracks, setSharedTracks] = useState<SharedTrack[]>(() => {
-    const deleted = getDeletedTrackIds();
-    return DEFAULT_SHARED_TRACKS.filter((t) => !deleted.has(t.id));
+    return DEFAULT_SHARED_TRACKS;
   });
   const [sharedFilter, setSharedFilter] = useState<'all' | 'bachata' | 'salsa'>('all');
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
 
   // Canzoni audio MP3 dell'utente (Memoria dell'app)
   const [customTracks, setCustomTracks] = useState<CustomTrack[]>(() => {
-    const deleted = getDeletedTrackIds();
-    return DEFAULT_SHARED_TRACKS.filter((t) => !deleted.has(t.id)).map((s) => ({
+    return DEFAULT_SHARED_TRACKS.map((s) => ({
       id: s.id,
       name: s.name,
       artist: s.artist,
@@ -227,9 +225,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
     }));
   });
   const [selectedCustomId, setSelectedCustomId] = useState<string | null>(() => {
-    const deleted = getDeletedTrackIds();
-    const available = DEFAULT_SHARED_TRACKS.filter((t) => !deleted.has(t.id));
-    return available.length > 0 ? available[0].id : null;
+    return DEFAULT_SHARED_TRACKS[0]?.id || null;
   });
   const [customFilter, setCustomFilter] = useState<'all' | 'bachata' | 'salsa'>('all');
 
@@ -457,6 +453,15 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
       lastAudioSecRef.current = -1;
       waitingForTempo1Ref.current = false;
       customAudioRef.current.load();
+      customAudioRef.current
+        .play()
+        .then(() => {
+          isPlayingRef.current = true;
+          setIsPlaying(true);
+        })
+        .catch((err) => {
+          console.warn('Playback autoplay notice:', err);
+        });
     }
   };
 
@@ -739,40 +744,37 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
   };
 
   const handleSelectDidacticTrack = (track: MusicTrack) => {
-    const wasPlaying = isPlaying;
     stopAllPlayback();
     trial30sTriggeredRef.current = false;
     setSelectedDidacticId(track.id);
-    if (wasPlaying) {
-      harmonizedEngine.selectTrack(track.id);
-      harmonizedEngine.setOnBeat((beatNum, chordName) => {
-        setActiveBeat(beatNum);
-        setCurrentChordName(
-          beatNum === 0
-            ? 'Tempo 1'
-            : beatNum === 4
-            ? 'Tempo 5'
-            : `Tempo ${beatNum + 1}`
-        );
-        if (clickSoundMode !== 'off') {
-          playCustomClickSoundAtTime(beatNum, clickSoundMode, undefined, track.genre);
-        }
-      });
-      harmonizedEngine.start().then(() => {
-        isPlayingRef.current = true;
-        setIsPlaying(true);
+    harmonizedEngine.selectTrack(track.id);
+    harmonizedEngine.setOnBeat((beatNum, chordName) => {
+      setActiveBeat(beatNum);
+      setCurrentChordName(
+        beatNum === 0
+          ? 'Tempo 1'
+          : beatNum === 4
+          ? 'Tempo 5'
+          : `Tempo ${beatNum + 1}`
+      );
+      if (clickSoundMode !== 'off') {
+        playCustomClickSoundAtTime(beatNum, clickSoundMode, undefined, track.genre);
+      }
+    });
+    harmonizedEngine.start().then(() => {
+      isPlayingRef.current = true;
+      setIsPlaying(true);
 
-        if (isTrial) {
-          didactic30sTimeoutRef.current = setTimeout(() => {
-            if (isPlayingRef.current && !trial30sTriggeredRef.current) {
-              trial30sTriggeredRef.current = true;
-              stopAllPlayback();
-              onOpenUnlock?.('Hai ascoltato i 30 secondi di prova del brano. Sblocca la versione completa per allenarti senza limiti di tempo su tutti i 30 brani Salsa & Bachata!');
-            }
-          }, 30000);
-        }
-      });
-    }
+      if (isTrial) {
+        didactic30sTimeoutRef.current = setTimeout(() => {
+          if (isPlayingRef.current && !trial30sTriggeredRef.current) {
+            trial30sTriggeredRef.current = true;
+            stopAllPlayback();
+            onOpenUnlock?.('Hai ascoltato i 30 secondi di prova del brano. Sblocca la versione completa per allenarti senza limiti di tempo su tutti i 30 brani Salsa & Bachata!');
+          }
+        }, 30000);
+      }
+    });
   };
 
   // --- CONTROLLO RIPRODUZIONE CANZONI MP3 UTENTE ---
@@ -1826,13 +1828,13 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
               <div className="pt-2 border-t border-[#88A5BF]/20 space-y-2">
                 <div className="flex items-center justify-between text-[10px] text-slate-300 font-mono">
                   <span>{formatTime(customCurrentTime)}</span>
-                  <span>{formatTime(customDuration)}</span>
+                  <span>{isTrial ? '00:30 (Anteprima Prova)' : formatTime(customDuration)}</span>
                 </div>
                 <input
                   type="range"
                   min={0}
-                  max={customDuration || 100}
-                  value={customCurrentTime}
+                  max={isTrial ? 30 : (customDuration || 100)}
+                  value={isTrial ? Math.min(30, customCurrentTime) : customCurrentTime}
                   onChange={(e) => handleSeekCustom(Number(e.target.value))}
                   className="w-full accent-[#F9C03E] cursor-pointer h-1.5 bg-[#021831] rounded-lg"
                 />
@@ -2120,23 +2122,14 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
 
                         <div className="flex items-center gap-1.5 shrink-0">
                           {isSelected && isPlaying ? (
-                            <span className="w-7 h-7 rounded-lg bg-[#F9C03E] text-[#042B58] flex items-center justify-center font-bold">
+                            <span className="w-7 h-7 rounded-lg bg-[#F9C03E] text-[#042B58] flex items-center justify-center font-bold shadow-sm">
                               <Disc3 className="w-4 h-4 animate-spin" />
                             </span>
                           ) : (
-                            <span className="w-7 h-7 rounded-lg bg-[#021831] text-slate-400 hover:text-white flex items-center justify-center border border-[#88A5BF]/20">
+                            <span className="w-7 h-7 rounded-lg bg-[#021831] text-[#F9C03E] hover:text-white flex items-center justify-center border border-[#88A5BF]/20 transition-colors">
                               <Play className="w-3.5 h-3.5 fill-current" />
                             </span>
                           )}
-
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteSharedTrack(track.id, e)}
-                            title="Rimuovi dalla libreria condivisa"
-                            className="w-7 h-7 rounded-lg bg-[#021831] hover:bg-rose-500/30 text-slate-400 hover:text-rose-300 flex items-center justify-center transition-colors cursor-pointer border border-[#88A5BF]/20"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </div>
                     );
@@ -2506,9 +2499,8 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
               const cur = customAudioRef.current.currentTime;
               setCustomCurrentTime(cur);
 
-              // Limite 30 secondi per la prova: scatta ESCLUSIVAMENTE alla fine dei 30 secondi di musica attiva,
-              // solo una volta (mai a riproduzione ferma, mai in loop infinito)
-              if (isTrial && isPlayingRef.current && cur >= 30 && !trial30sTriggeredRef.current) {
+              // Limite 30 secondi per la prova: scatta quando la riproduzione raggiunge i 30 secondi
+              if (isTrial && cur >= 30 && !trial30sTriggeredRef.current) {
                 trial30sTriggeredRef.current = true;
                 stopAllPlayback();
                 if (customAudioRef.current) {

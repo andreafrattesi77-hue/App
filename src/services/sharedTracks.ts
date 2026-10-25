@@ -22,17 +22,29 @@ export interface SharedTrack {
 import { DEFAULT_SHARED_TRACKS } from '../data/defaultSharedTracks';
 
 const DELETED_TRACKS_KEY = 'ec_deleted_shared_tracks_ids';
+const OFFICIAL_TRACK_IDS = new Set(DEFAULT_SHARED_TRACKS.map((t) => t.id));
 
 export function getDeletedTrackIds(): Set<string> {
   try {
     const raw = localStorage.getItem(DELETED_TRACKS_KEY);
-    return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
+    if (!raw) return new Set<string>();
+    const parsed: string[] = JSON.parse(raw);
+    // I 30 brani ufficiali del metodo (15 Bachata + 15 Salsa) non possono MAI essere nascosti o eliminati
+    const userOnlyDeleted = parsed.filter((id) => !OFFICIAL_TRACK_IDS.has(id));
+    if (userOnlyDeleted.length !== parsed.length) {
+      localStorage.setItem(DELETED_TRACKS_KEY, JSON.stringify(userOnlyDeleted));
+    }
+    return new Set<string>(userOnlyDeleted);
   } catch {
     return new Set<string>();
   }
 }
 
 export function markTrackAsDeleted(id: string) {
+  // Non permette l'eliminazione dei brani ufficiali
+  if (OFFICIAL_TRACK_IDS.has(id)) {
+    return;
+  }
   try {
     const set = getDeletedTrackIds();
     set.add(id);
@@ -47,15 +59,19 @@ export async function fetchSharedTracks(): Promise<SharedTrack[]> {
     if (res.ok) {
       const serverTracks = (await res.json()) as SharedTrack[];
       if (Array.isArray(serverTracks) && serverTracks.length > 0) {
-        return serverTracks.filter((t) => !deletedIds.has(t.id));
+        // Garantisce che tutti i 30 brani ufficiali siano sempre presenti
+        const serverIds = new Set(serverTracks.map((t) => t.id));
+        const missingDefaults = DEFAULT_SHARED_TRACKS.filter((d) => !serverIds.has(d.id));
+        const combined = [...serverTracks, ...missingDefaults];
+        return combined.filter((t) => !deletedIds.has(t.id));
       }
     }
   } catch (err) {
     console.warn('Impossibile recuperare i brani dal server, uso libreria permanente:', err);
   }
 
-  // Fallback garantito: restituisce i brani memorizzati stabilmente nell'app
-  return DEFAULT_SHARED_TRACKS.filter((t) => !deletedIds.has(t.id));
+  // Fallback garantito: restituisce tutti i 30 brani ufficiali (15 Salsa + 15 Bachata)
+  return DEFAULT_SHARED_TRACKS;
 }
 
 export async function publishTrackToServer(
