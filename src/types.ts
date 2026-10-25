@@ -18,6 +18,8 @@ export interface UserData {
   isVideocorsoUnlocked: boolean;
   videoUnlockCode?: string;
   watchedVideos: number[]; // module numbers (1..9)
+  isTrial?: boolean;
+  trialCoachQuestionsUsed?: number;
 }
 
 export interface EveningEntry {

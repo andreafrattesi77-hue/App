@@ -12,11 +12,22 @@ export interface Unita {
   testo: string;         // Markdown (## titoli, **grassetto**, *corsivo*, elenchi, > citazioni)
 }
 
+export interface LezioneModulo {
+  numero: number;
+  titolo: string;
+  descrizione?: string;
+  durata?: string;
+  videoUrl?: string;
+}
+
 export interface ModuloVideo {
   numero: number;
   titolo: string;
   descrizione: string;
   evidenza?: string;     // frase da mettere in risalto (oro, corsivo)
-  videoUrl: string;      // link YouTube non in elenco / Vimeo / Systeme da incollare
+  videoUrl: string;      // link YouTube non in elenco / Vimeo / Systeme / Drive da incollare
+  driveUrl?: string;     // cartella Google Drive con le lezioni
+  lezioni?: LezioneModulo[];
   collegati: string[];
 }
+

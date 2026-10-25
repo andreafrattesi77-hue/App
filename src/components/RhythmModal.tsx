@@ -27,6 +27,8 @@ import {
   Wand2,
   Volume2,
   Save,
+  Lock,
+  Clock,
 } from 'lucide-react';
 import {
   DanceGenre,
@@ -72,6 +74,8 @@ export interface CustomTrack {
 interface RhythmModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isTrial?: boolean;
+  onOpenUnlock?: (notice?: string) => void;
 }
 
 // Generatore di suono didattico: Campana Latina (1 e 5), Clave Cubana, Metronomo accentato
@@ -183,7 +187,12 @@ function playCustomClickSoundAtTime(
   }
 }
 
-export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => {
+export const RhythmModal: React.FC<RhythmModalProps> = ({
+  isOpen,
+  onClose,
+  isTrial = false,
+  onOpenUnlock,
+}) => {
   // Tab attiva: 'shared' (Basi per Tutti) | 'didactic' (Canzoni Didattiche) | 'custom' (Carica & Calibra)
   const [activeTab, setActiveTab] = useState<'shared' | 'didactic' | 'custom'>('shared');
 
@@ -258,10 +267,13 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const lastAudioSecRef = useRef<number>(-1);
   const smoothedSecRef = useRef<number>(0);
   const lastAudioPerfRef = useRef<number>(performance.now());
+  const trial30sTriggeredRef = useRef<boolean>(false);
+  const didactic30sTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Interrompi ogni riproduzione quando la modale viene chiusa e precarica audio all'apertura
   useEffect(() => {
     if (!isOpen) {
+      trial30sTriggeredRef.current = false;
       stopAllPlayback();
     } else {
       if (customAudioRef.current && selectedCustomId) {
@@ -396,6 +408,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
 
   // Ferma qualsiasi riproduzione in corso (sia MP3 che motore didattico)
   const stopAllPlayback = () => {
+    if (didactic30sTimeoutRef.current) {
+      clearTimeout(didactic30sTimeoutRef.current);
+      didactic30sTimeoutRef.current = null;
+    }
     harmonizedEngine.stop();
     if (customAudioRef.current) {
       customAudioRef.current.pause();
@@ -415,6 +431,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       return;
     }
     stopAllPlayback();
+    trial30sTriggeredRef.current = false;
     const trackObj: CustomTrack = {
       id: shared.id,
       name: shared.name,
@@ -682,6 +699,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       stopAllPlayback();
     } else {
       stopAllPlayback();
+      trial30sTriggeredRef.current = false;
       harmonizedEngine.selectTrack(currentDidacticTrack.id);
       harmonizedEngine.mixer.countVoice = clickSoundMode !== 'off';
 
@@ -703,6 +721,17 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
         await harmonizedEngine.start();
         isPlayingRef.current = true;
         setIsPlaying(true);
+
+        // Timer di 30 secondi per la prova gratuita su brano didattico
+        if (isTrial) {
+          didactic30sTimeoutRef.current = setTimeout(() => {
+            if (isPlayingRef.current && !trial30sTriggeredRef.current) {
+              trial30sTriggeredRef.current = true;
+              stopAllPlayback();
+              onOpenUnlock?.('Hai ascoltato i 30 secondi di prova del brano. Sblocca la versione completa per allenarti senza limiti di tempo su tutti i 30 brani Salsa & Bachata!');
+            }
+          }, 30000);
+        }
       } catch (err) {
         console.warn('Errore avvio motore didattico:', err);
       }
@@ -712,6 +741,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   const handleSelectDidacticTrack = (track: MusicTrack) => {
     const wasPlaying = isPlaying;
     stopAllPlayback();
+    trial30sTriggeredRef.current = false;
     setSelectedDidacticId(track.id);
     if (wasPlaying) {
       harmonizedEngine.selectTrack(track.id);
@@ -731,6 +761,16 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       harmonizedEngine.start().then(() => {
         isPlayingRef.current = true;
         setIsPlaying(true);
+
+        if (isTrial) {
+          didactic30sTimeoutRef.current = setTimeout(() => {
+            if (isPlayingRef.current && !trial30sTriggeredRef.current) {
+              trial30sTriggeredRef.current = true;
+              stopAllPlayback();
+              onOpenUnlock?.('Hai ascoltato i 30 secondi di prova del brano. Sblocca la versione completa per allenarti senza limiti di tempo su tutti i 30 brani Salsa & Bachata!');
+            }
+          }, 30000);
+        }
       });
     }
   };
@@ -742,6 +782,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
     } else {
       if (customAudioRef.current && currentCustomTrack) {
         harmonizedEngine.stop();
+        trial30sTriggeredRef.current = false;
         if (!customAudioRef.current.src || !customAudioRef.current.src.includes(currentCustomTrack.url)) {
           customAudioRef.current.src = currentCustomTrack.url;
           customAudioRef.current.load();
@@ -809,6 +850,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
       return;
     }
     stopAllPlayback();
+    trial30sTriggeredRef.current = false;
     setSelectedCustomId(track.id);
     if (customAudioRef.current) {
       customAudioRef.current.src = track.url;
@@ -821,6 +863,16 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
   };
 
   const handleSeekCustom = (newTime: number) => {
+    if (isTrial && newTime >= 30) {
+      stopAllPlayback();
+      if (customAudioRef.current) {
+        customAudioRef.current.currentTime = 0;
+        setCustomCurrentTime(0);
+      }
+      onOpenUnlock?.('In modalità prova puoi ascoltare i primi 30 secondi. Sblocca la versione completa per ascoltare il brano intero!');
+      return;
+    }
+    trial30sTriggeredRef.current = false;
     setCustomCurrentTime(newTime);
     if (customAudioRef.current) {
       customAudioRef.current.currentTime = newTime;
@@ -1573,6 +1625,22 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           </div>
         )}
 
+        {/* Banner Modalità Prova Gratuita */}
+        {isTrial && (
+          <div className="mt-2 p-2.5 rounded-xl bg-[#F9C03E]/15 border border-[#F9C03E]/40 text-xs text-[#F9C03E] flex items-center justify-between gap-2 shrink-0">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Clock className="w-3.5 h-3.5 shrink-0 text-[#F9C03E]" />
+              <span>Modalità Prova: <strong>30 secondi</strong> per brano</span>
+            </span>
+            <button
+              onClick={() => onOpenUnlock?.('Sblocca la versione completa per ascoltare tutti i brani senza limiti di tempo e caricare la tua musica!')}
+              className="text-[11px] underline font-bold hover:text-white cursor-pointer"
+            >
+              Sblocca Completa →
+            </button>
+          </div>
+        )}
+
         {/* Switcher a 3 Tab: Canzoni in Memoria, Didattiche, Carica Nuova Canzone */}
         <div className="mt-3 grid grid-cols-3 p-1 rounded-2xl bg-[#021831] border border-[#88A5BF]/30 shrink-0">
           <button
@@ -1590,7 +1658,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
             }`}
           >
             <Disc3 className="w-3.5 h-3.5" />
-            <span>Canzoni in Memoria ({sharedTracks.length})</span>
+            <span>In Memoria ({sharedTracks.length})</span>
           </button>
 
           <button
@@ -1614,6 +1682,10 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           <button
             type="button"
             onClick={() => {
+              if (isTrial) {
+                onOpenUnlock?.('Il caricamento e la calibrazione di brani personali sono riservati alla versione completa. Sblocca per caricare tutta la tua musica!');
+                return;
+              }
               if (activeTab !== 'custom') {
                 stopAllPlayback();
                 setActiveTab('custom');
@@ -1625,8 +1697,18 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Carica Canzone</span>
+            {isTrial ? (
+              <span className="flex items-center gap-1 text-[#F9C03E]">
+                <Lock className="w-3.5 h-3.5 shrink-0" />
+                <span>Carica</span>
+                <span className="text-[9px] px-1 bg-[#F9C03E]/20 rounded">PRO</span>
+              </span>
+            ) : (
+              <>
+                <Upload className="w-3.5 h-3.5" />
+                <span>Carica Canzone</span>
+              </>
+            )}
           </button>
         </div>
 
@@ -2421,7 +2503,20 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({ isOpen, onClose }) => 
           ref={customAudioRef}
           onTimeUpdate={() => {
             if (customAudioRef.current) {
-              setCustomCurrentTime(customAudioRef.current.currentTime);
+              const cur = customAudioRef.current.currentTime;
+              setCustomCurrentTime(cur);
+
+              // Limite 30 secondi per la prova: scatta ESCLUSIVAMENTE alla fine dei 30 secondi di musica attiva,
+              // solo una volta (mai a riproduzione ferma, mai in loop infinito)
+              if (isTrial && isPlayingRef.current && cur >= 30 && !trial30sTriggeredRef.current) {
+                trial30sTriggeredRef.current = true;
+                stopAllPlayback();
+                if (customAudioRef.current) {
+                  customAudioRef.current.currentTime = 0;
+                  setCustomCurrentTime(0);
+                }
+                onOpenUnlock?.('Hai ascoltato i 30 secondi di prova del brano. Sblocca la versione completa per allenarti senza limiti di tempo su tutti i 30 brani Salsa & Bachata!');
+              }
             }
           }}
           onLoadedMetadata={() => {

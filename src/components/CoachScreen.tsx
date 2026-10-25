@@ -24,6 +24,8 @@ import {
   incrementCoachUsage,
   getUserData,
   getMissionsProgress,
+  isTrialUser,
+  incrementTrialCoachQuestions,
 } from '../services/storage';
 import { sendCoachChatMessage } from '../services/api';
 import { OFFICIAL_COACH_QUESTIONS, CoachQuestionItem } from '../services/coachReasoning';
@@ -36,6 +38,7 @@ interface CoachScreenProps {
   onOpenUnita: (id: string) => void;
   onGoToRitual?: () => void;
   onGoToLibrary?: () => void;
+  onOpenUnlock?: (notice?: string) => void;
 }
 
 type CategoryFilter = 'all' | 'approccio' | 'bachata' | 'salsa' | 'chiusura' | 'psicologia';
@@ -48,6 +51,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   onOpenUnita,
   onGoToRitual,
   onGoToLibrary,
+  onOpenUnlock,
 }) => {
   const currentUserName = user?.name || getUserData()?.name || '';
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -57,6 +61,10 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isQuestionPickerExpanded, setIsQuestionPickerExpanded] = useState(false);
+
+  const isTrial = isTrialUser(user);
+  const trialUsed = user?.trialCoachQuestionsUsed || 0;
+  const trialRemaining = Math.max(0, 3 - trialUsed);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -84,17 +92,27 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     const trimmed = questionText.trim();
     if (!trimmed || isLoading) return;
 
-    // Check daily limit
+    // Check trial limit
+    if (isTrial && trialRemaining <= 0) {
+      onOpenUnlock?.('Hai usato le domande gratuite di oggi.');
+      return;
+    }
+
+    // Check daily limit for full users
     const usage = getCoachDailyUsage();
-    if (!usage.canSend) {
+    if (!isTrial && !usage.canSend) {
       setErrorNotice(
-        `Hai usato i ${COACH_DAILY_LIMIT} consulti di oggi. Il Coach torna disponibile domani alle 00:00. Intanto rileggi un capitolo o fai il Rituale Pre-Serata.`
+        `Hai usato le ${COACH_DAILY_LIMIT} domande di oggi. Il Coach torna disponibile domani alle 00:00. Intanto rileggi un capitolo o fai il Rituale Pre-Serata.`
       );
       return;
     }
 
     setErrorNotice(null);
     setIsQuestionPickerExpanded(false);
+
+    if (isTrial) {
+      incrementTrialCoachQuestions();
+    }
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -202,6 +220,90 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
       icon: '🧠',
     },
   ];
+
+  // Temi visivi distinti per le 5 sezioni da 20 domande ciascuna
+  const SECTION_THEMES: Record<
+    string,
+    {
+      number: number;
+      title: string;
+      subtitle: string;
+      icon: string;
+      badgeBg: string;
+      badgeText: string;
+      badgeBorder: string;
+      titleColor: string;
+      lineGradient: string;
+      headerBg: string;
+      headerBorder: string;
+    }
+  > = {
+    approccio: {
+      number: 1,
+      title: 'Sezione 1: Invito & Blocco Emotivo',
+      subtitle: '20 Domande (1 – 20) • Gestione ansia, approccio e superamento del rifiuto',
+      icon: '🎯',
+      badgeBg: 'bg-amber-500/15',
+      badgeText: 'text-[#F9C03E]',
+      badgeBorder: 'border-amber-400/40',
+      titleColor: 'text-[#F9C03E]',
+      lineGradient: 'from-transparent via-[#F9C03E]/70 to-transparent',
+      headerBg: 'bg-gradient-to-r from-[#042B58] via-amber-950/40 to-[#042B58]',
+      headerBorder: 'border-[#F9C03E]/40',
+    },
+    bachata: {
+      number: 2,
+      title: 'Sezione 2: Bachata & Contatto Fisico',
+      subtitle: '20 Domande (1 – 20) • Posizione chiusa, guida e sensualità senza invadenza',
+      icon: '💃',
+      badgeBg: 'bg-rose-500/15',
+      badgeText: 'text-rose-300',
+      badgeBorder: 'border-rose-400/40',
+      titleColor: 'text-rose-300',
+      lineGradient: 'from-transparent via-rose-500/70 to-transparent',
+      headerBg: 'bg-gradient-to-r from-[#042B58] via-rose-950/40 to-[#042B58]',
+      headerBorder: 'border-rose-500/40',
+    },
+    salsa: {
+      number: 3,
+      title: 'Sezione 3: Salsa & Tempo 1',
+      subtitle: '20 Domande (1 – 20) • Ritmo, musicalità e guida maschile sicura in pista',
+      icon: '🎺',
+      badgeBg: 'bg-sky-500/15',
+      badgeText: 'text-sky-300',
+      badgeBorder: 'border-sky-400/40',
+      titleColor: 'text-sky-300',
+      lineGradient: 'from-transparent via-sky-500/70 to-transparent',
+      headerBg: 'bg-gradient-to-r from-[#042B58] via-sky-950/40 to-[#042B58]',
+      headerBorder: 'border-sky-500/40',
+    },
+    chiusura: {
+      number: 4,
+      title: 'Sezione 4: Chiusura Calamita',
+      subtitle: '20 Domande (1 – 20) • Fine brano, aggancio verbale, numero e ripartenza',
+      icon: '🧲',
+      badgeBg: 'bg-emerald-500/15',
+      badgeText: 'text-emerald-300',
+      badgeBorder: 'border-emerald-400/40',
+      titleColor: 'text-emerald-300',
+      lineGradient: 'from-transparent via-emerald-500/70 to-transparent',
+      headerBg: 'bg-gradient-to-r from-[#042B58] via-emerald-950/40 to-[#042B58]',
+      headerBorder: 'border-emerald-500/40',
+    },
+    psicologia: {
+      number: 5,
+      title: 'Sezione 5: Psicologia Maschile & Asse',
+      subtitle: '20 Domande (1 – 20) • Mindset, carisma, sicurezza interna e presenza dominante',
+      icon: '🧠',
+      badgeBg: 'bg-purple-500/15',
+      badgeText: 'text-purple-300',
+      badgeBorder: 'border-purple-400/40',
+      titleColor: 'text-purple-300',
+      lineGradient: 'from-transparent via-purple-500/70 to-transparent',
+      headerBg: 'bg-gradient-to-r from-[#042B58] via-purple-950/40 to-[#042B58]',
+      headerBorder: 'border-purple-500/40',
+    },
+  };
 
   // Numerazione progressiva da 1 a 20 per ogni sezione/categoria
   const getQuestionNumberLabel = (q: CoachQuestionItem) => {
@@ -349,12 +451,38 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                     ? catIndex === 0
                     : idx === 0 || filteredQuestions[idx - 1].category !== q.category;
 
+                const theme = SECTION_THEMES[q.category] || SECTION_THEMES.approccio;
+
                 return (
                   <React.Fragment key={q.id}>
                     {isFirstOfCategory && (
-                      <div className="pt-2.5 pb-1 flex items-center justify-between text-xs font-bold text-[#F9C03E] uppercase tracking-wider border-b border-[#F9C03E]/30">
-                        <span>{q.categoryLabel} (20 Domande: 1 – 20)</span>
-                        <span className="text-[10px] text-[#88A5BF] font-mono">1 a 20</span>
+                      <div className="pt-4 pb-1 space-y-1.5">
+                        {/* Riga divisoria tra sezioni con sfumatura colorata */}
+                        <div className={`h-[2px] w-full bg-gradient-to-r ${theme.lineGradient}`} />
+                        {/* Intestazione Sezione con titolo di colore dedicato */}
+                        <div className={`p-3 rounded-2xl border ${theme.headerBorder} ${theme.headerBg} shadow-md flex items-center justify-between`}>
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-xl shrink-0 p-1.5 rounded-xl bg-[#021831]/80 border border-white/10 shadow-xs">
+                              {theme.icon}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${theme.badgeBorder} ${theme.badgeBg} ${theme.badgeText}`}>
+                                  SEZIONE {theme.number} • 20 DOMANDE
+                                </span>
+                              </div>
+                              <h4 className={`text-sm font-bold font-serif ${theme.titleColor} mt-0.5`}>
+                                {theme.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-300">
+                                {theme.subtitle}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`text-xs font-mono font-bold px-2 py-1 rounded-lg border ${theme.badgeBorder} ${theme.badgeBg} ${theme.badgeText} shrink-0 hidden sm:inline-block`}>
+                            1 – 20
+                          </span>
+                        </div>
                       </div>
                     )}
                     <button
@@ -363,31 +491,23 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                       className="w-full p-3 rounded-2xl bg-[#042B58]/80 hover:bg-[#234C77] border border-[#88A5BF]/25 hover:border-[#F9C03E]/60 text-left transition-all duration-150 flex flex-col gap-2 group cursor-pointer shadow-sm disabled:opacity-50"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-5 h-5 rounded-md bg-[#F9C03E] text-[#042B58] font-mono font-black text-xs flex items-center justify-center shadow-xs">
-                            {numLabel}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#021831] text-[#F9C03E] border border-[#F9C03E]/30">
-                            Domanda {numLabel} di 20 • {q.categoryLabel}
-                          </span>
-                        </div>
+                        {/* Frase in giallo SENZA numero: solo etichetta categoria */}
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#021831] text-[#F9C03E] border border-[#F9C03E]/30">
+                          {q.categoryLabel}
+                        </span>
                         <span className="text-[10px] text-slate-400 group-hover:text-[#F9C03E] transition-colors">
                           Consulta →
                         </span>
                       </div>
 
-                      <div className="flex items-start gap-2.5">
-                        <span className="w-6 h-6 rounded-lg bg-[#F9C03E] text-[#042B58] font-mono font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                          {numLabel}
+                      <div className="flex-1 min-w-0">
+                        {/* Solo nella domanda in bianco è presente il numero */}
+                        <p className="text-xs font-semibold text-white group-hover:text-amber-100 transition-colors leading-snug">
+                          {numLabel}. {q.question}
+                        </p>
+                        <span className="text-[11px] text-[#88A5BF] block mt-1">
+                          💡 {q.summary}
                         </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-white group-hover:text-amber-100 transition-colors leading-snug">
-                            {numLabel}. {q.question}
-                          </p>
-                          <span className="text-[11px] text-[#88A5BF] block mt-1">
-                            💡 {q.summary}
-                          </span>
-                        </div>
                       </div>
                     </button>
                   </React.Fragment>
@@ -480,29 +600,70 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
 
       {/* Bottom Panel: 100 Questions Directory (Replaces free text input) */}
       <div className="p-3 bg-[#042B58] border-t border-[#88A5BF]/25 shrink-0 flex flex-col gap-2">
-        {/* Toggle button to expand/collapse full question browser when in active conversation */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setIsQuestionPickerExpanded((prev) => !prev)}
-            className="flex items-center gap-2 text-xs font-semibold text-white hover:text-[#F9C03E] transition-colors cursor-pointer py-1"
-          >
-            <MessageSquarePlus className="w-4 h-4 text-[#F9C03E]" />
-            <span>
-              {isQuestionPickerExpanded
-                ? 'Nascondi lista domande'
-                : 'Scegli una domanda per il Coach (100 disponibili)'}
-            </span>
-            {isQuestionPickerExpanded ? (
-              <ChevronDown className="w-3.5 h-3.5 text-[#F9C03E]" />
-            ) : (
-              <ChevronUp className="w-3.5 h-3.5 text-[#F9C03E]" />
+        {/* Trial Status or Lock Card */}
+        {isTrial && trialRemaining <= 0 ? (
+          <div className="p-4 rounded-xl bg-gradient-to-b from-[#234C77] to-[#021831] border border-[#F9C03E]/40 text-center space-y-2.5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F9C03E]/20 text-[#F9C03E] text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>3 Domande di Prova Utilizzate</span>
+            </div>
+            <p className="text-xs text-slate-200 leading-relaxed">
+              Hai provato il Coach di Andrea Frattesi. Sblocca la versione completa per avere fino a 20 consulti al giorno (reset a mezzanotte) prima, durante e dopo ogni serata!
+            </p>
+            <button
+              onClick={() => onOpenUnlock?.('Hai usato le domande gratuite di oggi.')}
+              className="py-2.5 px-4 rounded-xl gold-gradient-btn text-xs font-bold text-[#042B58] shadow-lg hover:brightness-105 transition-all cursor-pointer inline-flex items-center gap-2"
+            >
+              <span>Sblocca Coach (20 domande/giorno)</span>
+              <Sparkles className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <>
+            {isTrial && (
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#021831]/90 border border-[#F9C03E]/30 text-xs">
+                <span className="flex items-center gap-1.5 text-[#F9C03E] font-medium">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Prova gratuita: <strong>{trialRemaining} su 3 domande rimaste</strong></span>
+                </span>
+                <button
+                  onClick={() => onOpenUnlock?.()}
+                  className="text-[11px] text-[#F9C03E] hover:underline font-bold"
+                >
+                  Sblocca Completa →
+                </button>
+              </div>
             )}
-          </button>
 
-          <span className="text-[10px] font-mono text-[#88A5BF]">
-            Rimasti: <strong className={remainingToday <= 3 ? 'text-red-400' : 'text-white'}>{remainingToday}/{COACH_DAILY_LIMIT}</strong>
-          </span>
-        </div>
+            {/* Toggle button to expand/collapse full question browser when in active conversation */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setIsQuestionPickerExpanded((prev) => !prev)}
+                className="flex items-center gap-2 text-xs font-semibold text-white hover:text-[#F9C03E] transition-colors cursor-pointer py-1"
+              >
+                <MessageSquarePlus className="w-4 h-4 text-[#F9C03E]" />
+                <span>
+                  {isQuestionPickerExpanded
+                    ? 'Nascondi lista domande'
+                    : 'Scegli una domanda per il Coach (100 disponibili)'}
+                </span>
+                {isQuestionPickerExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-[#F9C03E]" />
+                ) : (
+                  <ChevronUp className="w-3.5 h-3.5 text-[#F9C03E]" />
+                )}
+              </button>
+
+              <span className="text-[10px] font-mono text-[#88A5BF]">
+                {isTrial ? (
+                  <strong className="text-[#F9C03E]">{trialRemaining}/3 prova</strong>
+                ) : (
+                  <>Rimasti: <strong className={remainingToday <= 3 ? 'text-red-400' : 'text-white'}>{remainingToday}/{COACH_DAILY_LIMIT}</strong></>
+                )}
+              </span>
+            </div>
+          </>
+        )}
 
         {/* Category Pills Bar (Always accessible) */}
         <div className="overflow-x-auto py-1 scrollbar-none flex gap-1.5">
@@ -541,37 +702,51 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              {filteredQuestions.map((q: CoachQuestionItem) => {
+              {filteredQuestions.map((q: CoachQuestionItem, idx: number) => {
                 const numLabel = getQuestionNumberLabel(q);
+                const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
+                const catIndex = catQuestions.findIndex((item) => item.id === q.id);
+                const isFirstOfCategory =
+                  activeCategory !== 'all'
+                    ? catIndex === 0
+                    : idx === 0 || filteredQuestions[idx - 1].category !== q.category;
+                const theme = SECTION_THEMES[q.category] || SECTION_THEMES.approccio;
+
                 return (
-                  <button
-                    key={q.id}
-                    onClick={() => handleSendMessage(q.question)}
-                    disabled={remainingToday <= 0 || isLoading}
-                    className="w-full p-2.5 rounded-xl bg-[#021831]/80 hover:bg-[#234C77] border border-[#88A5BF]/20 hover:border-[#F9C03E]/50 text-left transition-all flex flex-col gap-1 group cursor-pointer disabled:opacity-40"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-4 h-4 rounded-md bg-[#F9C03E] text-[#042B58] font-mono font-black text-[10px] flex items-center justify-center">
-                          {numLabel}
-                        </span>
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#F9C03E]">
-                          Domanda {numLabel} di 20 • {q.categoryLabel}
+                  <React.Fragment key={q.id}>
+                    {isFirstOfCategory && (
+                      <div className={`mt-3 mb-1 px-3 py-1.5 rounded-xl border ${theme.headerBorder} ${theme.headerBg} flex items-center justify-between`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{theme.icon}</span>
+                          <span className={`text-[11px] font-bold uppercase tracking-wider ${theme.titleColor}`}>
+                            {theme.title}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md border ${theme.badgeBorder} ${theme.badgeBg} ${theme.badgeText}`}>
+                          20 Domande (1–20)
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 group-hover:text-white font-medium">
-                        Invia →
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-1.5">
-                      <span className="w-4 h-4 rounded bg-[#F9C03E] text-[#042B58] font-mono font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                        {numLabel}
-                      </span>
-                      <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug flex-1">
+                    )}
+                    <button
+                      onClick={() => handleSendMessage(q.question)}
+                      disabled={remainingToday <= 0 || isLoading}
+                      className="w-full p-2.5 rounded-xl bg-[#021831]/80 hover:bg-[#234C77] border border-[#88A5BF]/20 hover:border-[#F9C03E]/50 text-left transition-all flex flex-col gap-1 group cursor-pointer disabled:opacity-40"
+                    >
+                      <div className="flex items-center justify-between">
+                        {/* Frase in giallo senza numero */}
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E]">
+                          {q.categoryLabel}
+                        </span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-white font-medium">
+                          Invia →
+                        </span>
+                      </div>
+                      {/* Solo nella domanda in bianco è presente il numero */}
+                      <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug">
                         {numLabel}. {q.question}
                       </p>
-                    </div>
-                  </button>
+                    </button>
+                  </React.Fragment>
                 );
               })}
 
@@ -596,10 +771,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                   disabled={remainingToday <= 0 || isLoading}
                   className="text-[11px] whitespace-nowrap px-3 py-1.5 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-200 hover:text-white border border-[#88A5BF]/30 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                 >
-                  <span className="w-4 h-4 rounded bg-[#F9C03E] text-[#042B58] font-mono font-bold text-[10px] flex items-center justify-center">
-                    {numLabel}
-                  </span>
-                  <span className="max-w-[180px] truncate">{numLabel}. {q.summary}</span>
+                  <span className="max-w-[200px] truncate text-white">{numLabel}. {q.summary}</span>
                 </button>
               );
             })}
@@ -613,7 +785,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
             <span>Reset automatico a mezzanotte</span>
           </div>
           <span>
-            {remainingToday > 0 ? `${remainingToday} consulti disponibili` : 'Limite giornaliero raggiunto'}
+            {remainingToday > 0 ? `${remainingToday} domande disponibili` : 'Limite giornaliero raggiunto'}
           </span>
         </div>
       </div>

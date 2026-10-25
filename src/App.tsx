@@ -8,6 +8,7 @@ import {
   clearUserData,
   getMissionsProgress,
   getDiaryEntries,
+  isTrialUser,
 } from './services/storage';
 import { TopHeader } from './components/TopHeader';
 import { BottomNav, NavTab } from './components/BottomNav';
@@ -23,10 +24,15 @@ import { QuizScreen } from './components/QuizScreen';
 import { ResetModal } from './components/ResetModal';
 import { SettingsModal } from './components/SettingsModal';
 import { RhythmModal } from './components/RhythmModal';
+import { UnlockModal } from './components/UnlockModal';
+import { VideocorsoModal } from './components/VideocorsoModal';
+import { Sparkles } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<UserData | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [unlockModalNotice, setUnlockModalNotice] = useState<string | undefined>(undefined);
 
   // App Navigation
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
@@ -41,6 +47,7 @@ export default function App() {
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRhythmOpen, setIsRhythmOpen] = useState(false);
+  const [isVideocorsoOpen, setIsVideocorsoOpen] = useState(false);
 
   // Cross-screen data
   const [missionsProgress, setMissionsProgress] = useState<Record<number, MissionProgress>>({});
@@ -79,15 +86,34 @@ export default function App() {
     return (
       <AuthScreen
         onSuccess={(name, accessCode) => {
-          const fresh = saveUserData({ name, accessCode });
+          const isPaid = accessCode !== 'TRIAL' && accessCode !== 'DEMO';
+          const fresh = saveUserData({
+            name,
+            accessCode,
+            isTrial: !isPaid,
+            isVideocorsoUnlocked: isPaid,
+          });
           setUser(fresh);
         }}
       />
     );
   }
 
+  const openUnlockWithNotice = (notice?: string) => {
+    setUnlockModalNotice(notice);
+    setIsUnlockModalOpen(true);
+  };
+
   // Open any unit in Reader
   const handleOpenUnita = (id: string, targetHeading?: string) => {
+    if (isTrialUser(user) && id !== 'intro' && id !== 'cap01') {
+      const u = getUnita(id);
+      const title = u?.titolo ? `"${u.titolo}"` : 'questo contenuto';
+      openUnlockWithNotice(
+        `Il capitolo ${title} fa parte della versione completa di Effetto Calamita. Sblocca tutti i 16 capitoli dell'ebook + i 6 bonus pratici!`
+      );
+      return;
+    }
     const u = getUnita(id);
     if (u) {
       setActiveUnit(u);
@@ -127,11 +153,31 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#042B58] text-slate-100 flex flex-col justify-between selection:bg-[#F9C03E] selection:text-[#042B58]">
+      {/* Sticky Trial Banner for Demo Users */}
+      {!activeUnit && isTrialUser(user) && (
+        <div className="bg-gradient-to-r from-[#234C77] via-[#042B58] to-[#234C77] border-b border-[#F9C03E]/30 px-3 py-1.5 flex items-center justify-between text-xs text-slate-200 sticky top-0 z-40 backdrop-blur-md">
+          <div className="flex items-center gap-1.5 truncate pr-2">
+            <Sparkles className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
+            <span className="truncate">
+              Modalità Demo • <strong className="text-white">Prova Gratuita</strong>
+            </span>
+          </div>
+          <button
+            onClick={() => openUnlockWithNotice('Passa alla versione completa per sbloccare l\'app senza limiti!')}
+            className="px-2.5 py-0.5 rounded-full gold-gradient-btn text-[11px] font-bold text-[#042B58] hover:brightness-105 transition-all cursor-pointer shrink-0"
+          >
+            Sblocca Completa
+          </button>
+        </div>
+      )}
+
       {/* Top Header (Visible except when in full-screen reader) */}
       {!activeUnit && (
         <TopHeader
           onOpenReset={() => setIsResetOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          isTrial={isTrialUser(user)}
+          onOpenUpgrade={() => openUnlockWithNotice()}
         />
       )}
 
@@ -192,6 +238,7 @@ export default function App() {
                 onOpenRitual={() => setIsRitualView(true)}
                 onOpenRhythm={() => setIsRhythmOpen(true)}
                 onOpenUnita={handleOpenUnita}
+                onOpenVideocorso={() => setIsVideocorsoOpen(true)}
               />
             )}
 
@@ -200,6 +247,7 @@ export default function App() {
                 user={user}
                 onOpenUnita={handleOpenUnita}
                 onUserDataUpdated={(updated) => setUser(updated)}
+                onOpenVideocorso={() => setIsVideocorsoOpen(true)}
               />
             )}
 
@@ -215,11 +263,16 @@ export default function App() {
                 onOpenUnita={handleOpenUnita}
                 onGoToRitual={() => setIsRitualView(true)}
                 onGoToLibrary={() => setCurrentTab('libreria')}
+                onOpenUnlock={openUnlockWithNotice}
               />
             )}
 
             {currentTab === 'piano' && (
-              <PlanScreen onOpenUnita={handleOpenUnita} />
+              <PlanScreen
+                onOpenUnita={handleOpenUnita}
+                isTrial={isTrialUser(user)}
+                onOpenUnlock={openUnlockWithNotice}
+              />
             )}
 
             {currentTab === 'diario' && (
@@ -237,6 +290,8 @@ export default function App() {
             setCurrentTab(tab);
             refreshData();
           }}
+          isTrial={isTrialUser(user)}
+          onOpenUpgrade={() => openUnlockWithNotice()}
         />
       )}
 
@@ -249,6 +304,8 @@ export default function App() {
       <RhythmModal
         isOpen={isRhythmOpen}
         onClose={() => setIsRhythmOpen(false)}
+        isTrial={isTrialUser(user)}
+        onOpenUnlock={openUnlockWithNotice}
       />
 
       <SettingsModal
@@ -263,8 +320,28 @@ export default function App() {
           setIsQuizView(true);
         }}
         onOpenRhythm={() => setIsRhythmOpen(true)}
+        onOpenVideocorso={() => setIsVideocorsoOpen(true)}
         onLogout={handleLogout}
         onDataReset={handleDataReset}
+      />
+
+      {/* Videocorso Modal (Module 1 Video Player + Locked Modules 2-9) */}
+      <VideocorsoModal
+        isOpen={isVideocorsoOpen}
+        onClose={() => setIsVideocorsoOpen(false)}
+        user={user}
+        onOpenUnlock={openUnlockWithNotice}
+      />
+
+      {/* Global Unlock Modal */}
+      <UnlockModal
+        isOpen={isUnlockModalOpen}
+        onClose={() => setIsUnlockModalOpen(false)}
+        contextNotice={unlockModalNotice}
+        isLimitExhausted={unlockModalNotice === 'Hai usato le domande gratuite di oggi.'}
+        onUnlocked={() => {
+          refreshData();
+        }}
       />
     </div>
   );

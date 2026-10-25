@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   KeyRound,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { ACCESS_CODES, STRIPE_CHECKOUT_URL } from '../config';
 import { saveUserData, getUserData } from '../services/storage';
+import { UnlockModal } from './UnlockModal';
 import {
   loginWithEmail,
   registerWithEmail,
@@ -27,7 +28,7 @@ interface AuthScreenProps {
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
-  const [activeMode, setActiveMode] = useState<'checkout' | 'code'>('checkout');
+  const [activeMode, setActiveMode] = useState<'trial' | 'code'>('trial');
   const [accessMethod, setAccessMethod] = useState<'code' | 'email'>('code');
   const [emailMode, setEmailMode] = useState<'register' | 'login'>('register');
 
@@ -39,6 +40,28 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   const [registerCode, setRegisterCode] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  // Trial form inputs
+  const [trialName, setTrialName] = useState('');
+  const [trialEmail, setTrialEmail] = useState('');
+  const [trialConsent, setTrialConsent] = useState(true);
+  const [isSubmittingTrial, setIsSubmittingTrial] = useState(false);
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+
+  // Refs for scrolling to form
+  const trialFormRef = useRef<HTMLDivElement>(null);
+  const trialNameInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSelectTrialAndScroll = () => {
+    setActiveMode('trial');
+    setErrorMessage('');
+    setTimeout(() => {
+      trialFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => {
+        trialNameInputRef.current?.focus();
+      }, 350);
+    }, 60);
+  };
 
   // Step 2 name modal for instant code access
   const [step, setStep] = useState<'auth' | 'name'>('auth');
@@ -121,6 +144,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         saveUserData({
           accessCode: cleanCode,
           name: existingName,
+          email: existing?.email,
+          isTrial: false,
+          isVideocorsoUnlocked: true,
         });
         onSuccess(existingName, cleanCode);
         return;
@@ -143,9 +169,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     }
 
     const resolvedCode = validCode || 'ACQUISTO_CONFERMATO';
+    const existing = getUserData();
     saveUserData({
       accessCode: resolvedCode,
       name: cleanName,
+      email: existing?.email,
+      isTrial: false,
+      isVideocorsoUnlocked: true,
     });
 
     onSuccess(cleanName, resolvedCode);
@@ -250,6 +280,56 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     }
   };
 
+  const handleStartTrial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = trialName.trim();
+    const cleanEmail = trialEmail.trim().toLowerCase();
+
+    if (!cleanName || cleanName.length < 2) {
+      setErrorMessage('Inserisci il tuo nome per iniziare la prova.');
+      return;
+    }
+
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setErrorMessage('Inserisci una email valida per creare il tuo account di prova.');
+      return;
+    }
+
+    setErrorMessage('');
+    setIsSubmittingTrial(true);
+
+    try {
+      // 1. Invia a backend per salvataggio lead ed inoltro webhook Systeme.io
+      await fetch('/api/trial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: cleanName, email: cleanEmail }),
+      }).catch((err) => console.warn('Invio trial lead:', err));
+
+      // 2. Salva localmente
+      saveUserData({
+        accessCode: 'TRIAL',
+        isTrial: true,
+        name: cleanName,
+        email: cleanEmail,
+        trialCoachQuestionsUsed: 0,
+      });
+
+      onSuccess(cleanName, 'TRIAL');
+    } catch {
+      saveUserData({
+        accessCode: 'TRIAL',
+        isTrial: true,
+        name: cleanName,
+        email: cleanEmail,
+        trialCoachQuestionsUsed: 0,
+      });
+      onSuccess(cleanName, 'TRIAL');
+    } finally {
+      setIsSubmittingTrial(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex flex-col justify-between items-center p-4 sm:p-6 bg-[#042B58] relative overflow-hidden">
       {/* Decorative ambient lights */}
@@ -276,70 +356,64 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
               Il metodo del flirt invisibile
             </p>
             <p className="text-xs text-slate-300 leading-relaxed mt-2">
-              L'app per creare vera connessione nel ballo di Salsa e Bachata, di Andrea Frattesi.
+              L'app per creare vera connessione nel ballo di Salsa e Bachata, di Andrea Frattesi. Con Ebook, Coach AI, Allenatore di Ritmo e Videocorso compreso.
             </p>
           </div>
 
           {step === 'auth' ? (
             <div className="space-y-4">
-              {/* Main Tab Selector: Acquista ora vs Ho già il codice */}
+              {/* Main Tab Selector: Prova gratis vs Accedi */}
               <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#021831]/80 rounded-xl border border-[#88A5BF]/25">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (activeMode === 'checkout') {
-                      window.open(STRIPE_CHECKOUT_URL, '_blank');
-                    } else {
-                      setActiveMode('checkout');
-                    }
-                    setErrorMessage('');
-                  }}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    activeMode === 'checkout'
+                  onClick={handleSelectTrialAndScroll}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    activeMode === 'trial'
                       ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
                       : 'text-slate-300 hover:text-white'
                   }`}
                 >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>Acquista ora</span>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Prova gratis</span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => {
                     setActiveMode('code');
                     setErrorMessage('');
                   }}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     activeMode === 'code'
                       ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
                       : 'text-slate-300 hover:text-white'
                   }`}
                 >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  <span>Ho già il codice / Accedi</span>
+                  <KeyRound className="w-3.5 h-3.5 shrink-0" />
+                  <span>Accedi</span>
                 </button>
               </div>
 
-              {/* MODE 1: Acquista ora (Lista completa di cosa ricevi) */}
-              {activeMode === 'checkout' && (
+              {/* MODE 1: Prova gratis (COSA TROVI NELL'APP + Registrazione) */}
+              {activeMode === 'trial' && (
                 <div className="space-y-4 text-left animate-fadeIn">
+                  {/* Riquadro: COSA TROVI NELL'APP */}
                   <div className="p-4 rounded-xl bg-[#021831]/60 border border-[#88A5BF]/25 space-y-3">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/50">
+                    <div className="pb-1.5 border-b border-slate-700/50">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-[#F9C03E]" />
-                        <span>Cosa ricevi subito</span>
+                        <span>COSA TROVI NELL'APP</span>
                       </span>
-                      <span className="text-[11px] font-bold text-emerald-400">Accesso Immediato</span>
                     </div>
 
                     <ul className="space-y-2.5 text-xs text-slate-200">
-                      {/* Coach AI in forte evidenza */}
+                      {/* Coach AI */}
                       <li className="flex items-start gap-2.5 p-2 rounded-lg bg-[#234C77]/40 border border-[#F9C03E]/30">
                         <Sparkles className="w-4 h-4 text-[#F9C03E] shrink-0 mt-0.5" />
                         <div>
-                          <strong className="text-[#F9C03E] block font-semibold">Coach AI 24/7 (Il tuo mentore in tasca)</strong>
+                          <strong className="text-[#F9C03E] block font-semibold">Coach AI (20 domande al giorno)</strong>
                           <span className="text-slate-300 text-[11px] leading-tight block mt-0.5">
-                            Chiedi consiglio in qualsiasi momento prima, durante o dopo la serata. Risponde all'istante con il metodo pratico di Andrea Frattesi per sbloccare ogni situazione.
+                            Fino a 20 domande al giorno (reset a mezzanotte) prima, durante o dopo la serata. Risponde all'istante con il metodo pratico di Andrea Frattesi per sbloccare ogni situazione.
                           </span>
                         </div>
                       </li>
@@ -357,54 +431,119 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                       <li className="flex items-start gap-2">
                         <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
                         <div>
-                          <strong>Ebook Completo & 6 Bonus Pratici:</strong>
-                          <span className="text-slate-300 ml-1">il Metodo in 5 parti, cosa dire, come chattare e la Guida Ripartire.</span>
+                          <strong>Tutti i 16 Capitoli dell'Ebook & 6 Bonus Pratici:</strong>
+                          <span className="text-slate-300 ml-1">l'Ebook completo in 16 capitoli (+ Introduzione e Conclusione), i 6 Bonus pratici e la Guida Ripartire.</span>
                         </div>
                       </li>
 
-                      {/* Piano 21 Serate */}
+                      {/* Allenatore di Ritmo */}
                       <li className="flex items-start gap-2">
                         <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
                         <div>
-                          <strong>Piano 21 Serate & Diario:</strong>
-                          <span className="text-slate-300 ml-1">monitora i progressi e ricevi il feedback del Coach dopo ogni serata.</span>
+                          <strong>Allenatore di Ritmo (Salsa & Bachata):</strong>
+                          <span className="text-slate-300 ml-1">con tracce interattive per capire l'1 della musica, trovare la clave e ballare sempre perfettamente a tempo.</span>
                         </div>
                       </li>
 
-                      {/* Aggiornamenti continui */}
+                      {/* Videocorso Compreso */}
                       <li className="flex items-start gap-2">
                         <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
                         <div>
-                          <strong>Aggiornamenti continui:</strong>
-                          <span className="text-slate-300 ml-1">nuove lezioni e aggiornamenti ricevuti direttamente in App.</span>
+                          <strong>Videocorso Completo Compreso:</strong>
+                          <span className="text-slate-300 ml-1">9 moduli pratici con dimostrazioni video di Salsa e Bachata per applicare ogni tecnica dal vivo in pista.</span>
+                        </div>
+                      </li>
+
+                      {/* Piano 21 Serate & Aggiornamenti */}
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
+                        <div>
+                          <strong>Piano 21 Serate, Diario & Aggiornamenti:</strong>
+                          <span className="text-slate-300 ml-1">monitora i progressi serata per serata con il Coach e ricevi aggiornamenti continui.</span>
                         </div>
                       </li>
                     </ul>
                   </div>
 
-                  {/* Pulsante Oro Stripe */}
-                  <a
-                    href={STRIPE_CHECKOUT_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => {
-                      window.open(STRIPE_CHECKOUT_URL, '_blank');
-                    }}
-                    className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer"
-                  >
-                    <span>Acquista e Accedi Subito</span>
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
+                  {/* Modulo Registrazione Prova Gratuita */}
+                  <div ref={trialFormRef} className="pt-2 scroll-mt-6">
+                    <form onSubmit={handleStartTrial} className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-200 mb-1">
+                          Il tuo Nome <span className="text-[#F9C03E]">*</span>
+                        </label>
+                        <div className="relative">
+                          <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                          <input
+                            ref={trialNameInputRef}
+                            type="text"
+                            value={trialName}
+                            onChange={(e) => {
+                              setTrialName(e.target.value);
+                              setErrorMessage('');
+                            }}
+                            placeholder="Es. Marco"
+                            required
+                            className="w-full pl-9 pr-3 py-2 bg-[#021831] border border-[#88A5BF]/30 rounded-xl text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#F9C03E]"
+                          />
+                        </div>
+                      </div>
 
-                  {/* Spiegazione post-acquisto */}
-                  <div className="p-2.5 rounded-lg bg-[#021831]/50 border border-[#88A5BF]/20 text-[11px] text-slate-300 leading-relaxed text-center">
-                    💡 <span className="font-semibold text-white">Come funziona dopo l'acquisto?</span> Ricevi subito il codice di accesso via email per entrare istantaneamente o per creare il tuo account personale.
-                  </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-200 mb-1">
+                          La tua Email migliore <span className="text-[#F9C03E]">*</span>
+                        </label>
+                        <div className="relative">
+                          <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                          <input
+                            type="email"
+                            value={trialEmail}
+                            onChange={(e) => {
+                              setTrialEmail(e.target.value);
+                              setErrorMessage('');
+                            }}
+                            placeholder="nome@email.com"
+                            required
+                            className="w-full pl-9 pr-3 py-2 bg-[#021831] border border-[#88A5BF]/30 rounded-xl text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#F9C03E]"
+                          />
+                        </div>
+                      </div>
 
-                  {/* Sicurezza e metodi */}
-                  <div className="flex items-center justify-center gap-2 text-[11px] text-[#88A5BF] pt-0.5">
-                    <Lock className="w-3 h-3 text-slate-400" />
-                    <span>Pagamento sicuro con Carta, Apple Pay e Google Pay</span>
+                      <label className="flex items-start gap-2 pt-0.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={trialConsent}
+                          onChange={(e) => setTrialConsent(e.target.checked)}
+                          className="mt-0.5 rounded border-slate-600 text-[#F9C03E] focus:ring-0"
+                        />
+                        <span className="text-[10px] text-slate-300 leading-tight">
+                          Acconsento a ricevere i consigli pratici di ballo di Andrea Frattesi e il riepilogo della mia prova.
+                        </span>
+                      </label>
+
+                      {errorMessage && (
+                        <div className="p-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs">
+                          {errorMessage}
+                        </div>
+                      )}
+
+                      {/* Grande pulsante giallo in fondo: Prova gratis → */}
+                      <button
+                        type="submit"
+                        disabled={isSubmittingTrial}
+                        className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer text-[#042B58] disabled:opacity-50"
+                      >
+                        {isSubmittingTrial ? (
+                          <div className="w-4 h-4 border-2 border-[#042B58] border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <span>Prova gratis →</span>
+                        )}
+                      </button>
+
+                      <p className="text-[10px] text-center text-slate-400 pt-0.5">
+                        Nessuna carta richiesta • Accesso istantaneo alla prova
+                      </p>
+                    </form>
                   </div>
                 </div>
               )}
@@ -466,7 +605,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                               setCode(e.target.value);
                               if (errorMessage) setErrorMessage('');
                             }}
-                            placeholder="inserisci codice"
+                            placeholder="MAGNETICO"
                             className="w-full pl-10 pr-4 py-3 bg-[#021831]/80 border border-[#88A5BF]/40 rounded-xl text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E]"
                             autoCapitalize="characters"
                             autoCorrect="off"
@@ -757,15 +896,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         </div>
       </div>
 
-      {/* Signature footer */}
-      <div className="w-full py-4 text-center z-10 px-4">
-        <p className="text-sm sm:text-base text-slate-200 font-serif leading-relaxed">
-          <span className="italic">«Faccio quello che insegno. Insegno quello che faccio.»</span>
-          <span className="block mt-1 text-[#F9C03E] font-medium tracking-wide text-xs sm:text-sm not-italic">
-            – Andrea Frattesi
-          </span>
-        </p>
-      </div>
+      {/* Modal Sblocca Versione Completa */}
+      <UnlockModal
+        isOpen={isUnlockModalOpen}
+        onClose={() => setIsUnlockModalOpen(false)}
+        onUnlocked={() => {
+          const existing = getUserData();
+          if (existing?.name && existing?.accessCode) {
+            onSuccess(existing.name, existing.accessCode);
+          }
+        }}
+      />
     </div>
   );
 };

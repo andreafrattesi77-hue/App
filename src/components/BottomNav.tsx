@@ -1,14 +1,21 @@
 import React from 'react';
-import { Home, BookOpen, MessageSquare, CheckSquare, Calendar } from 'lucide-react';
+import { Home, BookOpen, MessageSquare, CheckSquare, Calendar, Sparkles } from 'lucide-react';
 
 export type NavTab = 'home' | 'libreria' | 'coach' | 'piano' | 'diario';
 
 interface BottomNavProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
+  isTrial?: boolean;
+  onOpenUpgrade?: () => void;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({
+  currentTab,
+  onSelectTab,
+  isTrial = false,
+  onOpenUpgrade,
+}) => {
   const tabs = [
     { id: 'home' as NavTab, label: 'Home', icon: Home },
     { id: 'libreria' as NavTab, label: 'Libreria', icon: BookOpen },
@@ -18,7 +25,19 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab })
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex justify-center bg-[#021831]/95 backdrop-blur-lg border-t border-[#88A5BF]/20 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex flex-col items-center bg-[#021831]/95 backdrop-blur-lg border-t border-[#88A5BF]/20 pb-safe">
+      {/* Voce fissa nel menu/navigazione per utenti gratuiti */}
+      {isTrial && onOpenUpgrade && (
+        <button
+          type="button"
+          onClick={onOpenUpgrade}
+          className="w-full py-1.5 px-3 bg-gradient-to-r from-[#234C77] via-[#0A3A75] to-[#234C77] border-b border-[#F9C03E]/40 text-[#F9C03E] text-xs font-bold flex items-center justify-center gap-1.5 hover:brightness-110 active:scale-[0.99] transition-all cursor-pointer shadow-sm tracking-wide"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
+          <span>⭐ Sblocca versione completa</span>
+        </button>
+      )}
+
       <div className="w-full max-w-md flex items-center justify-around px-2 py-2">
         {tabs.map((tab) => {
           const Icon = tab.icon;

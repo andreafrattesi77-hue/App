@@ -14,6 +14,10 @@ import {
   Flame,
   Award,
   Layers,
+  Lock,
+  Video,
+  ExternalLink,
+  Play,
 } from 'lucide-react';
 import {
   EBOOK,
@@ -25,11 +29,14 @@ import {
   getUnita,
 } from '../../content/index';
 import { UserData } from '../types';
+import { isTrialUser } from '../services/storage';
+import { AREA_RISERVATA_URL } from '../config';
 
 interface LibraryScreenProps {
   user: UserData;
   onOpenUnita: (id: string, targetHeading?: string) => void;
   onUserDataUpdated: (updated: UserData) => void;
+  onOpenVideocorso?: () => void;
 }
 
 type LibraryTab = 'tutto' | 'ebook' | 'ripartire' | 'bonus' | 'strumenti';
@@ -38,6 +45,7 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
   user,
   onOpenUnita,
   onUserDataUpdated,
+  onOpenVideocorso,
 }) => {
   const [activeTab, setActiveTab] = useState<LibraryTab>('tutto');
   const [searchQuery, setSearchQuery] = useState('');
@@ -296,6 +304,45 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
             </div>
           )}
 
+          {/* VIDEOCORSO AREA RISERVATA CARD */}
+          {(activeTab === 'tutto' || activeTab === 'strumenti') && (
+            <div className="pt-0.5">
+              <div
+                onClick={() => {
+                  if (onOpenVideocorso) {
+                    onOpenVideocorso();
+                  } else {
+                    window.open(AREA_RISERVATA_URL, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+                className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-[#021831] via-[#234C77]/50 to-[#021831] border border-[#F9C03E]/50 flex items-center justify-between shadow-lg cursor-pointer hover:border-[#F9C03E] transition-all group active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#234C77] border border-[#F9C03E]/40 flex items-center justify-center text-[#F9C03E] shrink-0 group-hover:scale-105 transition-transform">
+                    <Video className="w-5 h-5 text-[#F9C03E]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E]">
+                        Incluso • Lezione 1 Gratis
+                      </span>
+                    </div>
+                    <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F9C03E] transition-colors truncate">
+                      Videocorso Completo (9 Moduli)
+                    </h4>
+                    <p className="text-[11px] text-slate-300 truncate">
+                      Guarda subito la prima lezione di introduzione
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-[#F9C03E] text-xs font-bold shrink-0 ml-2">
+                  <span>Guarda</span>
+                  <Play className="w-3.5 h-3.5 fill-[#F9C03E]" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* EBOOK SECTION (Compact with accordion fold/unfold) */}
           {(activeTab === 'tutto' || activeTab === 'ebook') && (
             <div className="space-y-2.5 pt-1">
@@ -349,6 +396,7 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
                         {partUnits.map((unita) => {
                           const isRead = (user.readUnits || []).includes(unita.id);
                           const readingPos = user.readingPositions?.[unita.id] || 0;
+                          const isLocked = isTrialUser(user) && unita.id !== 'intro' && unita.id !== 'cap01';
 
                           return (
                             <div
@@ -361,7 +409,12 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
                                   <span className="text-[10px] uppercase font-bold text-[#88A5BF]">
                                     {unita.label}
                                   </span>
-                                  {isRead && (
+                                  {isLocked && (
+                                    <span className="text-[9px] text-[#F9C03E] font-semibold flex items-center gap-0.5 px-1 rounded bg-[#F9C03E]/10 border border-[#F9C03E]/30">
+                                      <Lock className="w-2.5 h-2.5" /> Completa
+                                    </span>
+                                  )}
+                                  {isRead && !isLocked && (
                                     <span className="text-[9px] text-emerald-400 font-semibold flex items-center gap-0.5">
                                       <CheckCircle2 className="w-3 h-3" /> Letto
                                     </span>
@@ -382,7 +435,11 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
 
                               <div className="flex items-center gap-1.5 text-slate-400 shrink-0">
                                 <span className="text-[10px] font-mono">{unita.minutiLettura}m</span>
-                                <ChevronRight className="w-3.5 h-3.5" />
+                                {isLocked ? (
+                                  <Lock className="w-3.5 h-3.5 text-[#F9C03E]" />
+                                ) : (
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                )}
                               </div>
                             </div>
                           );

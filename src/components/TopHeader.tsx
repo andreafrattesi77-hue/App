@@ -4,10 +4,14 @@ import { Settings } from 'lucide-react';
 interface TopHeaderProps {
   onOpenReset?: () => void;
   onOpenSettings: () => void;
+  isTrial?: boolean;
+  onOpenUpgrade?: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenSettings,
+  isTrial = false,
+  onOpenUpgrade,
 }) => {
   return (
     <header className="sticky top-0 z-30 w-full bg-[#042B58]/90 backdrop-blur-md border-b border-[#88A5BF]/20">
@@ -27,6 +31,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         {/* Action icons */}
         <div className="flex items-center gap-2">
+          {/* ⭐ Sblocca versione completa per utenti gratuiti */}
+          {isTrial && onOpenUpgrade && (
+            <button
+              type="button"
+              onClick={onOpenUpgrade}
+              className="py-1 px-2.5 rounded-full bg-[#F9C03E] hover:bg-[#fab722] text-[#042B58] text-[11px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <span>⭐ Sblocca versione completa</span>
+            </button>
+          )}
+
           {/* Settings (Gear) */}
           <button
             onClick={onOpenSettings}

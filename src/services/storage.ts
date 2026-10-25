@@ -44,6 +44,8 @@ export function getUserData(): UserData | null {
       isVideocorsoUnlocked: !!parsed.isVideocorsoUnlocked,
       videoUnlockCode: parsed.videoUnlockCode || undefined,
       watchedVideos: parsed.watchedVideos || [],
+      isTrial: parsed.isTrial !== undefined ? !!parsed.isTrial : (parsed.accessCode === 'TRIAL' || parsed.accessCode === 'DEMO'),
+      trialCoachQuestionsUsed: Number(parsed.trialCoachQuestionsUsed) || 0,
     };
   } catch {
     return null;
@@ -66,20 +68,85 @@ export function saveUserData(data: Partial<UserData>): UserData {
     readerFontSize: 17,
     isVideocorsoUnlocked: false,
     watchedVideos: [],
+    isTrial: false,
+    trialCoachQuestionsUsed: 0,
   };
+
+  const incomingCode = (data.accessCode !== undefined ? data.accessCode : current.accessCode || '').trim().toUpperCase();
+  const isExplicitTrialCode = incomingCode === 'TRIAL' || incomingCode === 'DEMO';
+  const isPaidAccessCode = !!incomingCode && !isExplicitTrialCode;
+
+  // Se viene fornito o è presente un codice di acquisto valido (diverso da TRIAL/DEMO),
+  // l'utente DEVE avere sempre la versione completa a vita (isTrial = false)
+  let resolvedIsTrial = current.isTrial;
+  if (data.isTrial !== undefined) {
+    resolvedIsTrial = data.isTrial;
+  } else if (isPaidAccessCode) {
+    resolvedIsTrial = false;
+  } else if (isExplicitTrialCode) {
+    resolvedIsTrial = true;
+  }
+
+  // Un codice di acquisto valido sblocca automaticamente anche il videocorso
+  let resolvedVideocorso = current.isVideocorsoUnlocked;
+  if (data.isVideocorsoUnlocked !== undefined) {
+    resolvedVideocorso = data.isVideocorsoUnlocked;
+  } else if (isPaidAccessCode) {
+    resolvedVideocorso = true;
+  }
 
   const updated: UserData = {
     ...current,
     ...data,
+    accessCode: incomingCode || current.accessCode,
+    email: data.email !== undefined ? data.email : current.email,
     customIntentions: data.customIntentions || current.customIntentions || DEFAULT_INTENTIONS,
     readUnits: data.readUnits !== undefined ? data.readUnits : current.readUnits,
     readingPositions: data.readingPositions !== undefined ? data.readingPositions : current.readingPositions,
     favorites: data.favorites !== undefined ? data.favorites : current.favorites,
     watchedVideos: data.watchedVideos !== undefined ? data.watchedVideos : current.watchedVideos,
+    isTrial: resolvedIsTrial,
+    isVideocorsoUnlocked: resolvedVideocorso,
+    trialCoachQuestionsUsed: data.trialCoachQuestionsUsed !== undefined ? data.trialCoachQuestionsUsed : (current.trialCoachQuestionsUsed || 0),
   };
 
   localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
   return updated;
+}
+
+export function isTrialUser(user?: UserData | null): boolean {
+  if (!user) return false;
+  const cleanCode = (user.accessCode || '').trim().toUpperCase();
+  const email = (user.email || '').trim().toLowerCase();
+
+  // L'account autore/amministratore ha sempre accesso completo a tutti i contenuti e videocorsi
+  if (
+    email.includes('andreafrattesi') ||
+    email === 'andreafrattesi77@gmail.com' ||
+    email === 'info@andreafrattesi.com'
+  ) {
+    return false;
+  }
+
+  // Se l'utente ha inserito un codice di acquisto valido (diverso da TRIAL e DEMO), NON è mai trial
+  if (cleanCode && cleanCode !== 'TRIAL' && cleanCode !== 'DEMO') {
+    return false;
+  }
+  return !!user.isTrial || cleanCode === 'TRIAL' || cleanCode === 'DEMO';
+}
+
+export function getTrialCoachRemaining(user?: UserData | null): number {
+  if (!user) return 3;
+  if (!isTrialUser(user)) return 999;
+  return Math.max(0, 3 - (user.trialCoachQuestionsUsed || 0));
+}
+
+export function incrementTrialCoachQuestions(): number {
+  const current = getUserData();
+  const currentCount = current?.trialCoachQuestionsUsed || 0;
+  const nextCount = currentCount + 1;
+  saveUserData({ trialCoachQuestionsUsed: nextCount });
+  return nextCount;
 }
 
 export function clearUserData(): void {

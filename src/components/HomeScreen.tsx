@@ -11,8 +11,9 @@ import {
   Calendar,
   ExternalLink,
   Music,
+  Video,
 } from 'lucide-react';
-import { MISSIONS_21, PROFILES, OFFICIAL_SIGNATURE } from '../config';
+import { MISSIONS_21, PROFILES, OFFICIAL_SIGNATURE, AREA_RISERVATA_URL } from '../config';
 import { getUnita } from '../../content/index';
 import { UserData, EveningEntry, MissionProgress } from '../types';
 
@@ -26,7 +27,7 @@ interface HomeScreenProps {
   onOpenRitual: () => void;
   onOpenRhythm: () => void;
   onOpenUnita: (id: string) => void;
-  onOpenVideocorsoTab?: () => void;
+  onOpenVideocorso?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -39,6 +40,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenRitual,
   onOpenRhythm,
   onOpenUnita,
+  onOpenVideocorso,
 }) => {
   // Current active mission in 21 plan
   const currentMission =
@@ -225,6 +227,40 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           className="py-2.5 px-3 rounded-xl gold-gradient-btn text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer"
         >
           <span>Allena il Tempo</span>
+          <ArrowRight className="w-3.5 h-3.5 text-[#042B58]" />
+        </button>
+      </div>
+
+      {/* Card "Videocorso Compreso (9 Moduli)" */}
+      <div
+        onClick={onOpenVideocorso}
+        className="glass-card p-4 border border-[#F9C03E]/40 flex items-center justify-between gap-3 bg-gradient-to-r from-[#021831] via-[#234C77]/40 to-[#021831] shadow-lg cursor-pointer hover:border-[#F9C03E] transition-all group active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-[#234C77] border border-[#F9C03E]/40 flex items-center justify-center text-[#F9C03E] shadow-sm group-hover:scale-105 transition-transform shrink-0">
+            <Video className="w-5 h-5 text-[#F9C03E]" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-[#F9C03E]">
+              <span>Incluso • Lezione 1 Gratis</span>
+            </div>
+            <h4 className="text-xs font-bold text-white group-hover:text-[#F9C03E] transition-colors truncate">
+              Videocorso Completo (9 Moduli)
+            </h4>
+            <p className="text-[10px] text-slate-300 truncate">
+              Guarda la video lezione di introduzione
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenVideocorso?.();
+          }}
+          className="py-2.5 px-3 rounded-xl gold-gradient-btn text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer"
+        >
+          <span>Guarda</span>
           <ArrowRight className="w-3.5 h-3.5 text-[#042B58]" />
         </button>
       </div>

@@ -19,9 +19,15 @@ import { getMissionsProgress, saveMissionProgress } from '../services/storage';
 
 interface PlanScreenProps {
   onOpenUnita: (id: string) => void;
+  isTrial?: boolean;
+  onOpenUnlock?: (notice?: string) => void;
 }
 
-export const PlanScreen: React.FC<PlanScreenProps> = ({ onOpenUnita }) => {
+export const PlanScreen: React.FC<PlanScreenProps> = ({
+  onOpenUnita,
+  isTrial = false,
+  onOpenUnlock,
+}) => {
   const [progress, setProgress] = useState<Record<number, MissionProgress>>({});
   const [expandedMissionId, setExpandedMissionId] = useState<number | null>(null);
   const [editingNotes, setEditingNotes] = useState<Record<number, string>>({});
@@ -197,7 +203,8 @@ export const PlanScreen: React.FC<PlanScreenProps> = ({ onOpenUnita }) => {
               <div className="space-y-2">
                 {phaseMissions.map((mission) => {
                   const isCompleted = !!progress[mission.id]?.completed;
-                  const isUnlocked = mission.id === 1 || progress[mission.id - 1]?.completed;
+                  const isMissionLockedByTrial = isTrial && mission.id > 1;
+                  const isUnlocked = !isMissionLockedByTrial && (mission.id === 1 || progress[mission.id - 1]?.completed);
                   const isExpanded = expandedMissionId === mission.id;
                   const linkedUnit = getUnita(mission.readingUnitId);
 
@@ -215,6 +222,10 @@ export const PlanScreen: React.FC<PlanScreenProps> = ({ onOpenUnita }) => {
                       {/* Mission summary row */}
                       <div
                         onClick={() => {
+                          if (isMissionLockedByTrial) {
+                            onOpenUnlock?.('Le missioni dalla 2 alla 21 del Piano 21 Serate fanno parte della versione completa. Sblocca per completare l\'intero percorso!');
+                            return;
+                          }
                           if (isUnlocked) {
                             setExpandedMissionId(isExpanded ? null : mission.id);
                           }

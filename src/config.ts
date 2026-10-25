@@ -4,15 +4,20 @@
  */
 
 // Codice di accesso valido per l'App principale (singola parola senza spazi)
-export const ACCESS_CODES: string[] = ['MAGNETICO', 'CALAMITA2026', 'CALAMITA'];
+export const ACCESS_CODES: string[] = ['MAGNETICO', 'CODICE', 'CALAMITA2026', 'CALAMITA'];
 
 // Link esterni ufficiali
-export const STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/aFadR84YobTbdYa6bkdwc0b';
-export const VIDEOCORSO_URL = 'https://www.andreafrattesi.com/landing';
+export const STRIPE_CHECKOUT_URL = 'https://www.andreafrattesi.com/checkoutapp';
+export const CHECKOUT_URL = 'https://www.andreafrattesi.com/checkoutapp';
+export const VIDEOCORSO_URL = 'https://www.andreafrattesi.com/it/login';
 export const AREA_RISERVATA_URL = 'https://www.andreafrattesi.com/it/login';
-export const LANDING_URL = 'https://www.andreafrattesi.com/landingeffettocalamita';
+export const LANDING_URL = 'https://www.andreafrattesi.com/app';
 export const INSTAGRAM_URL = 'https://www.instagram.com/andreaseduzioneballo';
 export const SUPPORT_EMAIL = 'info@andreafrattesi.com';
+
+// Webhook di Systeme.io per l'iscrizione automatica dei lead di prova
+// Incolla qui il tuo Webhook URL generato da Systeme.io (Regole di Automazione / Webhook)
+export const SYSTEME_IO_WEBHOOK_URL = '';
 
 // Limiti operativi per il Coach AI Gemini
 export const COACH_DAILY_LIMIT = 20;
