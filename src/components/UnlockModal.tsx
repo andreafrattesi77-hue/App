@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
-import { X, KeyRound, CheckCircle2 } from 'lucide-react';
-import { CHECKOUT_URL, ACCESS_CODES } from '../config';
-import { saveUserData, getUserData } from '../services/storage';
+import React from 'react';
+import { X } from 'lucide-react';
+import { CHECKOUT_URL } from '../config';
 
 interface UnlockModalProps {
   isOpen: boolean;
@@ -16,49 +15,12 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
   onClose,
   isLimitExhausted = false,
   contextNotice,
-  onUnlocked,
 }) => {
-  const [code, setCode] = useState('');
-  const [showCodeInput, setShowCodeInput] = useState(false);
-  const [codeError, setCodeError] = useState('');
-  const [codeSuccess, setCodeSuccess] = useState(false);
-
   if (!isOpen) return null;
 
   const isQuestionsLimit =
     isLimitExhausted ||
     (contextNotice && contextNotice.toLowerCase().includes('domand'));
-
-  const handleUnlockWithCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = code.trim().toUpperCase();
-    if (!clean) {
-      setCodeError('Inserisci il codice di accesso ricevuto via email.');
-      return;
-    }
-
-    const isValid = ACCESS_CODES.some((valid) => valid.toUpperCase() === clean);
-    if (!isValid) {
-      setCodeError('Codice non valido. Controlla l\'email di conferma acquisto.');
-      return;
-    }
-
-    const current = getUserData();
-    saveUserData({
-      accessCode: clean,
-      isTrial: false,
-      isVideocorsoUnlocked: true,
-      name: current?.name || 'Allievo Calamita',
-      email: current?.email,
-    });
-
-    setCodeSuccess(true);
-    setCodeError('');
-    setTimeout(() => {
-      onUnlocked?.();
-      onClose();
-    }, 1000);
-  };
 
   return (
     <div
@@ -164,7 +126,7 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
           </p>
         </div>
 
-        {/* 7) Pulsante grande a tutta larghezza: "Sblocca ora a 97€ →" */}
+        {/* 7) Pulsante grande a tutta larghezza: SENZA IL PREZZO SUL PULSANTE */}
         <div className="pt-2 space-y-2">
           <a
             href={CHECKOUT_URL}
@@ -175,7 +137,7 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
             }}
             className="w-full py-3.5 px-4 rounded-xl bg-[#F9C03E] hover:bg-[#fab722] text-[#042B58] font-bold text-base sm:text-lg flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99] transition-all cursor-pointer text-center"
           >
-            <span>Sblocca ora a 97€ →</span>
+            <span>Sblocca ora →</span>
           </a>
 
           {/* Testo piccolo sotto il pulsante */}
@@ -184,8 +146,8 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
           </p>
         </div>
 
-        {/* 8) Link testuale piccolo in fondo: "Continua con la versione gratuita" */}
-        <div className="pt-2 text-center space-y-2">
+        {/* 8) Link testuale in fondo */}
+        <div className="pt-2 text-center">
           <button
             type="button"
             onClick={onClose}
@@ -193,52 +155,6 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
           >
             Continua con la versione gratuita
           </button>
-
-          {/* Opzione riscatto codice per chi ha già acquistato */}
-          <div className="pt-1 border-t border-slate-100">
-            {!showCodeInput ? (
-              <button
-                type="button"
-                onClick={() => setShowCodeInput(true)}
-                className="text-[11px] text-slate-400 hover:text-[#042B58] transition-colors cursor-pointer"
-              >
-                Hai già acquistato? Inserisci il tuo codice di accesso
-              </button>
-            ) : (
-              <form onSubmit={handleUnlockWithCode} className="space-y-1.5 pt-1 text-left">
-                {codeSuccess ? (
-                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-800 text-xs flex items-center gap-1.5 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Versione completa attivata con successo!</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={code}
-                        onChange={(e) => {
-                          setCode(e.target.value);
-                          setCodeError('');
-                        }}
-                        placeholder="es. MAGNETICO"
-                        className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs uppercase font-mono tracking-wider focus:outline-none focus:border-[#042B58]"
-                      />
-                      <button
-                        type="submit"
-                        className="px-3 py-1.5 rounded-lg bg-[#042B58] text-white text-xs font-bold hover:bg-[#063a75] transition-colors cursor-pointer"
-                      >
-                        Attiva
-                      </button>
-                    </div>
-                    {codeError && (
-                      <p className="text-[11px] text-red-600">{codeError}</p>
-                    )}
-                  </>
-                )}
-              </form>
-            )}
-          </div>
         </div>
       </div>
     </div>

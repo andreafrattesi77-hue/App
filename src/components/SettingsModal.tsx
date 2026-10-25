@@ -12,13 +12,12 @@ import {
   FileText,
   Music,
   Video,
-  KeyRound,
   Play,
 } from 'lucide-react';
-import { wipeAllAppData, saveUserData, isTrialUser } from '../services/storage';
+import { wipeAllAppData, saveUserData } from '../services/storage';
 import { exportAndPrintReport } from '../services/reportExport';
 import { logoutFirebase } from '../services/firebase';
-import { AREA_RISERVATA_URL, INSTAGRAM_URL, ACCESS_CODES } from '../config';
+import { AREA_RISERVATA_URL, INSTAGRAM_URL } from '../config';
 import { UserData } from '../types';
 
 interface SettingsModalProps {
@@ -47,40 +46,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [nameInput, setNameInput] = useState(user.name || '');
   const [isSavedNotice, setIsSavedNotice] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
-  const [accessCodeInput, setAccessCodeInput] = useState('');
-  const [codeStatusMessage, setCodeStatusMessage] = useState('');
-  const [isCodeSuccess, setIsCodeSuccess] = useState(false);
 
   if (!isOpen) return null;
-
-  const handleUnlockAccessCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = accessCodeInput.trim().toUpperCase();
-    if (!clean) {
-      setCodeStatusMessage('Inserisci il tuo codice di accesso.');
-      setIsCodeSuccess(false);
-      return;
-    }
-    const isValid = ACCESS_CODES.some((valid) => valid.toUpperCase() === clean);
-    if (!isValid) {
-      setCodeStatusMessage("Codice non valido. Controlla l'email di conferma acquisto.");
-      setIsCodeSuccess(false);
-      return;
-    }
-    saveUserData({
-      accessCode: clean,
-      isTrial: false,
-      isVideocorsoUnlocked: true,
-      name: user.name,
-      email: user.email,
-    });
-    setIsCodeSuccess(true);
-    setCodeStatusMessage('✓ Versione completa sbloccata con successo!');
-    setTimeout(() => {
-      onDataReset();
-      onClose();
-    }, 1200);
-  };
 
   const handleSaveName = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,43 +86,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <div className="overflow-y-auto py-3 space-y-4 pr-1 my-1">
-          {/* Sezione Riscatto Codice di Accesso per Utenti in Prova */}
-          {isTrialUser(user) && (
-            <div className="glass-card p-4 border border-[#F9C03E]/40 bg-[#021831]/80 space-y-2.5">
-              <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-[#F9C03E]" />
-                <h3 className="text-sm font-semibold text-white">Sblocca Versione Completa</h3>
-              </div>
-              <p className="text-xs text-slate-300 leading-snug">
-                Hai acquistato l'App o hai ricevuto il codice via email? Inseriscilo qui per sbloccare tutti i capitoli, il Coach a 20 domande/giorno e il videocorso.
-              </p>
-              <form onSubmit={handleUnlockAccessCode} className="space-y-2 pt-1">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={accessCodeInput}
-                    onChange={(e) => {
-                      setAccessCodeInput(e.target.value);
-                      setCodeStatusMessage('');
-                    }}
-                    placeholder="MAGNETICO"
-                    className="flex-1 px-3 py-2 bg-[#021831] border border-[#88A5BF]/40 rounded-xl text-white text-xs uppercase font-mono tracking-wider focus:outline-none focus:border-[#F9C03E]"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3.5 py-2 rounded-xl gold-gradient-btn text-[#042B58] text-xs font-bold shrink-0 cursor-pointer shadow-sm"
-                  >
-                    Sblocca
-                  </button>
-                </div>
-                {codeStatusMessage && (
-                  <p className={`text-xs ${isCodeSuccess ? 'text-emerald-400 font-semibold' : 'text-rose-400'}`}>
-                    {codeStatusMessage}
-                  </p>
-                )}
-              </form>
-            </div>
-          )}
 
           {/* Change Name */}
           <div className="glass-card p-4">

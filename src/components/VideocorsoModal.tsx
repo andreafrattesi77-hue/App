@@ -8,15 +8,12 @@ import {
   ExternalLink,
   Video,
   Award,
-  KeyRound,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import { VIDEOCORSO } from '../../content/index';
 import { ModuloVideo } from '../../content/types';
 import { UserData } from '../types';
-import { isTrialUser, saveUserData } from '../services/storage';
-import { AREA_RISERVATA_URL, ACCESS_CODES } from '../config';
+import { isTrialUser } from '../services/storage';
+import { AREA_RISERVATA_URL } from '../config';
 
 interface VideocorsoModalProps {
   isOpen: boolean;
@@ -32,10 +29,6 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
   onOpenUnlock,
 }) => {
   const [selectedModule, setSelectedModule] = useState<ModuloVideo>(VIDEOCORSO[0]);
-  const [selectedLessonIndex, setSelectedLessonIndex] = useState<number>(0);
-  const [expandedModuleId, setExpandedModuleId] = useState<number | null>(2); // Modulo 2 aperto a tendina di default
-  const [quickCode, setQuickCode] = useState('');
-  const [codeError, setCodeError] = useState('');
   const [isUnlockedLocally, setIsUnlockedLocally] = useState(!isTrialUser(user));
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const contentContainerRef = useRef<HTMLDivElement | null>(null);
@@ -47,81 +40,20 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
   if (!isOpen) return null;
 
   const isTrial = !isUnlockedLocally;
+  const isLocalVideo = !!(selectedModule.videoUrl && selectedModule.videoUrl.startsWith('/assets/'));
 
-  // Determine active lesson and video URL
-  const currentLesson = selectedModule.lezioni?.[selectedLessonIndex];
-  const activeVideoSrc = currentLesson?.videoUrl || selectedModule.videoUrl;
-  const isLocalVideo = !!(activeVideoSrc && activeVideoSrc.startsWith('/assets/'));
-
-  // Seleziona un modulo o apre/chiude il menù a tendina
-  const handleToggleModuleAccordion = (modulo: ModuloVideo) => {
-    if (modulo.lezioni && modulo.lezioni.length > 0) {
-      // Toggle dropdown per i moduli con più lezioni
-      setExpandedModuleId((prev) => (prev === modulo.numero ? null : modulo.numero));
-      // Se il modulo cliccato non è quello attivo, impostalo come modulo selezionato
-      if (selectedModule.numero !== modulo.numero) {
-        setSelectedModule(modulo);
-        setSelectedLessonIndex(0);
-      }
-    } else {
-      // Modulo a lezione singola: seleziona e riproduci direttamente
-      if (isTrial && modulo.numero > 1) {
-        onOpenUnlock(
-          `Sblocca il Modulo ${modulo.numero} e tutti i 9 moduli del videocorso completo a 97€!`
-        );
-        return;
-      }
-      setSelectedModule(modulo);
-      setSelectedLessonIndex(0);
-      if (contentContainerRef.current) {
-        contentContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+  // Seleziona qualsiasi modulo e scorre in cima alla sezione di visualizzazione
+  const handleSelectModule = (modulo: ModuloVideo) => {
+    setSelectedModule(modulo);
+    if (contentContainerRef.current) {
+      contentContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    if (modulo.numero === 1) {
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.play().catch(() => {});
         }
       }, 150);
-    }
-  };
-
-  // Seleziona una lezione specifica dal menù a tendina
-  const handleSelectLessonFromDropdown = (modulo: ModuloVideo, lessonIdx: number) => {
-    if (isTrial && modulo.numero > 1) {
-      const lezTitle = modulo.lezioni?.[lessonIdx]?.titolo || '';
-      onOpenUnlock(
-        `Sblocca la lezione «${lezTitle}» del Modulo ${modulo.numero} e tutti i 9 moduli del videocorso a 97€!`
-      );
-      return;
-    }
-
-    setSelectedModule(modulo);
-    setSelectedLessonIndex(lessonIdx);
-
-    // Riporta lo scroll in alto sul player video
-    if (contentContainerRef.current) {
-      contentContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    // Avvia la riproduzione del nuovo video caricato
-    setTimeout(() => {
-      if (videoRef.current) {
-        videoRef.current.play().catch(() => {});
-      }
-    }, 150);
-  };
-
-  const handleQuickUnlock = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = quickCode.trim().toUpperCase();
-    if (!clean) return;
-    const isValid = ACCESS_CODES.some((valid) => valid.toUpperCase() === clean);
-    if (isValid) {
-      saveUserData({ accessCode: clean, isTrial: false, isVideocorsoUnlocked: true });
-      setIsUnlockedLocally(true);
-      setCodeError('');
-      setQuickCode('');
-    } else {
-      setCodeError('Codice non valido. Inserisci MAGNETICO.');
     }
   };
 
@@ -154,33 +86,32 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
 
         {/* Scrollable Content */}
         <div ref={contentContainerRef} className="overflow-y-auto p-3 sm:p-4 space-y-4">
-          {/* Active Video Player Section */}
+          {/* Active Video Player / Module Detail Section (in cima) */}
           <div className="space-y-3">
-            {/* SE È IL MODULO 1 (SEMPRE GRATIS) O SE L'UTENTE HA SBLOCCATO ED È DISPONIBILE IL VIDEO LOCALE */}
+            {/* 1. SE È IL MODULO 1 (VIDEO GRATUITO INCLUSO) */}
             {(selectedModule.numero === 1 || (!isTrial && isLocalVideo)) ? (
               <div className="space-y-2.5">
-                {/* HTML5 Video Player con key per ricaricare la sorgente esatta in modo pulito */}
+                {/* HTML5 Video Player */}
                 <div className="relative rounded-2xl overflow-hidden border border-[#F9C03E]/50 shadow-xl bg-black aspect-video flex items-center justify-center">
                   <video
                     ref={videoRef}
-                    key={activeVideoSrc}
-                    src={activeVideoSrc}
+                    key={selectedModule.videoUrl}
+                    src={selectedModule.videoUrl}
                     controls
                     playsInline
                     preload="auto"
                     className="w-full h-full object-contain"
                   >
-                    <source src={activeVideoSrc} type="video/mp4" />
+                    <source src={selectedModule.videoUrl} type="video/mp4" />
                     Il tuo browser non supporta la riproduzione video HTML5.
                   </video>
                 </div>
 
-                {/* Details Section: SOLO LA LEZIONE CORRENTE (come richiesto) */}
+                {/* Details Section Modulo 1 */}
                 <div className="glass-card p-3.5 border border-[#F9C03E]/30 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] bg-[#021831] px-2 py-0.5 rounded-full border border-[#F9C03E]/40">
-                      Modulo {selectedModule.numero}
-                      {currentLesson ? ` • Lezione ${currentLesson.numero} di ${selectedModule.lezioni?.length || 1}` : ''}
+                      Modulo {selectedModule.numero} • Video Introduttivo Gratuito
                     </span>
                     <button
                       type="button"
@@ -198,10 +129,10 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
 
                   <div>
                     <h3 className="text-sm sm:text-base font-bold text-white">
-                      {currentLesson ? `${currentLesson.numero}. ${currentLesson.titolo}` : selectedModule.titolo}
+                      {selectedModule.titolo}
                     </h3>
                     <p className="text-xs text-slate-300 leading-relaxed mt-1">
-                      {currentLesson?.descrizione || selectedModule.descrizione}
+                      {selectedModule.descrizione}
                     </p>
                   </div>
 
@@ -211,92 +142,78 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
                       <button
                         onClick={() =>
                           onOpenUnlock(
-                            'Sblocca tutti i 9 moduli del videocorso pratico di Salsa e Bachata a 97€!'
+                            'Sblocca tutti i 9 moduli del videocorso pratico di Salsa e Bachata!'
                           )
                         }
                         className="w-full py-2.5 px-3 rounded-xl gold-gradient-btn text-xs font-bold text-[#042B58] flex items-center justify-center gap-1.5 shadow-md cursor-pointer hover:brightness-105 active:scale-[0.98] transition-all"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-[#042B58]" />
-                        <span>Sblocca i restanti 8 Moduli a 97€</span>
+                        <span>Sblocca i restanti 8 Moduli</span>
                       </button>
                     </div>
                   )}
                 </div>
               </div>
             ) : isTrial ? (
-              /* Locked Module Preview for Trial Users */
-              <div className="rounded-2xl border border-[#F9C03E]/40 bg-gradient-to-b from-[#021831] to-[#042B58] p-4 sm:p-5 space-y-3.5 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] bg-[#021831] px-2 py-0.5 rounded-full border border-[#F9C03E]/40">
-                    Modulo {selectedModule.numero} • Riservato
+              /* 2. SE È UN MODULO DAL 2 AL 9 E L'UTENTE È IN PROVA (BLOCCATO) */
+              <div className="space-y-2.5 animate-fadeIn">
+                {/* Riquadro Anteprima con Lucchetto e Visual elegante */}
+                <div className="relative rounded-2xl overflow-hidden border border-[#F9C03E]/40 shadow-xl bg-gradient-to-b from-[#021831] via-[#042B58] to-[#021831] aspect-video flex flex-col items-center justify-center text-center p-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#021831]/90 border border-[#F9C03E]/40 flex items-center justify-center text-[#F9C03E] shadow-inner mb-2">
+                    <Lock className="w-6 h-6 text-[#F9C03E]" />
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#F9C03E]">
+                    Modulo {selectedModule.numero} • Contenuto Riservato
                   </span>
-                  <span className="text-[10px] text-amber-300 font-semibold flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-[#F9C03E]" />
-                    Richiede sblocco
-                  </span>
-                </div>
-
-                <div>
-                  <h3 className="text-base font-bold text-white">
-                    {selectedModule.titolo}
-                  </h3>
-                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                    {selectedModule.descrizione}
+                  <p className="text-xs text-slate-300 mt-1 max-w-xs">
+                    Disponibile nella versione completa del videocorso.
                   </p>
                 </div>
 
-                {/* Quick Unlock Form with Access Code */}
-                <form onSubmit={handleQuickUnlock} className="p-3 bg-[#021831] rounded-xl border border-[#88A5BF]/30 space-y-2 text-left">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                    <KeyRound className="w-3.5 h-3.5 text-[#F9C03E]" />
-                    <span>Hai il codice d'accesso? Inseriscilo per sbloccare subito:</span>
+                {/* Sezione con Titolo, Descrizione e Tasto per sbloccare */}
+                <div className="glass-card p-4 border border-[#F9C03E]/40 space-y-3.5 shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] bg-[#021831] px-2 py-0.5 rounded-full border border-[#F9C03E]/40">
+                      Modulo {selectedModule.numero}
+                    </span>
+                    <span className="text-[10px] text-amber-300 font-semibold flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-[#F9C03E]" />
+                      Richiede sblocco
+                    </span>
                   </div>
-                  <div className="flex gap-1.5">
-                    <input
-                      type="text"
-                      value={quickCode}
-                      onChange={(e) => {
-                        setQuickCode(e.target.value);
-                        setCodeError('');
-                      }}
-                      placeholder="MAGNETICO"
-                      className="flex-1 px-3 py-2 bg-[#042B58] border border-[#88A5BF]/40 rounded-lg text-white text-xs font-mono uppercase tracking-wider focus:outline-none focus:border-[#F9C03E]"
-                    />
+
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-white leading-snug">
+                      {selectedModule.titolo}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed">
+                      {selectedModule.descrizione}
+                    </p>
+                  </div>
+
+                  {/* TASTO PRINCIPALE LUNGO PER SBLOCCARE CON APERTURA DEL POP-UP (SENZA PREZZO) */}
+                  <div className="pt-1">
                     <button
-                      type="submit"
-                      className="px-3.5 py-2 rounded-lg bg-[#F9C03E] hover:bg-[#fab722] text-[#042B58] text-xs font-bold cursor-pointer transition-colors shadow-sm"
+                      type="button"
+                      onClick={() =>
+                        onOpenUnlock(
+                          `Sblocca il Modulo ${selectedModule.numero}: ${selectedModule.titolo} e tutti i 9 moduli del videocorso completo!`
+                        )
+                      }
+                      className="w-full py-3 px-4 rounded-xl gold-gradient-btn text-xs sm:text-sm font-bold text-[#042B58] shadow-lg flex items-center justify-center gap-2 cursor-pointer hover:brightness-105 active:scale-[0.98] transition-all"
                     >
-                      Sblocca
+                      <Sparkles className="w-4 h-4 text-[#042B58]" />
+                      <span>Sblocca il Videocorso</span>
                     </button>
                   </div>
-                  {codeError && (
-                    <p className="text-[11px] text-rose-400">{codeError}</p>
-                  )}
-                </form>
-
-                <div className="pt-1">
-                  <button
-                    onClick={() =>
-                      onOpenUnlock(
-                        selectedModule.lezioni
-                          ? `Sblocca il Modulo ${selectedModule.numero} (${selectedModule.lezioni.map((l) => l.titolo).join(', ')}) e tutti i 9 moduli del videocorso completo a 97€!`
-                          : `Sblocca il Modulo ${selectedModule.numero} e tutti i restanti 8 moduli del videocorso completo a 97€!`
-                      )
-                    }
-                    className="w-full py-3 px-4 rounded-xl gold-gradient-btn text-xs font-bold text-[#042B58] shadow-lg flex items-center justify-center gap-1.5 cursor-pointer hover:brightness-105 active:scale-[0.98] transition-all"
-                  >
-                    <Sparkles className="w-4 h-4 text-[#042B58]" />
-                    <span>Sblocca Tutti i 9 Moduli a 97€</span>
-                  </button>
                 </div>
               </div>
             ) : (
-              /* Unlocked Module without local video yet: points to Area Riservata */
+              /* 3. SE L'UTENTE HA GIÀ SBLOCCATO LA VERSIONE COMPLETA */
               <div className="glass-card p-4 border border-[#F9C03E]/40 space-y-3.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] bg-[#021831] px-2 py-0.5 rounded-full border border-[#F9C03E]/40">
                     Modulo {selectedModule.numero}
-                    {currentLesson ? ` • Lezione ${currentLesson.numero} di ${selectedModule.lezioni?.length || 1}` : ''}
                   </span>
                   <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
@@ -306,14 +223,14 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
 
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    {currentLesson ? `${currentLesson.numero}. ${currentLesson.titolo}` : selectedModule.titolo}
+                    {selectedModule.titolo}
                   </h3>
                   <p className="text-xs text-slate-300 leading-relaxed mt-1">
-                    {currentLesson?.descrizione || selectedModule.descrizione}
+                    {selectedModule.descrizione}
                   </p>
                 </div>
 
-                {/* Area Riservata Access Button */}
+                {/* Pulsante di accesso ad Area Riservata */}
                 <div className="pt-2 border-t border-slate-700/50 space-y-2">
                   <a
                     href={AREA_RISERVATA_URL}
@@ -321,7 +238,7 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
                     rel="noopener noreferrer"
                     className="w-full py-2.5 px-3 rounded-xl gold-gradient-btn text-xs font-bold text-[#042B58] flex items-center justify-center gap-1.5 shadow-md hover:brightness-105 transition-all"
                   >
-                    <span>Guarda {currentLesson ? `la Lezione ${currentLesson.numero}` : 'il video'} nell'Area Riservata</span>
+                    <span>Guarda il modulo nell'Area Riservata</span>
                     <ExternalLink className="w-3.5 h-3.5 text-[#042B58]" />
                   </a>
                   <p className="text-[11px] text-slate-300 text-center">
@@ -359,7 +276,7 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
             </div>
           )}
 
-          {/* All 9 Modules List with Dropdown/Accordion Menù a Tendina */}
+          {/* All 9 Modules List (senza tasti singoli sblocca) */}
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-bold uppercase tracking-wider text-[#88A5BF] flex items-center gap-1.5">
@@ -376,184 +293,84 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
                 const isFirst = modulo.numero === 1;
                 const isSelectedModule = selectedModule.numero === modulo.numero;
                 const isLocked = isTrial && !isFirst;
-                const hasLessons = !!(modulo.lezioni && modulo.lezioni.length > 0);
-                const isExpanded = expandedModuleId === modulo.numero;
 
                 return (
                   <div
                     key={modulo.numero}
-                    className={`rounded-2xl border transition-all overflow-hidden ${
+                    onClick={() => handleSelectModule(modulo)}
+                    className={`rounded-2xl border transition-all p-3 flex items-center justify-between gap-3 cursor-pointer select-none ${
                       isSelectedModule
-                        ? 'bg-[#234C77] border-[#F9C03E] shadow-md'
+                        ? 'bg-[#234C77] border-[#F9C03E] shadow-md ring-1 ring-[#F9C03E]/40'
                         : isLocked
-                        ? 'bg-[#021831]/70 border-[#88A5BF]/20 hover:border-[#88A5BF]/50 opacity-90'
+                        ? 'bg-[#021831]/75 border-[#88A5BF]/25 hover:border-[#F9C03E]/50'
                         : 'bg-[#021831] border-[#88A5BF]/30 hover:border-[#F9C03E]'
                     }`}
                   >
-                    {/* Module Header Bar: cliccando qui si apre o chiude il menù a tendina */}
-                    <div
-                      onClick={() => handleToggleModuleAccordion(modulo)}
-                      className="p-3 flex items-center justify-between gap-3 cursor-pointer select-none"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {/* Module Icon */}
-                        <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                            isFirst
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                              : isLocked
-                              ? 'bg-slate-800 text-slate-400 border border-slate-700'
-                              : 'bg-[#042B58] text-[#F9C03E] border border-[#F9C03E]/40'
-                          }`}
-                        >
-                          {isFirst ? (
-                            <Play className="w-4 h-4 fill-emerald-400 text-emerald-400 ml-0.5" />
-                          ) : isLocked ? (
-                            <Lock className="w-4 h-4 text-[#F9C03E]" />
-                          ) : (
-                            <Video className="w-4 h-4 text-[#F9C03E]" />
-                          )}
-                        </div>
-
-                        {/* Module Info */}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span
-                              className={`text-[10px] font-bold uppercase tracking-wider ${
-                                isFirst ? 'text-emerald-400' : 'text-[#88A5BF]'
-                              }`}
-                            >
-                              Modulo {modulo.numero}
-                            </span>
-                            {isFirst && (
-                              <span className="text-[9px] font-bold uppercase text-[#042B58] bg-[#F9C03E] px-1.5 py-0.2 rounded-full font-bold">
-                                Gratuito
-                              </span>
-                            )}
-                            {hasLessons && (
-                              <span className="text-[9px] text-[#F9C03E] font-medium bg-[#021831] px-1.5 py-0.2 rounded-full border border-[#F9C03E]/30">
-                                {modulo.lezioni?.length} Lezioni (menù a tendina)
-                              </span>
-                            )}
-                            {isLocked && (
-                              <span className="text-[9px] text-[#F9C03E] font-medium flex items-center gap-0.5">
-                                <Lock className="w-2.5 h-2.5" /> Riservato
-                              </span>
-                            )}
-                          </div>
-                          <h4 className="text-xs font-bold text-white truncate">
-                            {modulo.titolo}
-                          </h4>
-                          <p className="text-[11px] text-slate-300 line-clamp-1">
-                            {modulo.descrizione}
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Module Icon: Play per il Modulo 1, Lucchetto dorato per i successivi 8 */}
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          isFirst
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : isLocked
+                            ? 'bg-slate-800/90 text-[#F9C03E] border border-[#F9C03E]/40 shadow-sm'
+                            : 'bg-[#042B58] text-[#F9C03E] border border-[#F9C03E]/40'
+                        }`}
+                      >
+                        {isFirst ? (
+                          <Play className="w-4 h-4 fill-emerald-400 text-emerald-400 ml-0.5" />
+                        ) : isLocked ? (
+                          <Lock className="w-4 h-4 text-[#F9C03E]" />
+                        ) : (
+                          <Video className="w-4 h-4 text-[#F9C03E]" />
+                        )}
                       </div>
 
-                      {/* Right Indicator: Chevron per menù a tendina o lucchetto */}
-                      <div className="shrink-0 flex items-center gap-2">
-                        {isLocked ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenUnlock(
-                                modulo.lezioni
-                                  ? `Sblocca il Modulo ${modulo.numero} (${modulo.lezioni.map((l) => l.titolo).join(', ')}) e tutti i 9 moduli del videocorso completo a 97€!`
-                                  : `Sblocca il Modulo ${modulo.numero} e tutti i 9 moduli del videocorso a 97€!`
-                              );
-                            }}
-                            className="py-1 px-2.5 rounded-lg bg-[#234C77]/80 hover:bg-[#F9C03E] text-[#F9C03E] hover:text-[#042B58] border border-[#F9C03E]/30 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      {/* Module Info: solo i titoli puliti */}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider ${
+                              isFirst ? 'text-emerald-400' : 'text-[#88A5BF]'
+                            }`}
                           >
-                            <span>Sblocca</span>
-                          </button>
-                        ) : hasLessons ? (
-                          <div className="flex items-center gap-1 text-[11px] text-[#F9C03E] font-semibold bg-[#021831]/80 py-1 px-2 rounded-lg border border-[#88A5BF]/30">
-                            <span>{isExpanded ? 'Chiudi' : 'Lezioni'}</span>
-                            {isExpanded ? (
-                              <ChevronUp className="w-3.5 h-3.5" />
-                            ) : (
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            )}
-                          </div>
-                        ) : (
-                          <div className="py-1 px-2.5 rounded-lg bg-emerald-500/20 text-[10px] font-bold text-emerald-300 flex items-center gap-1">
-                            <span>Apri</span>
-                          </div>
-                        )}
+                            Modulo {modulo.numero}
+                          </span>
+                          {isFirst && (
+                            <span className="text-[9px] font-bold uppercase text-[#042B58] bg-[#F9C03E] px-1.5 py-0.2 rounded-full font-bold">
+                              Gratuito
+                            </span>
+                          )}
+                          {isLocked && (
+                            <span className="text-[9px] text-[#F9C03E] font-medium flex items-center gap-0.5">
+                              <Lock className="w-2.5 h-2.5" /> Riservato
+                            </span>
+                          )}
+                        </div>
+                        <h4 className={`text-xs sm:text-sm font-bold truncate ${isSelectedModule ? 'text-[#F9C03E]' : 'text-white'}`}>
+                          {modulo.titolo}
+                        </h4>
                       </div>
                     </div>
 
-                    {/* MENÙ A TENDINA DELLE LEZIONI (Dropdown) */}
-                    {hasLessons && isExpanded && (
-                      <div className="border-t border-[#88A5BF]/25 bg-[#021831]/95 divide-y divide-[#88A5BF]/15 animate-fadeIn">
-                        {modulo.lezioni?.map((lez, idx) => {
-                          const isCurrentActiveLesson =
-                            isSelectedModule && selectedLessonIndex === idx;
-
-                          return (
-                            <div
-                              key={lez.numero}
-                              onClick={() => handleSelectLessonFromDropdown(modulo, idx)}
-                              className={`p-3 flex items-center justify-between gap-3 cursor-pointer transition-all ${
-                                isCurrentActiveLesson
-                                  ? 'bg-[#234C77] text-white'
-                                  : 'hover:bg-[#234C77]/50 text-slate-200'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                {/* Number Badge */}
-                                <div
-                                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                                    isCurrentActiveLesson
-                                      ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
-                                      : 'bg-[#042B58] text-[#F9C03E] border border-[#88A5BF]/30'
-                                  }`}
-                                >
-                                  {lez.numero}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <h5 className="text-xs font-bold truncate">
-                                      Lezione {lez.numero}: {lez.titolo}
-                                    </h5>
-                                    {isCurrentActiveLesson && (
-                                      <span className="text-[9px] font-bold uppercase bg-[#F9C03E] text-[#042B58] px-1.5 py-0.2 rounded-full">
-                                        In riproduzione
-                                      </span>
-                                    )}
-                                  </div>
-                                  {lez.descrizione && (
-                                    <p className="text-[11px] text-slate-300 line-clamp-1 mt-0.5">
-                                      {lez.descrizione}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="shrink-0">
-                                {isLocked ? (
-                                  <div className="py-1 px-2 rounded-lg bg-[#021831] text-[10px] text-[#F9C03E] border border-[#F9C03E]/30 flex items-center gap-1">
-                                    <Lock className="w-3 h-3" />
-                                    <span>Bloccato</span>
-                                  </div>
-                                ) : isCurrentActiveLesson ? (
-                                  <div className="py-1 px-2.5 rounded-lg bg-[#F9C03E] text-[#042B58] text-[10px] font-bold flex items-center gap-1 shadow-sm">
-                                    <Play className="w-3 h-3 fill-current" />
-                                    <span>Attiva</span>
-                                  </div>
-                                ) : (
-                                  <div className="py-1 px-2.5 rounded-lg bg-[#234C77] hover:bg-[#F9C03E] text-[#F9C03E] hover:text-[#042B58] text-[10px] font-bold flex items-center gap-1 transition-colors border border-[#F9C03E]/30">
-                                    <Play className="w-3 h-3 fill-current" />
-                                    <span>Riproduci</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {/* Nessun tasto singolo sblocca: solo indicatore discreto */}
+                    <div className="shrink-0 flex items-center">
+                      {isFirst ? (
+                        <div className="py-1 px-2.5 rounded-lg bg-emerald-500/20 text-[10px] font-bold text-emerald-300 flex items-center gap-1 border border-emerald-500/30">
+                          <Play className="w-3 h-3 fill-current" />
+                          <span>Gratis</span>
+                        </div>
+                      ) : isLocked ? (
+                        <div className="w-7 h-7 rounded-lg bg-slate-800/60 border border-[#88A5BF]/20 flex items-center justify-center text-[#F9C03E]/80">
+                          <Lock className="w-3.5 h-3.5" />
+                        </div>
+                      ) : (
+                        <div className="py-1 px-2.5 rounded-lg bg-[#234C77] text-[10px] font-bold text-[#F9C03E] flex items-center gap-1 border border-[#F9C03E]/30">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Sbloccato</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}

@@ -13,28 +13,8 @@ export const VIDEOCORSO: ModuloVideo[] = [
   {
     numero: 2,
     titolo: "Entra in pista con la testa giusta",
-    descrizione: "Il modo di pensare che cambia come ti muovi, come guidi e come lei ti percepisce. Modulo suddiviso in 3 lezioni pratiche progressive.",
+    descrizione: "Il modo di pensare che cambia come ti muovi, come guidi e come lei ti percepisce.",
     videoUrl: AREA_RISERVATA_URL,
-    lezioni: [
-      {
-        numero: 1,
-        titolo: "Mentalità",
-        descrizione: "Fiducia e autostima, blocchi mentali, difficoltà tecniche, connessione e paura seduttiva.",
-        videoUrl: AREA_RISERVATA_URL,
-      },
-      {
-        numero: 2,
-        titolo: "Connessione",
-        descrizione: "Creare sintonia immediata prima ancora del primo passo: ascolto non verbale e intesa reciproca.",
-        videoUrl: AREA_RISERVATA_URL,
-      },
-      {
-        numero: 3,
-        titolo: "Consigli",
-        descrizione: "Accorgimenti pratici, errori tipici da evitare ed esercizi da testare subito nella prossima serata.",
-        videoUrl: AREA_RISERVATA_URL,
-      },
-    ],
     collegati: ["cap06", "cap07"],
   },
   {
