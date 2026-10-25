@@ -605,7 +605,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                               setCode(e.target.value);
                               if (errorMessage) setErrorMessage('');
                             }}
-                            placeholder="MAGNETICO"
+                            placeholder="Inserisci Codice"
                             className="w-full pl-10 pr-4 py-3 bg-[#021831]/80 border border-[#88A5BF]/40 rounded-xl text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E]"
                             autoCapitalize="characters"
                             autoCorrect="off"
