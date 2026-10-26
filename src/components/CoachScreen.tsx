@@ -23,6 +23,7 @@ import {
   getCoachDailyUsage,
   incrementCoachUsage,
   getUserData,
+  saveUserData,
   getMissionsProgress,
   isTrialUser,
   incrementTrialCoachQuestions,
@@ -39,6 +40,7 @@ interface CoachScreenProps {
   onGoToRitual?: () => void;
   onGoToLibrary?: () => void;
   onOpenUnlock?: (notice?: string) => void;
+  onUserDataUpdated?: (updated: UserData) => void;
 }
 
 type CategoryFilter = 'all' | 'approccio' | 'bachata' | 'salsa' | 'chiusura' | 'psicologia';
@@ -52,6 +54,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   onGoToRitual,
   onGoToLibrary,
   onOpenUnlock,
+  onUserDataUpdated,
 }) => {
   const currentUserName = user?.name || getUserData()?.name || '';
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -63,8 +66,30 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   const [isQuestionPickerExpanded, setIsQuestionPickerExpanded] = useState(false);
 
   const isTrial = isTrialUser(user);
-  const trialUsed = user?.trialCoachQuestionsUsed || 0;
+  const [trialUsed, setTrialUsed] = useState<number>(() => {
+    return user?.trialCoachQuestionsUsed ?? getUserData()?.trialCoachQuestionsUsed ?? 0;
+  });
   const trialRemaining = Math.max(0, 3 - trialUsed);
+
+  // Sync trial usage from server whenever user/email changes or on mount
+  useEffect(() => {
+    const currentStoredUsed = user?.trialCoachQuestionsUsed ?? getUserData()?.trialCoachQuestionsUsed ?? 0;
+    setTrialUsed(currentStoredUsed);
+
+    const email = (user?.email || getUserData()?.email || '').trim().toLowerCase();
+    if (isTrial && email) {
+      fetch(`/api/coach/trial-status?email=${encodeURIComponent(email)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (typeof data.questionsUsed === 'number') {
+            setTrialUsed(data.questionsUsed);
+            const updated = saveUserData({ trialCoachQuestionsUsed: data.questionsUsed });
+            onUserDataUpdated?.(updated);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.trialCoachQuestionsUsed, user?.email, isTrial, onUserDataUpdated]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -92,9 +117,11 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     const trimmed = questionText.trim();
     if (!trimmed || isLoading) return;
 
-    // Check trial limit
+    // Strict check on 3 trial questions limit
     if (isTrial && trialRemaining <= 0) {
-      onOpenUnlock?.('Hai usato le domande gratuite di oggi.');
+      onOpenUnlock?.(
+        'Hai esaurito le 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare a parlare con Andrea Frattesi!'
+      );
       return;
     }
 
@@ -110,10 +137,6 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     setErrorNotice(null);
     setIsQuestionPickerExpanded(false);
 
-    if (isTrial) {
-      incrementTrialCoachQuestions();
-    }
-
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
@@ -126,7 +149,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     saveChatMessages(newHistory);
     setIsLoading(true);
 
-    // Decrement usage
+    // Decrement usage for daily limits
     const { remainingToday: newRemaining } = incrementCoachUsage();
     setRemainingToday(newRemaining);
 
@@ -141,26 +164,51 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
       : undefined;
 
     try {
-      const reply = await sendCoachChatMessage({
+      const response = await sendCoachChatMessage({
         message: trimmed,
         history: messages.map((m) => ({ sender: m.sender, text: m.text })),
         userName: currentUserName,
+        userEmail: user?.email || getUserData()?.email || '',
+        isTrial,
+        accessCode: user?.accessCode || getUserData()?.accessCode || '',
         userProfile: profileName,
         currentMission: currentMissionStr,
         activeUnitId: activeUnitId,
       });
 
+      if (isTrial) {
+        const nextUsed = typeof response.trialCoachQuestionsUsed === 'number'
+          ? response.trialCoachQuestionsUsed
+          : trialUsed + 1;
+        setTrialUsed(nextUsed);
+        const updated = saveUserData({ trialCoachQuestionsUsed: nextUsed });
+        onUserDataUpdated?.(updated);
+      }
+
       const coachMessage: ChatMessage = {
         id: `coach-${Date.now()}`,
         sender: 'coach',
-        text: reply,
+        text: response.reply,
         timestamp: Date.now(),
       };
 
       const finalHistory = [...newHistory, coachMessage];
       setMessages(finalHistory);
       saveChatMessages(finalHistory);
-    } catch {
+    } catch (err: any) {
+      if (err?.trialLimitReached) {
+        setTrialUsed(3);
+        const updated = saveUserData({ trialCoachQuestionsUsed: 3 });
+        onUserDataUpdated?.(updated);
+        // Rollback message so they don't see an unanswered user bubble
+        setMessages(messages);
+        saveChatMessages(messages);
+        onOpenUnlock?.(
+          'Hai raggiunto il limite massimo di 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare!'
+        );
+        return;
+      }
+
       const namePart = currentUserName ? `Ciao ${currentUserName}, ` : 'Ciao, ';
       const fallbackReply = `${namePart}qualunque sia il dubbio in questo momento, torna subito al tuo Asse: respira profondo, allinea la postura e applica la regola dei 3 secondi. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]] prima del prossimo ballo!`;
       const fallbackMsg: ChatMessage = {
@@ -413,7 +461,9 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
               </p>
               <div className="p-2 rounded-xl bg-[#021831]/80 border border-[#88A5BF]/20 text-[11px] text-[#88A5BF] flex items-center justify-between">
                 <span>🎯 100 Domande ufficiali (20 per sezione, numerate 1-20)</span>
-                <span className="text-[#F9C03E] font-semibold font-mono">Disponibili: {remainingToday}/20</span>
+                <span className="text-[#F9C03E] font-semibold font-mono">
+                  {isTrial ? `Domande di prova: ${trialRemaining}/3` : `Disponibili: ${remainingToday}/20`}
+                </span>
               </div>
             </div>
 
@@ -728,8 +778,16 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
                       </div>
                     )}
                     <button
-                      onClick={() => handleSendMessage(q.question)}
-                      disabled={remainingToday <= 0 || isLoading}
+                      onClick={() => {
+                        if (isTrial && trialRemaining <= 0) {
+                          onOpenUnlock?.(
+                            'Hai raggiunto il limite massimo di 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare!'
+                          );
+                          return;
+                        }
+                        handleSendMessage(q.question);
+                      }}
+                      disabled={(isTrial ? trialRemaining <= 0 : remainingToday <= 0) || isLoading}
                       className="w-full p-2.5 rounded-xl bg-[#021831]/80 hover:bg-[#234C77] border border-[#88A5BF]/20 hover:border-[#F9C03E]/50 text-left transition-all flex flex-col gap-1 group cursor-pointer disabled:opacity-40"
                     >
                       <div className="flex items-center justify-between">
@@ -767,8 +825,16 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
               return (
                 <button
                   key={q.id}
-                  onClick={() => handleSendMessage(q.question)}
-                  disabled={remainingToday <= 0 || isLoading}
+                  onClick={() => {
+                    if (isTrial && trialRemaining <= 0) {
+                      onOpenUnlock?.(
+                        'Hai raggiunto il limite massimo di 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare!'
+                      );
+                      return;
+                    }
+                    handleSendMessage(q.question);
+                  }}
+                  disabled={(isTrial ? trialRemaining <= 0 : remainingToday <= 0) || isLoading}
                   className="text-[11px] whitespace-nowrap px-3 py-1.5 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-200 hover:text-white border border-[#88A5BF]/30 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                 >
                   <span className="max-w-[200px] truncate text-white">{numLabel}. {q.summary}</span>

@@ -81,6 +81,84 @@ function saveUsers(users: Record<string, any>) {
   }
 }
 
+// Persistent Coach Trial Usage Store on Server (tracks questions asked per email)
+const COACH_TRIAL_FILE = path.resolve(ROOT_DIR, 'data', 'coach_trial_usage.json');
+
+interface CoachTrialUsageRecord {
+  email: string;
+  count: number;
+  lastUsedAt: string;
+  history?: Array<{ question: string; time: string }>;
+}
+
+function loadCoachTrialUsage(): Record<string, CoachTrialUsageRecord> {
+  try {
+    if (fs.existsSync(COACH_TRIAL_FILE)) {
+      const raw = fs.readFileSync(COACH_TRIAL_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.error('Error reading coach trial usage:', e);
+  }
+  return {};
+}
+
+function saveCoachTrialUsage(data: Record<string, CoachTrialUsageRecord>) {
+  try {
+    fs.mkdirSync(path.dirname(COACH_TRIAL_FILE), { recursive: true });
+    fs.writeFileSync(COACH_TRIAL_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Error saving coach trial usage:', e);
+  }
+}
+
+function getCoachTrialQuestionsUsed(email: string): number {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) return 0;
+  const store = loadCoachTrialUsage();
+  return store[cleanEmail]?.count || 0;
+}
+
+function incrementCoachTrialQuestions(email: string, questionText?: string): number {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) return 0;
+  const store = loadCoachTrialUsage();
+  const existing = store[cleanEmail] || {
+    email: cleanEmail,
+    count: 0,
+    lastUsedAt: new Date().toISOString(),
+    history: [],
+  };
+  existing.count = (existing.count || 0) + 1;
+  existing.lastUsedAt = new Date().toISOString();
+  if (!Array.isArray(existing.history)) existing.history = [];
+  if (questionText) {
+    existing.history.push({
+      question: questionText.slice(0, 300),
+      time: new Date().toISOString(),
+    });
+  }
+  store[cleanEmail] = existing;
+  saveCoachTrialUsage(store);
+  return existing.count;
+}
+
+// API: Check Coach Trial Status by Email
+app.get('/api/coach/trial-status', (req, res) => {
+  const email = String(req.query.email || '').trim().toLowerCase();
+  if (!email) {
+    return res.status(400).json({ error: 'Email non specificata' });
+  }
+  const count = getCoachTrialQuestionsUsed(email);
+  const remaining = Math.max(0, 3 - count);
+  res.json({
+    email,
+    questionsUsed: count,
+    remaining,
+    isLimitReached: count >= 3,
+  });
+});
+
 // API: Register User (with purchase code validation)
 app.post('/api/auth/register', (req, res) => {
   const { email, password, name, accessCode } = req.body;
@@ -169,21 +247,51 @@ app.post('/api/auth/login', (req, res) => {
 
 // API: Coach Chat
 app.post('/api/coach/chat', async (req, res) => {
-  try {
-    const {
-      message,
-      history,
-      userName,
-      userProfile,
-      currentMission,
-      activeUnitId,
-    } = req.body;
+  const {
+    message,
+    history,
+    userName,
+    userEmail,
+    isTrial,
+    accessCode,
+    userProfile,
+    currentMission,
+    activeUnitId,
+  } = req.body;
 
-    if (!message || typeof message !== 'string') {
-      res.status(400).json({ error: 'Messaggio non fornito.' });
-      return;
+  if (!message || typeof message !== 'string') {
+    res.status(400).json({ error: 'Messaggio non fornito.' });
+    return;
+  }
+
+  const cleanEmail = String(userEmail || '').trim().toLowerCase();
+  const cleanCode = String(accessCode || '').trim().toUpperCase();
+  const validPurchaseCodes = ['MAGNETICO', 'CALAMITA2026', 'CALAMITA', 'CODICE'];
+  const isPaidUser = validPurchaseCodes.includes(cleanCode);
+  const isTrialUserRequest = isTrial === true || cleanCode === 'TRIAL' || cleanCode === 'DEMO' || !isPaidUser;
+
+  // Se è utente in prova, controlla il limite di 3 domande memorizzato per questa email sul server
+  if (isTrialUserRequest) {
+    if (!cleanEmail) {
+      return res.status(403).json({
+        error: 'Email non specificata. Per usufruire della prova gratuita è necessario inserire la propria email.',
+        trialLimitReached: true,
+        remaining: 0,
+      });
     }
 
+    const currentUsed = getCoachTrialQuestionsUsed(cleanEmail);
+    if (currentUsed >= 3) {
+      return res.status(403).json({
+        error: 'Hai raggiunto il limite massimo di 3 domande gratuite della prova per questa email.',
+        trialLimitReached: true,
+        questionsUsed: currentUsed,
+        remaining: 0,
+      });
+    }
+  }
+
+  try {
     const studentName = typeof userName === 'string' ? userName.trim() : '';
 
     // Determine relevant units for context
@@ -312,7 +420,20 @@ ATTENZIONE: NON ri-presentarti MAI ("sono Andrea Frattesi...", "sono il tuo coac
       });
     }
 
-    res.json({ reply: replyText });
+    let newTrialCount: number | undefined = undefined;
+    let newTrialRemaining: number | undefined = undefined;
+
+    if (isTrialUserRequest && cleanEmail) {
+      newTrialCount = incrementCoachTrialQuestions(cleanEmail, message);
+      newTrialRemaining = Math.max(0, 3 - newTrialCount);
+    }
+
+    res.json({
+      reply: replyText,
+      trialCoachQuestionsUsed: newTrialCount,
+      trialRemaining: newTrialRemaining,
+      trialLimitReached: newTrialRemaining !== undefined ? newTrialRemaining <= 0 : false,
+    });
   } catch (error) {
     console.error('Gemini chat error:', error);
     const replyText = generateCoachReasoning({
@@ -323,7 +444,21 @@ ATTENZIONE: NON ri-presentarti MAI ("sono Andrea Frattesi...", "sono il tuo coac
       currentMission: req.body?.currentMission,
       activeUnitId: req.body?.activeUnitId,
     });
-    res.json({ reply: replyText });
+
+    let newTrialCount: number | undefined = undefined;
+    let newTrialRemaining: number | undefined = undefined;
+
+    if (isTrialUserRequest && cleanEmail) {
+      newTrialCount = incrementCoachTrialQuestions(cleanEmail, message);
+      newTrialRemaining = Math.max(0, 3 - newTrialCount);
+    }
+
+    res.json({
+      reply: replyText,
+      trialCoachQuestionsUsed: newTrialCount,
+      trialRemaining: newTrialRemaining,
+      trialLimitReached: newTrialRemaining !== undefined ? newTrialRemaining <= 0 : false,
+    });
   }
 });
 
@@ -866,7 +1001,13 @@ app.post('/api/trial-lead', async (req, res) => {
     // Inoltro automatico diretto via API ufficiale a Systeme.io
     syncContactToSystemeIo(cleanName, cleanEmail).catch(() => {});
 
-    res.json({ success: true, lead: leadRecord });
+    const currentQuestionsUsed = getCoachTrialQuestionsUsed(cleanEmail);
+    res.json({
+      success: true,
+      lead: leadRecord,
+      trialCoachQuestionsUsed: currentQuestionsUsed,
+      trialCoachRemaining: Math.max(0, 3 - currentQuestionsUsed),
+    });
   } catch (err) {
     console.error('Errore salvataggio lead prova:', err);
     res.status(500).json({ error: 'Errore interno salvataggio contatto.' });

@@ -60,6 +60,18 @@ export default function App() {
     const existing = getUserData();
     if (existing && existing.accessCode) {
       setUser(existing);
+      // Se è utente in prova con email, controlla e sincronizza dal server il conteggio delle domande
+      if (isTrialUser(existing) && existing.email) {
+        fetch(`/api/coach/trial-status?email=${encodeURIComponent(existing.email)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (typeof data.questionsUsed === 'number') {
+              const synced = saveUserData({ trialCoachQuestionsUsed: data.questionsUsed });
+              setUser(synced);
+            }
+          })
+          .catch(() => {});
+      }
     }
     setMissionsProgress(getMissionsProgress());
     setDiaryEntries(getDiaryEntries());
@@ -85,14 +97,8 @@ export default function App() {
   if (!user || !user.accessCode) {
     return (
       <AuthScreen
-        onSuccess={(name, accessCode) => {
-          const isPaid = accessCode !== 'TRIAL' && accessCode !== 'DEMO';
-          const fresh = saveUserData({
-            name,
-            accessCode,
-            isTrial: !isPaid,
-            isVideocorsoUnlocked: isPaid,
-          });
+        onSuccess={(_name, _accessCode) => {
+          const fresh = getUserData();
           setUser(fresh);
         }}
       />
@@ -264,6 +270,7 @@ export default function App() {
                 onGoToRitual={() => setIsRitualView(true)}
                 onGoToLibrary={() => setCurrentTab('libreria')}
                 onOpenUnlock={openUnlockWithNotice}
+                onUserDataUpdated={(updated) => setUser(updated)}
               />
             )}
 

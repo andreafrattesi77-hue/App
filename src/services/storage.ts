@@ -107,7 +107,9 @@ export function saveUserData(data: Partial<UserData>): UserData {
     watchedVideos: data.watchedVideos !== undefined ? data.watchedVideos : current.watchedVideos,
     isTrial: resolvedIsTrial,
     isVideocorsoUnlocked: resolvedVideocorso,
-    trialCoachQuestionsUsed: data.trialCoachQuestionsUsed !== undefined ? data.trialCoachQuestionsUsed : (current.trialCoachQuestionsUsed || 0),
+    trialCoachQuestionsUsed: data.trialCoachQuestionsUsed !== undefined
+      ? Math.max(current.trialCoachQuestionsUsed || 0, data.trialCoachQuestionsUsed)
+      : (current.trialCoachQuestionsUsed || 0),
   };
 
   localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
@@ -148,10 +150,10 @@ export function getTrialCoachRemaining(user?: UserData | null): number {
   return Math.max(0, 3 - (user.trialCoachQuestionsUsed || 0));
 }
 
-export function incrementTrialCoachQuestions(): number {
+export function incrementTrialCoachQuestions(count?: number): number {
   const current = getUserData();
   const currentCount = current?.trialCoachQuestionsUsed || 0;
-  const nextCount = currentCount + 1;
+  const nextCount = typeof count === 'number' ? Math.max(currentCount, count) : currentCount + 1;
   saveUserData({ trialCoachQuestionsUsed: nextCount });
   return nextCount;
 }

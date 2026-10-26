@@ -299,20 +299,35 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     setIsSubmittingTrial(true);
 
     try {
-      // 1. Invia a backend per salvataggio lead ed inoltro webhook Systeme.io
-      await fetch('/api/trial-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: cleanName, email: cleanEmail }),
-      }).catch((err) => console.warn('Invio trial lead:', err));
+      // 1. Invia a backend per salvataggio lead ed inoltro webhook Systeme.io e recupera stato domande Coach
+      let serverQuestionsUsed = 0;
+      try {
+        const res = await fetch('/api/trial-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: cleanName, email: cleanEmail }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.trialCoachQuestionsUsed === 'number') {
+            serverQuestionsUsed = data.trialCoachQuestionsUsed;
+          }
+        }
+      } catch (err) {
+        console.warn('Invio trial lead:', err);
+      }
 
-      // 2. Salva localmente
+      // 2. Salva localmente mantenendo il conteggio reale registrato sul server
+      const existing = getUserData();
+      const existingForThisEmail = existing?.email === cleanEmail ? (existing.trialCoachQuestionsUsed || 0) : 0;
+      const finalQuestionsUsed = Math.max(serverQuestionsUsed, existingForThisEmail);
+
       saveUserData({
         accessCode: 'TRIAL',
         isTrial: true,
         name: cleanName,
         email: cleanEmail,
-        trialCoachQuestionsUsed: 0,
+        trialCoachQuestionsUsed: finalQuestionsUsed,
       });
 
       onSuccess(cleanName, 'TRIAL');
@@ -322,7 +337,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         isTrial: true,
         name: cleanName,
         email: cleanEmail,
-        trialCoachQuestionsUsed: 0,
       });
       onSuccess(cleanName, 'TRIAL');
     } finally {
