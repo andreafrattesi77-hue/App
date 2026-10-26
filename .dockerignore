@@ -1,0 +1,11 @@
+.dockerignore
+.gcloudignore
+.git
+.gitignore
+node_modules/
+.aistudio/
+dist/
+coverage/
+*.log
+.env*
+!.env.example

@@ -1054,6 +1054,7 @@ app.use(
 const DIST_DIR = path.resolve(ROOT_DIR, 'dist');
 const isProd =
   process.env.NODE_ENV === 'production' ||
+  import.meta.url.includes('/dist/') ||
   (fs.existsSync(path.resolve(DIST_DIR, 'index.html')) && process.env.NODE_ENV !== 'development');
 
 if (!isProd) {
