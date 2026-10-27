@@ -9,6 +9,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import {
+  initializeFirestore,
   getFirestore,
   doc,
   getDoc,
@@ -17,6 +18,7 @@ import {
   collection,
   getDocs,
   deleteDoc,
+  Firestore,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { UserData, EveningEntry, MissionProgress, ChatMessage } from '../types';
@@ -25,10 +27,23 @@ import { UserData, EveningEntry, MissionProgress, ChatMessage } from '../types';
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-export const db = getFirestore(
-  app,
-  firebaseConfig.firestoreDatabaseId || '(default)'
-);
+
+const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
+
+let firestoreDb: Firestore;
+try {
+  firestoreDb = initializeFirestore(
+    app,
+    {
+      experimentalForceLongPolling: true,
+    },
+    databaseId
+  );
+} catch {
+  firestoreDb = getFirestore(app, databaseId);
+}
+
+export const db = firestoreDb;
 
 // Test connection on boot
 export async function testConnection(): Promise<boolean> {
