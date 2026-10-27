@@ -12,8 +12,7 @@ export const VIDEOCORSO: ModuloVideo[] = [
     videoUrl: "/assets/aistudio/Intro_Videocorso-1_cd289a2f.mp4",
     collegati: ["intro"],
     lezioni: [
-      { numero: 1, titolo: "Benvenuto e introduzione al metodo", durata: "03:45" },
-      { numero: 2, titolo: "Come integrare video ed ebook", durata: "04:12" },
+      { numero: 1, titolo: "Benvenuto e introduzione al metodo", durata: "03:14" },
     ],
   },
   {
@@ -21,30 +20,11 @@ export const VIDEOCORSO: ModuloVideo[] = [
     titolo: "Mentalità, Connessione & Consigli Base",
     descrizione: "Le fondamenta psicologiche, fisiche e relazionali per trasformare il tuo approccio in pista: superare i blocchi mentali, creare vera connessione ed evitare gli errori di presenza.",
     evidenza: "La sicurezza interiore precede sempre il movimento del corpo: non conta quante figure fai, ma come le fai.",
-    videoUrl: "/videos/modulo2_mentalita.mp4",
     collegati: ["cap06", "cap07", "cap11"],
     lezioni: [
-      {
-        numero: 1,
-        titolo: "Mentalità (Mindset)",
-        descrizione: "Fiducia e autostima, abbattimento dei blocchi mentali ('non sono portato', 'non sono sexy', 'devo essere perfetto'), gestione della paura del giudizio e della frustrazione seduttiva.",
-        durata: "08:05",
-        videoUrl: "/videos/modulo2_mentalita.mp4",
-      },
-      {
-        numero: 2,
-        titolo: "Connessione",
-        descrizione: "Le 6 chiavi per creare sintonia con la ballerina: presenza totale, contatto leggero ma chiaro, gioco di sguardi, alternanza tensione e rilascio, accoglienza e chiusura magnetica.",
-        durata: "04:30",
-        videoUrl: "/videos/modulo2_connessione.mp4",
-      },
-      {
-        numero: 3,
-        titolo: "Consigli base",
-        descrizione: "Preparazione impeccabile: magliette e tessuti anti-sudore, pantaloni lunghi, alito fresco, profumo gradevole, igiene e accessori per valorizzarti senza sembrare ridicolo.",
-        durata: "03:07",
-        videoUrl: "/videos/modulo2_consigli_base.mp4",
-      },
+      { numero: 1, titolo: "Mentalità e superamento dei blocchi", durata: "08:05" },
+      { numero: 2, titolo: "Le 6 chiavi per creare connessione", durata: "04:30" },
+      { numero: 3, titolo: "Consigli base di preparazione e stile", durata: "03:07" },
     ],
   },
   {
@@ -52,7 +32,6 @@ export const VIDEOCORSO: ModuloVideo[] = [
     titolo: "Ascolta la musica come la sente lei",
     descrizione: "Perché la musica decide il ballo e come usarla per creare emozione, invece di contare meccanicamente i passi.",
     evidenza: "Non contare i numeri ad alta voce: senti la clave e l'accento emotivo.",
-    videoUrl: "/videos/modulo3.mp4",
     collegati: ["cap13"],
     lezioni: [
       { numero: 1, titolo: "Riconoscere i cambi di energia nel brano", durata: "07:20" },
@@ -64,7 +43,6 @@ export const VIDEOCORSO: ModuloVideo[] = [
     titolo: "Rifai le basi della Salsa nel modo giusto",
     descrizione: "Passo base, guida e postura rivisti con un obiettivo nuovo: connettere, non eseguire figure in serie.",
     evidenza: "La mano che guida non spinge: invita e accoglie.",
-    videoUrl: "/videos/modulo4.mp4",
     collegati: ["cap11", "cap13"],
     lezioni: [
       { numero: 1, titolo: "Il passo base senza tensioni", durata: "08:15" },
@@ -76,7 +54,6 @@ export const VIDEOCORSO: ModuloVideo[] = [
     titolo: "Usa la Salsa per farla sentire al sicuro",
     descrizione: "Come guidare perché lei si fidi di te già dalle prime battute e si lasci condurre senza timori.",
     evidenza: "Una donna che si sente al sicuro chiude gli occhi e si abbandona al ballo.",
-    videoUrl: "/videos/modulo5.mp4",
     collegati: ["cap11"],
     lezioni: [
       { numero: 1, titolo: "Chiarezza del segnale e morbidezza", durata: "07:35" },
@@ -88,7 +65,6 @@ export const VIDEOCORSO: ModuloVideo[] = [
     titolo: "Le figure di Salsa che contano davvero",
     descrizione: "Poche figure scelte per creare vera connessione, spiegate ed eseguite passo per passo.",
     evidenza: "Non conta quante figure fai, conta l'intensità di ciò che provate in due.",
-    videoUrl: "/videos/modulo6.mp4",
     collegati: ["cap13"],
     lezioni: [
       { numero: 1, titolo: "Cross Body Lead con sguardo ancorato", durata: "09:10" },
@@ -100,7 +76,6 @@ export const VIDEOCORSO: ModuloVideo[] = [
     titolo: "Le basi della Bachata, senza errori",
     descrizione: "Strette, sguardi, vicinanza. Il tutto durante il ballo, sempre con rispetto e naturale eleganza.",
     evidenza: "La vicinanza non si impone, si crea creando lo spazio perché sia lei a volerla.",
-    videoUrl: "/videos/modulo7.mp4",
     collegati: ["cap14"],
     lezioni: [
       { numero: 1, titolo: "Postura e passo base della Bachata autentica", durata: "06:40" },
@@ -112,7 +87,6 @@ export const VIDEOCORSO: ModuloVideo[] = [
     titolo: "Fai della Bachata un'esperienza che ricorda",
     descrizione: "Come usare vicinanza, ritmo e pause per tendere il Filo Invisibile e lasciare un ricordo indelebile.",
     evidenza: "Il flirt invisibile vive nei millimetri e nelle pause tra un battito e l'altro.",
-    videoUrl: "/videos/modulo8.mp4",
     collegati: ["cap14", "cap04"],
     lezioni: [
       { numero: 1, titolo: "Vicinanza progressiva senza forzature", durata: "08:30" },
@@ -124,7 +98,6 @@ export const VIDEOCORSO: ModuloVideo[] = [
     titolo: "Le figure di Bachata che la fanno restare",
     descrizione: "Le figure mirate per creare intesa ed empatia emotiva, mostrate e spiegate una per una.",
     evidenza: "La chiusura perfetta: lasciarla con il desiderio di ballare ancora con te.",
-    videoUrl: "/videos/modulo9.mp4",
     collegati: ["cap14", "cap16"],
     lezioni: [
       { numero: 1, titolo: "Onde e isolazioni guidate con delicatezza", durata: "09:40" },

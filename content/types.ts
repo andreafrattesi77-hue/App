@@ -25,7 +25,7 @@ export interface ModuloVideo {
   titolo: string;
   descrizione: string;
   evidenza?: string;     // frase da mettere in risalto (oro, corsivo)
-  videoUrl: string;      // link YouTube non in elenco / Vimeo / Systeme / Drive da incollare
+  videoUrl?: string;     // link video in-app (modulo 1) o opzionale
   driveUrl?: string;     // cartella Google Drive con le lezioni
   lezioni?: LezioneModulo[];
   collegati: string[];

@@ -9,8 +9,9 @@ export const ACCESS_CODES: string[] = ['MAGNETICO', 'CODICE', 'CALAMITA2026', 'C
 // Link esterni ufficiali
 export const STRIPE_CHECKOUT_URL = 'https://www.andreafrattesi.com/checkoutapp';
 export const CHECKOUT_URL = 'https://www.andreafrattesi.com/checkoutapp';
-export const VIDEOCORSO_URL = 'https://www.andreafrattesi.com/it/login';
-export const AREA_RISERVATA_URL = 'https://www.andreafrattesi.com/it/login';
+export const VIDEOCORSO_URL = 'https://www.andreafrattesi.com/school/course/effettocalamita';
+export const COURSE_PLATFORM_URL = 'https://www.andreafrattesi.com/school/course/effettocalamita';
+export const AREA_RISERVATA_URL = 'https://www.andreafrattesi.com/school/course/effettocalamita';
 export const LANDING_URL = 'https://www.andreafrattesi.com/app';
 export const INSTAGRAM_URL = 'https://www.instagram.com/andreaseduzioneballo';
 export const SUPPORT_EMAIL = 'info@andreafrattesi.com';

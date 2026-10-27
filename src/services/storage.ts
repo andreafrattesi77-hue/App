@@ -117,11 +117,11 @@ export function saveUserData(data: Partial<UserData>): UserData {
 }
 
 export function isTrialUser(user?: UserData | null): boolean {
-  if (!user) return false;
+  if (!user) return true;
   const cleanCode = (user.accessCode || '').trim().toUpperCase();
 
   // Se l'utente ha inserito un codice di acquisto ufficiale valido, è sbloccato a vita
-  const validPurchaseCodes = ['MAGNETICO', 'CODICE', 'CALAMITA2026', 'CALAMITA'];
+  const validPurchaseCodes = ['MAGNETICO', 'CODICE', 'CALAMITA2026', 'CALAMITA', 'ACQUISTO_CONFERMATO'];
   if (validPurchaseCodes.includes(cleanCode)) {
     return false;
   }
@@ -131,17 +131,8 @@ export function isTrialUser(user?: UserData | null): boolean {
     return true;
   }
 
-  // Se non è in prova esplicita e ha l'email dell'autore/amministratore
-  const email = (user.email || '').trim().toLowerCase();
-  if (
-    email.includes('andreafrattesi') ||
-    email === 'andreafrattesi77@gmail.com' ||
-    email === 'info@andreafrattesi.com'
-  ) {
-    return false;
-  }
-
-  return !!user.isTrial;
+  // In assenza di un codice di acquisto valido, l'utente è sempre in prova gratuita / bloccato
+  return true;
 }
 
 export function getTrialCoachRemaining(user?: UserData | null): number {
