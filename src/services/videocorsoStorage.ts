@@ -1,5 +1,5 @@
 import { VIDEOCORSO } from '../../content/videocorso';
-import { ModuloVideo } from '../../content/types';
+import { ModuloVideo, LezioneModulo } from '../../content/types';
 
 const STORAGE_KEY = 'ec_videocorso_custom_urls';
 
@@ -10,7 +10,7 @@ export interface VideoEmbedInfo {
 }
 
 /**
- * Converte qualsiasi URL video (YouTube, Vimeo, Google Drive, MP4 diretto)
+ * Converte qualsiasi URL video (YouTube, Vimeo, Google Drive, MP4 diretto, blob:...)
  * nel formato ottimizzato per la riproduzione fluida direttamente all'interno dell'app.
  */
 export function parseVideoEmbed(rawUrl?: string): VideoEmbedInfo {
@@ -20,8 +20,9 @@ export function parseVideoEmbed(rawUrl?: string): VideoEmbedInfo {
 
   const url = rawUrl.trim();
 
-  // 1. File MP4 / WebM / Percorsi locali
+  // 1. File MP4 / WebM / Percorsi locali o blob URL da IndexedDB
   if (
+    url.startsWith('blob:') ||
     url.endsWith('.mp4') ||
     url.endsWith('.webm') ||
     url.endsWith('.mov') ||
@@ -34,7 +35,6 @@ export function parseVideoEmbed(rawUrl?: string): VideoEmbedInfo {
   }
 
   // 2. YouTube (standard, short, embed, live)
-  // Supporta: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID, youtube.com/shorts/ID
   const ytMatch = url.match(
     /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i
   );
@@ -47,7 +47,6 @@ export function parseVideoEmbed(rawUrl?: string): VideoEmbedInfo {
   }
 
   // 3. Vimeo
-  // Supporta: vimeo.com/123456789 o player.vimeo.com/video/123456789
   const vimeoMatch = url.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/i);
   if (vimeoMatch && vimeoMatch[1]) {
     const videoId = vimeoMatch[1];
@@ -58,7 +57,6 @@ export function parseVideoEmbed(rawUrl?: string): VideoEmbedInfo {
   }
 
   // 4. Google Drive
-  // Supporta: drive.google.com/file/d/ID/view o /preview
   const driveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
   if (driveMatch && driveMatch[1]) {
     const fileId = driveMatch[1];
@@ -77,25 +75,38 @@ export function parseVideoEmbed(rawUrl?: string): VideoEmbedInfo {
   return { type: 'iframe', src: url };
 }
 
-/**
- * Recupera i moduli del videocorso arricchiti con eventuali URL personalizzati
- * salvati dall'insegnante/amministratore.
- */
-export function getVideoCourseModules(): ModuloVideo[] {
-  let customMap: Record<number, string> = {};
+function getCustomUrlMap(): Record<string, string> {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      customMap = JSON.parse(saved);
-    }
+    if (saved) return JSON.parse(saved);
   } catch {}
+  return {};
+}
+
+/**
+ * Recupera i moduli del videocorso arricchiti con eventuali URL personalizzati
+ * salvati sia a livello di modulo che di singola lezione.
+ */
+export function getVideoCourseModules(): ModuloVideo[] {
+  const customMap = getCustomUrlMap();
 
   return VIDEOCORSO.map((m) => {
-    const custom = customMap[m.numero];
-    if (custom && custom.trim()) {
-      return { ...m, videoUrl: custom.trim() };
-    }
-    return m;
+    const customMod = customMap[String(m.numero)];
+    const moduleVideoUrl = customMod && customMod.trim() ? customMod.trim() : m.videoUrl;
+
+    const lezioniAggiornate = m.lezioni?.map((lez) => {
+      const customLez = customMap[`${m.numero}_${lez.numero}`];
+      return {
+        ...lez,
+        videoUrl: customLez && customLez.trim() ? customLez.trim() : lez.videoUrl || moduleVideoUrl,
+      };
+    });
+
+    return {
+      ...m,
+      videoUrl: moduleVideoUrl,
+      lezioni: lezioniAggiornate,
+    };
   });
 }
 
@@ -104,12 +115,19 @@ export function getVideoCourseModules(): ModuloVideo[] {
  */
 export function saveModuleVideoUrl(moduleNumber: number, url: string): void {
   try {
-    let customMap: Record<number, string> = {};
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      customMap = JSON.parse(saved);
-    }
-    customMap[moduleNumber] = url.trim();
+    const customMap = getCustomUrlMap();
+    customMap[String(moduleNumber)] = url.trim();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(customMap));
+  } catch {}
+}
+
+/**
+ * Salva l'URL di una lezione specifica all'interno di un modulo
+ */
+export function saveLessonVideoUrl(moduleNumber: number, lessonNumber: number, url: string): void {
+  try {
+    const customMap = getCustomUrlMap();
+    customMap[`${moduleNumber}_${lessonNumber}`] = url.trim();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(customMap));
   } catch {}
 }

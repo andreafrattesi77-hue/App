@@ -1041,7 +1041,6 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-// Dev vs Prod Vite setup
 // Explicitly serve public/assets for reliable video streaming with byte-ranges
 app.use(
   '/assets',
@@ -1050,6 +1049,62 @@ app.use(
     fallthrough: true,
   })
 );
+
+// Explicitly serve public/videos and dist/videos
+app.use(
+  '/videos',
+  express.static(path.resolve(ROOT_DIR, 'public', 'videos'), {
+    maxAge: '1d',
+    fallthrough: true,
+  })
+);
+app.use(
+  '/videos',
+  express.static(path.resolve(ROOT_DIR, 'dist', 'videos'), {
+    maxAge: '1d',
+    fallthrough: true,
+  })
+);
+
+// Streaming video endpoint with robust range request support
+app.get('/api/videos/stream/:name', (req, res) => {
+  const name = path.basename(req.params.name);
+  const possiblePaths = [
+    path.resolve(ROOT_DIR, 'public', 'videos', name),
+    path.resolve(ROOT_DIR, 'dist', 'videos', name),
+    path.resolve(ROOT_DIR, 'public', 'assets', 'aistudio', name),
+    path.resolve(ROOT_DIR, 'public', 'assets', name),
+  ];
+  const found = possiblePaths.find((p) => fs.existsSync(p));
+  if (!found) {
+    return res.status(404).json({ error: 'Video non trovato' });
+  }
+
+  const stat = fs.statSync(found);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunksize = end - start + 1;
+    const file = fs.createReadStream(found, { start, end });
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunksize,
+      'Content-Type': 'video/mp4',
+    });
+    file.pipe(res);
+  } else {
+    res.writeHead(200, {
+      'Content-Length': fileSize,
+      'Content-Type': 'video/mp4',
+    });
+    fs.createReadStream(found).pipe(res);
+  }
+});
 
 const DIST_DIR = path.resolve(ROOT_DIR, 'dist');
 const isProd =
