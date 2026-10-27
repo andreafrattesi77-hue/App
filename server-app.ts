@@ -634,8 +634,9 @@ interface SharedTrackRecord {
   beatOffset: number;
   beats: Array<{ time: number; beat: number }>;
   duration?: number;
-  fileName: string;
-  mimeType: string;
+  fileName?: string;
+  audioUrl?: string;
+  mimeType?: string;
   uploadedAt: number;
   isCalibrated: boolean;
 }
@@ -671,6 +672,13 @@ function saveStoredSharedTracks(tracks: SharedTrackRecord[]) {
       fs.writeFileSync(DIST_TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf-8');
     }
   } catch {}
+  try {
+    const SRC_TRACKS_FILE = path.resolve(ROOT_DIR, 'src', 'data', 'defaultSharedTracks.ts');
+    const tsCode = `import { SharedTrack } from "../services/sharedTracks";\n\nexport const DEFAULT_SHARED_TRACKS: SharedTrack[] = ${JSON.stringify(tracks, null, 2)};\n`;
+    fs.writeFileSync(SRC_TRACKS_FILE, tsCode, 'utf-8');
+  } catch (e) {
+    console.error('Errore aggiornamento defaultSharedTracks.ts:', e);
+  }
 }
 
 // 1. Ottieni la lista di tutti i brani condivisi disponibili per tutti gli allievi
@@ -728,7 +736,7 @@ app.post('/api/shared-tracks', (req, res) => {
           fs.writeFileSync(path.join(DIST_TRACKS_DIR, fileName), audioBuffer);
         }
       } catch {}
-    } else if (existingIndex >= 0) {
+    } else if (existingIndex >= 0 && currentTracks[existingIndex].fileName) {
       // Mantieni il fileName precedente
       fileName = currentTracks[existingIndex].fileName;
     }
@@ -779,12 +787,16 @@ app.get('/api/shared-tracks/audio/:id', (req, res) => {
       return res.status(404).send('Brano non trovato nella libreria condivisa.');
     }
 
-    let filePath = path.join(TRACKS_DIR, track.fileName);
+    const fileName =
+      track.fileName ||
+      (track.audioUrl ? path.basename(track.audioUrl) : `${track.id}.mp3`);
+
+    let filePath = path.join(TRACKS_DIR, fileName);
     if (!fs.existsSync(filePath)) {
-      filePath = path.join(PUBLIC_TRACKS_DIR, track.fileName);
+      filePath = path.join(PUBLIC_TRACKS_DIR, fileName);
     }
     if (!fs.existsSync(filePath)) {
-      filePath = path.join(DIST_TRACKS_DIR, track.fileName);
+      filePath = path.join(DIST_TRACKS_DIR, fileName);
     }
 
     if (!fs.existsSync(filePath)) {
@@ -831,7 +843,10 @@ app.delete('/api/shared-tracks/:id', (req, res) => {
     const track = tracks.find((t) => t.id === id);
 
     if (track) {
-      const filePath = path.join(TRACKS_DIR, track.fileName);
+      const fileName =
+        track.fileName ||
+        (track.audioUrl ? path.basename(track.audioUrl) : `${track.id}.mp3`);
+      const filePath = path.join(TRACKS_DIR, fileName);
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);
