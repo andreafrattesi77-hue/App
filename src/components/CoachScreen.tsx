@@ -29,7 +29,7 @@ import {
   incrementTrialCoachQuestions,
 } from '../services/storage';
 import { sendCoachChatMessage } from '../services/api';
-import { OFFICIAL_COACH_QUESTIONS, CoachQuestionItem } from '../services/coachReasoning';
+import { OFFICIAL_COACH_QUESTIONS, CoachQuestionItem, generateCoachReasoning } from '../services/coachReasoning';
 
 interface CoachScreenProps {
   user?: UserData | null;
@@ -209,12 +209,18 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         return;
       }
 
-      const namePart = currentUserName ? `Ciao ${currentUserName}, ` : 'Ciao, ';
-      const fallbackReply = `${namePart}qualunque sia il dubbio in questo momento, torna subito al tuo Asse: respira profondo, allinea la postura e applica la regola dei 3 secondi. Rivedi [[cap06]] o il Rituale Pre-Serata in [[bonus2]] prima del prossimo ballo!`;
+      const smartReply = generateCoachReasoning({
+        message: trimmed,
+        userName: currentUserName,
+        userProfile: profileName,
+        currentMission: currentMissionStr,
+        activeUnitId,
+        history: messages.map((m) => ({ sender: m.sender, text: m.text })),
+      });
       const fallbackMsg: ChatMessage = {
         id: `coach-${Date.now()}`,
         sender: 'coach',
-        text: fallbackReply,
+        text: smartReply,
         timestamp: Date.now(),
       };
       const finalHistory = [...newHistory, fallbackMsg];

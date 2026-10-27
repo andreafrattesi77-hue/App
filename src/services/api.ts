@@ -19,32 +19,47 @@ export async function sendCoachChatMessage(params: {
   currentMission?: string;
   activeUnitId?: string;
 }): Promise<CoachChatResponse> {
-  const res = await fetch('/api/coach/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(params),
-  });
+  try {
+    const res = await fetch('/api/coach/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
 
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok || data.trialLimitReached) {
-    if (res.status === 403 || data.trialLimitReached) {
-      const err = new Error(data.error || 'Limite di 3 domande di prova raggiunto.');
-      (err as any).trialLimitReached = true;
-      (err as any).questionsUsed = data.questionsUsed ?? 3;
-      (err as any).remaining = data.remaining ?? 0;
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data && typeof data.reply === 'string' && data.reply.trim()) {
+        return {
+          reply: data.reply,
+          trialCoachQuestionsUsed: data.trialCoachQuestionsUsed,
+          trialRemaining: data.trialRemaining,
+          trialLimitReached: data.trialLimitReached,
+        };
+      }
+    } else if (res.status === 403) {
+      const data = await res.json().catch(() => ({}));
+      if (data.trialLimitReached) {
+        const err = new Error(data.error || 'Limite di 3 domande di prova raggiunto.');
+        (err as any).trialLimitReached = true;
+        (err as any).questionsUsed = data.questionsUsed ?? 3;
+        (err as any).remaining = data.remaining ?? 0;
+        throw err;
+      }
+    }
+  } catch (err: any) {
+    if (err?.trialLimitReached) {
       throw err;
     }
-    throw new Error(data.error || `Server returned status ${res.status}`);
+    // Su hosting statico come GitHub Pages /api/coach/chat non esiste (restituisce 404)
+    console.info('Server API /api/coach/chat non disponibile (es. GitHub static hosting). Attivato motore di ragionamento locale.');
   }
 
+  // Fallback client-side completo e intelligente per GitHub Pages / offline:
+  // risponde a qualsiasi domanda con profondità e metodo
   return {
-    reply: data.reply || generateCoachReasoning(params),
-    trialCoachQuestionsUsed: data.trialCoachQuestionsUsed,
-    trialRemaining: data.trialRemaining,
-    trialLimitReached: data.trialLimitReached,
+    reply: generateCoachReasoning(params),
   };
 }
 

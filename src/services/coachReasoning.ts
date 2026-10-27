@@ -30,6 +30,102 @@ interface EveningReasoningParams {
   previousAdvice?: string;
 }
 
+const ITALIAN_STOPWORDS = new Set([
+  'a', 'ad', 'al', 'allo', 'ai', 'agli', 'all', 'alla', 'alle',
+  'con', 'col', 'da', 'dal', 'del', 'dello', 'dei', 'degli', 'della', 'delle', 'di',
+  'in', 'nel', 'nello', 'nei', 'negli', 'nella', 'nelle',
+  'su', 'sul', 'per', 'tra', 'fra', 'il', 'lo', 'la', 'i', 'gli', 'le',
+  'un', 'uno', 'una',
+  'mi', 'ti', 'ci', 'vi', 'si', 'me', 'te', 'se',
+  'che', 'chi', 'cui', 'non', 'piu', 'più', 'come', 'cosa', 'perché', 'perche',
+  'quando', 'dove', 'quale', 'quali', 'quanto', 'quanti',
+  'ma', 'ed', 'anche', 'o', 'oppure', 'e', 'ho', 'hai', 'ha',
+  'fare', 'faccio', 'devo', 'posso', 'puoi'
+]);
+
+function getItalianStem(w: string): string {
+  if (w.length <= 4) return w;
+  return w.replace(/(are|ere|ire|ando|endo|ato|ata|ati|ate|ito|ita|iti|ite|uto|uta|uti|ute|ono|ano|iamo|ate|ete|ite|assi|asse|assimo|aste|essero|essi|esse|essimo|este|ebbero|issimo|issima|issimi|issime|ità|ivo|iva|ivi|ive|ione|ioni|ico|ica|ici|iche|oso|osa|osi|ose|ino|ina|ini|ine|one|ona|oni|one|etto|etta|etti|ette|ello|ella|elli|elle|aggio|aggi|ore|ori|trice|trici|e|i|o|a)$/, '');
+}
+
+export function findBestMatchingCoachQuestion(userMessage: string): CoachQuestionItem | null {
+  const msgLower = (userMessage || '').toLowerCase().trim();
+  const cleanMsg = msgLower.replace(/[^\w\sàèéìòù]/gi, ' ').replace(/\s+/g, ' ').trim();
+  if (!cleanMsg) return null;
+
+  // 1. Corrispondenza diretta / inclusione esatta
+  for (const item of COACH_100_QUESTIONS) {
+    const qLower = item.question.toLowerCase().trim();
+    const sLower = item.summary.toLowerCase().trim();
+    if (
+      msgLower === qLower ||
+      msgLower === sLower ||
+      cleanMsg === qLower ||
+      cleanMsg === sLower ||
+      msgLower.includes(qLower) ||
+      cleanMsg.includes(qLower) ||
+      qLower.includes(cleanMsg)
+    ) {
+      return item;
+    }
+  }
+
+  // 2. Calcolo punteggio semantico e sovrapposizione parole chiave
+  const rawWords = cleanMsg.split(/\s+/).filter((w) => w.length >= 3 && !ITALIAN_STOPWORDS.has(w));
+  if (rawWords.length === 0) return null;
+  const wordStems = rawWords.map(getItalianStem);
+
+  let bestScore = 0;
+  let bestItem: CoachQuestionItem | null = null;
+
+  for (const item of COACH_100_QUESTIONS) {
+    const qClean = item.question.toLowerCase().replace(/[^\w\sàèéìòù]/gi, ' ');
+    const sClean = item.summary.toLowerCase().replace(/[^\w\sàèéìòù]/gi, ' ');
+    const targetText = `${qClean} ${sClean}`;
+    const targetWords = targetText.split(/\s+/).filter((w) => w.length >= 3 && !ITALIAN_STOPWORDS.has(w));
+    const targetStems = new Set(targetWords.map(getItalianStem));
+
+    let score = 0;
+
+    for (let i = 0; i < rawWords.length; i++) {
+      const w = rawWords[i];
+      const stem = wordStems[i];
+
+      if (targetWords.includes(w)) {
+        score += 10;
+      } else if (targetStems.has(stem)) {
+        score += 7;
+      } else if (targetText.includes(stem)) {
+        score += 4;
+      }
+    }
+
+    // Boost per concetti chiave del ballo e del metodo
+    const coreTerms = [
+      'rifiuto', 'bachata', 'salsa', 'invito', 'sguardo', 'ansia', 'paura',
+      'mani', 'numero', 'whatsapp', 'instagram', 'asse', 'chiusura', 'tempo',
+      'ritmo', 'postura', 'secondo ballo', 'contatto', 'filo invisibile', 'amiche',
+      'gruppo', 'parlare', 'conversazione', 'stanca', 'sensual', 'figura', 'giro'
+    ];
+    for (const term of coreTerms) {
+      if (cleanMsg.includes(term) && targetText.includes(term)) {
+        score += 8;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestItem = item;
+    }
+  }
+
+  if (bestScore >= 14 && bestItem) {
+    return bestItem;
+  }
+
+  return null;
+}
+
 /**
  * Motore di Ragionamento Psicologico & Strategico di Andrea Frattesi.
  * Risponde con profondità, diagnosi psicologica, metodo Effetto Calamita e azione pratica.
@@ -40,25 +136,10 @@ export function generateCoachReasoning(params: CoachReasoningParams): string {
   const studentName = userName?.trim() || '';
   const greeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
 
-  // Controllo prioritario: corrispondenza con una delle 100 domande ufficiali preparate
-  const cleanMsg = msgLower.replace(/^\d+[\.\)\-\s]+/, '').trim();
-  const exactMatch = COACH_100_QUESTIONS.find((item) => {
-    const qLower = item.question.toLowerCase().trim();
-    const sLower = item.summary.toLowerCase().trim();
-    return (
-      msgLower === qLower ||
-      msgLower === sLower ||
-      cleanMsg === qLower ||
-      cleanMsg === sLower ||
-      msgLower.includes(qLower) ||
-      cleanMsg.includes(qLower) ||
-      qLower.includes(msgLower) ||
-      qLower.includes(cleanMsg)
-    );
-  });
-
-  if (exactMatch) {
-    return `${greeting}${exactMatch.response}`;
+  // Controllo prioritario: cerca la migliore risposta tra le 100 domande ufficiali preparate
+  const bestMatch = findBestMatchingCoachQuestion(message);
+  if (bestMatch) {
+    return `${greeting}${bestMatch.response}`;
   }
 
   // Trova unità pertinenti
@@ -443,21 +524,43 @@ Il **Protocollo Reset di 60 Secondi** serve a interrompere all'istante lo stato 
 Trovi il protocollo di emergenza nella Guida Salva-Serata in [[bonus4]]!`;
   }
 
-  // RISPOSTA GENERALE SUL METODO
-  return `${greeting}analizziamo la tua situazione con l'esperienza di 25 anni in pista.
+  // RISPOSTA DINAMICA STRUTTURATA SUL METODO ED UNITA' PIÙ PERTINENTE
+  if (primaryUnit) {
+    const azioni = [
+      `1. Applica l'Asse e la presenza: prima di muovere il primo passo, ritrova il contatto con il respiro e la musica.`,
+      `2. Sperimenta il principio di "${primaryUnit.titolo}": metti al centro la connessione e l'ascolto di lei anziché la prestazione.`,
+      `3. Esegui la Chiusura Calamita: mantieni presenza solida e apprezzamento sincero a fine ballo.`
+    ].join('\n');
+
+    return `${greeting}andiamo al sodo con la psicologia del Metodo Effetto Calamita.
 
 🔍 **1. LA DIAGNOSI EMOTIVA:**
-In pista la sicurezza non nasce dal fare le cose perfettamente, ma dall'essere presente a te stesso. Quando smetti di cercare approvazione, il tuo corpo si rilassa e le donne percepiscono un uomo solido.
+Nel ballo sociale la vera attrazione non nasce dall'ansia di eseguire combinazioni complesse o dal compiacere chi hai davanti: nasce dalla tua **presenza maschile**, dalla serenità interiore e dal saper creare uno spazio in cui lei si senta al sicuro e guidata con naturalezza.
 
-🧠 **2. IL RAGIONAMENTO DEL METODO:**
-Il Metodo Effetto Calamita si basa sul tuo Asse, sul Contatto Zero e sulla capacità di creare connessione profonda nel Secondo Ballo. 
+🧠 **2. IL RAGIONAMENTO DEL METODO (${primaryUnit.label} - ${primaryUnit.titolo}):**
+${primaryUnit.sintesi}
 
 ⚡ **3. L'AZIONE PRATICA IN PISTA:**
-1. Respira profondamente prima di ogni invito.
-2. Concentrati sul sorriso di lei e sulla musica.
-3. Esegui la Chiusura Calamita a fine brano.
+${azioni}
 
-Approfondisci i dettagli in ${unitRef}!`;
+Approfondisci la lezione completa e tutti gli esercizi dedicati in ${unitRef}!`;
+  }
+
+  // Risposta generale di principio
+  return `${greeting}analizziamo la tua domanda da uomo a uomo con l'esperienza di 25 anni in pista.
+
+🔍 **1. LA DIAGNOSI EMOTIVA:**
+In pista la sicurezza non nasce dal fare le cose in modo accademico, ma dall'essere centrato nel tuo Asse. Quando smetti di cercare approvazione, il tuo corpo si distende e le donne percepiscono immediatamente un uomo solido e affidabile.
+
+🧠 **2. IL RAGIONAMENTO DEL METODO:**
+Nel Metodo Effetto Calamita applichiamo la Regola dei 3 Secondi per l'invito, il Contatto Zero per i primi due secondi e la Tensione Lenta per creare polarità magnetica e intesa reale.
+
+⚡ **3. L'AZIONE PRATICA IN PISTA:**
+1. Fai il controllo dell'Asse prima di ogni invito (respiro calmo, colonna eretta, sguardo morbido).
+2. All'invito chiediti: *"Mi piace lei? Voglio scoprirlo ballando con lei."*.
+3. Esegui la Chiusura Calamita con presenza ferma e apprezzamento sincero.
+
+Approfondisci i dettagli operativi nel capitolo dedicato in ${unitRef}!`;
 }
 
 /**
