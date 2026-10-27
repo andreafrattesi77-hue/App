@@ -332,12 +332,13 @@ export default function App() {
         onDataReset={handleDataReset}
       />
 
-      {/* Videocorso Modal (Module 1 Video Player + Locked Modules 2-9) */}
+      {/* Videocorso Modal (Integrated 9 Modules Player) */}
       <VideocorsoModal
         isOpen={isVideocorsoOpen}
         onClose={() => setIsVideocorsoOpen(false)}
         user={user}
         onOpenUnlock={openUnlockWithNotice}
+        onUserDataUpdated={(updated) => setUser(updated)}
       />
 
       {/* Global Unlock Modal */}
