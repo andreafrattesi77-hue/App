@@ -654,7 +654,7 @@ function getStoredSharedTracks(): SharedTrackRecord[] {
       } catch {}
     }
   }
-  // Fallback garantito al dataset predefinito di 30 brani (15 Salsa + 15 Bachata)
+  // Fallback garantito al dataset predefinito di 32 brani (17 Bachata + 15 Salsa)
   return (DEFAULT_SHARED_TRACKS as unknown as SharedTrackRecord[]) || [];
 }
 

@@ -384,7 +384,14 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
 
         setCustomTracks((prev) => {
           const existingIds = new Set(prev.map((p) => p.id));
-          const toAdd = localTracks.filter((l) => !existingIds.has(l.id));
+          const existingKeys = new Set(
+            prev.map((p) => `${p.name.trim().toLowerCase()}|${(p.artist || '').trim().toLowerCase()}`)
+          );
+          const toAdd = localTracks.filter(
+            (l) =>
+              !existingIds.has(l.id) &&
+              !existingKeys.has(`${l.name.trim().toLowerCase()}|${(l.artist || '').trim().toLowerCase()}`)
+          );
           return [...prev, ...toAdd];
         });
 

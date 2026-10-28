@@ -19,6 +19,7 @@ export interface SharedTrack {
   hasAudioFile?: boolean;
   uploadedAt: number;
   isCalibrated: boolean;
+  mimeType?: string;
 }
 
 import { DEFAULT_SHARED_TRACKS } from '../data/defaultSharedTracks';
@@ -31,7 +32,7 @@ export function getDeletedTrackIds(): Set<string> {
     const raw = localStorage.getItem(DELETED_TRACKS_KEY);
     if (!raw) return new Set<string>();
     const parsed: string[] = JSON.parse(raw);
-    // I 30 brani ufficiali del metodo (15 Bachata + 15 Salsa) non possono MAI essere nascosti o eliminati
+    // I 31 brani della libreria permanente (16 Bachata + 15 Salsa) non possono MAI essere nascosti o eliminati
     const userOnlyDeleted = parsed.filter((id) => !OFFICIAL_TRACK_IDS.has(id));
     if (userOnlyDeleted.length !== parsed.length) {
       localStorage.setItem(DELETED_TRACKS_KEY, JSON.stringify(userOnlyDeleted));
@@ -61,9 +62,16 @@ export async function fetchSharedTracks(): Promise<SharedTrack[]> {
     if (res.ok) {
       const serverTracks = (await res.json()) as SharedTrack[];
       if (Array.isArray(serverTracks) && serverTracks.length > 0) {
-        // Garantisce che tutti i 30 brani ufficiali siano sempre presenti
+        // Garantisce che tutti i brani della libreria permanente siano sempre presenti
         const serverIds = new Set(serverTracks.map((t) => t.id));
-        const missingDefaults = DEFAULT_SHARED_TRACKS.filter((d) => !serverIds.has(d.id));
+        const serverKeys = new Set(
+          serverTracks.map((t) => `${t.name.trim().toLowerCase()}|${(t.artist || '').trim().toLowerCase()}`)
+        );
+        const missingDefaults = DEFAULT_SHARED_TRACKS.filter(
+          (d) =>
+            !serverIds.has(d.id) &&
+            !serverKeys.has(`${d.name.trim().toLowerCase()}|${(d.artist || '').trim().toLowerCase()}`)
+        );
         const combined = [...serverTracks, ...missingDefaults];
         return combined.filter((t) => !deletedIds.has(t.id));
       }
@@ -72,7 +80,7 @@ export async function fetchSharedTracks(): Promise<SharedTrack[]> {
     console.warn('Impossibile recuperare i brani dal server, uso libreria permanente:', err);
   }
 
-  // Fallback garantito: restituisce tutti i 30 brani ufficiali (15 Salsa + 15 Bachata)
+  // Fallback garantito: restituisce tutti i 32 brani della libreria (17 Bachata + 15 Salsa)
   return DEFAULT_SHARED_TRACKS;
 }
 
