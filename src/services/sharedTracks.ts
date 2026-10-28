@@ -15,6 +15,8 @@ export interface SharedTrack {
   beats: Array<{ time: number; beat: number }>;
   duration?: number;
   audioUrl: string;
+  fileName?: string;
+  hasAudioFile?: boolean;
   uploadedAt: number;
   isCalibrated: boolean;
 }

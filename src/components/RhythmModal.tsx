@@ -65,6 +65,7 @@ export interface CustomTrack {
   bpm: number;
   beatOffset: number; // Downbeat (Tempo 1) offset in seconds
   beats?: BeatEvent[]; // Array of exact beat timestamps
+  duration?: number;
   isAnalyzing?: boolean;
   recognitionSource?: 'catalog' | 'dsp_waveform' | 'heuristic' | 'essentia_mir' | 'ghost_production_auto';
   details?: string;
@@ -329,7 +330,7 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
         const stored = await getAllStoredTracks();
         if (!isMounted || !stored || stored.length === 0) return;
 
-        const sharedIds = new Set((shared || []).map((s) => s.id));
+        const sharedMap = new Map((shared || []).map((s) => [s.id, s]));
         const localTracks: CustomTrack[] = [];
 
         for (const s of stored) {
@@ -352,8 +353,11 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
           };
           localTracks.push(trackItem);
 
-          // Se questa traccia salvata in locale non è ancora nella memoria del server, salvala automaticamente!
-          if (!sharedIds.has(s.id)) {
+          // Se questa traccia non è nel server O il server non ha il file audio fisico, caricala subito con il blob audio!
+          const serverTrack = sharedMap.get(s.id);
+          const needsUpload = !serverTrack || (serverTrack as any).hasAudioFile === false;
+
+          if (needsUpload && s.audioBlob) {
             publishTrackToServer(
               {
                 id: s.id,
@@ -476,8 +480,24 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
     );
 
     try {
-      // 1. Salva nella memoria locale IndexedDB
-      if (track.file) {
+      // 1. Recupera o prepara il blob/file audio completo
+      let audioBlobToUpload: Blob | File | undefined = track.file;
+      const stored = await getAllStoredTracks();
+      const existing = stored?.find((s) => s.id === track.id);
+
+      if (!audioBlobToUpload && existing?.audioBlob) {
+        audioBlobToUpload = existing.audioBlob;
+      } else if (!audioBlobToUpload && track.url && track.url.startsWith('blob:')) {
+        try {
+          const blobRes = await fetch(track.url);
+          if (blobRes.ok) {
+            audioBlobToUpload = await blobRes.blob();
+          }
+        } catch {}
+      }
+
+      // Salva nella memoria locale IndexedDB
+      if (audioBlobToUpload) {
         await saveTrackToStorage({
           id: track.id,
           name: track.name,
@@ -486,31 +506,27 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
           bpm: track.bpm,
           beatOffset: track.beatOffset,
           beats: track.beats || [],
-          audioBlob: track.file,
-          duration: track.file.size,
+          audioBlob: audioBlobToUpload,
+          duration: track.duration || (audioBlobToUpload instanceof File ? audioBlobToUpload.size : undefined),
           savedAt: Date.now(),
           engineVersion: 19,
           recognitionSource: track.recognitionSource,
           details: track.details,
         });
-      } else {
-        const stored = await getAllStoredTracks();
-        const existing = stored?.find((s) => s.id === track.id);
-        if (existing) {
-          await saveTrackToStorage({
-            ...existing,
-            name: track.name,
-            artist: track.artist,
-            genre: track.genre,
-            bpm: track.bpm,
-            beatOffset: track.beatOffset,
-            beats: track.beats || [],
-            engineVersion: 19,
-          });
-        }
+      } else if (existing) {
+        await saveTrackToStorage({
+          ...existing,
+          name: track.name,
+          artist: track.artist,
+          genre: track.genre,
+          bpm: track.bpm,
+          beatOffset: track.beatOffset,
+          beats: track.beats || [],
+          engineVersion: 19,
+        });
       }
 
-      // 2. Salva nel cloud/server per renderla disponibile su tutti i dispositivi
+      // 2. Salva nel cloud/server per renderla disponibile su tutti i dispositivi (con file audio se presente)
       const res = await publishTrackToServer(
         {
           id: track.id,
@@ -520,9 +536,9 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
           bpm: track.bpm,
           beatOffset: track.beatOffset,
           beats: track.beats || [],
-          duration: track.file ? track.file.size : customDuration,
+          duration: track.duration || (audioBlobToUpload instanceof File ? audioBlobToUpload.size : customDuration),
         },
-        track.file
+        audioBlobToUpload
       );
 
       // 3. Marca la traccia come salvata nello stato

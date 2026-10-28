@@ -685,10 +685,21 @@ function saveStoredSharedTracks(tracks: SharedTrackRecord[]) {
 app.get('/api/shared-tracks', (_req, res) => {
   try {
     const list = getStoredSharedTracks();
-    const formatted = list.map((t) => ({
-      ...t,
-      audioUrl: `/api/shared-tracks/audio/${t.id}`,
-    }));
+    const formatted = list.map((t) => {
+      const fileName =
+        t.fileName ||
+        (t.audioUrl ? path.basename(t.audioUrl) : `${t.id}.mp3`);
+      const hasAudioFile =
+        fs.existsSync(path.join(TRACKS_DIR, fileName)) ||
+        fs.existsSync(path.join(PUBLIC_TRACKS_DIR, fileName)) ||
+        fs.existsSync(path.join(DIST_TRACKS_DIR, fileName));
+      return {
+        ...t,
+        fileName,
+        hasAudioFile,
+        audioUrl: `/api/shared-tracks/audio/${t.id}`,
+      };
+    });
     res.json(formatted);
   } catch (err) {
     console.error('Errore lettura brani condivisi:', err);
@@ -751,6 +762,7 @@ app.post('/api/shared-tracks', (req, res) => {
       beats: Array.isArray(beats) ? beats : [],
       duration: duration ? Number(duration) : undefined,
       fileName,
+      audioUrl: `/tracks/${fileName}`,
       mimeType: mimeType || 'audio/mpeg',
       uploadedAt: existingIndex >= 0 ? currentTracks[existingIndex].uploadedAt : Date.now(),
       isCalibrated: true,
@@ -767,6 +779,10 @@ app.post('/api/shared-tracks', (req, res) => {
       success: true,
       track: {
         ...record,
+        hasAudioFile:
+          fs.existsSync(path.join(TRACKS_DIR, fileName)) ||
+          fs.existsSync(path.join(PUBLIC_TRACKS_DIR, fileName)) ||
+          fs.existsSync(path.join(DIST_TRACKS_DIR, fileName)),
         audioUrl: `/api/shared-tracks/audio/${record.id}`,
       },
     });
