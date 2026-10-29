@@ -48,23 +48,75 @@ function getItalianStem(w: string): string {
   return w.replace(/(are|ere|ire|ando|endo|ato|ata|ati|ate|ito|ita|iti|ite|uto|uta|uti|ute|ono|ano|iamo|ate|ete|ite|assi|asse|assimo|aste|essero|essi|esse|essimo|este|ebbero|issimo|issima|issimi|issime|ità|ivo|iva|ivi|ive|ione|ioni|ico|ica|ici|iche|oso|osa|osi|ose|ino|ina|ini|ine|one|ona|oni|one|etto|etta|etti|ette|ello|ella|elli|elle|aggio|aggi|ore|ori|trice|trici|e|i|o|a)$/, '');
 }
 
+export const INCOHERENT_QUESTION_RESPONSE =
+  `Questa domanda non è coerente con il Metodo Effetto Calamita. Il Coach risponde esclusivamente su dinamiche di ballo (Salsa e Bachata), gestione dell'ansia da approccio e rifiuto, invito in pista, connessione fisica ed emotiva e flirt invisibile. Formula una domanda legata alla tua esperienza o ai tuoi blocchi nel ballo per ricevere un'analisi strategica.`;
+
+const DANCE_COHERENT_STEMS = [
+  'ball', 'sals', 'bachat', 'pist', 'local', 'discotec', 'serat', 'music', 'canzon',
+  'ritm', 'temp', 'pass', 'figur', 'gir', 'guid', 'segui', 'dam', 'cavalier', 'pres',
+  'bracc', 'sensual', 'cuban', 'portorican', 'dominican', 'kizomb', 'latin', 'caraibic',
+  'invit', 'rifiut', 'rimbalz', 'scus', 'amic', 'grupp', 'tavol', 'bancon', 'bar',
+  'sguard', 'occh', 'fiss', 'guard', 'contatt', 'visiv', 'corp', 'fisic', 'man',
+  'tocch', 'tocc', 'vicinanz', 'respir', 'sorris', 'sorrid', 'abbracc',
+  'connession', 'intes', 'chimic', 'polarit', 'flirt', 'seduz', 'sedurr', 'attr',
+  'calamit', 'magnetic', 'blocc', 'ansi', 'paur', 'agitaz', 'vergogn', 'timid',
+  'sicurezz', 'postur', 'presenz', 'carism', 'tenson', 'tension', 'giudizi', 'aspettativ',
+  'ment', 'test', 'chiusur', 'chiud', 'numer', 'whatsapp', 'instagram', 'telefon',
+  'messagg', 'scriver', 'frattes', 'metod', 'asse', 'ragazz', 'donn', 'partner',
+  'approcc', 'bac', 'uscir', 'parlar', 'conversaz', 'secondo ball', 'due ball',
+  '3 second', 'tre second', '10 minut', 'dieci minut', '21 serat', 'profil', 'cors',
+  'scuol', 'livell', 'leader', 'follower', 'stage', 'rituale', 'diario'
+];
+
+export function isCoachQuestionCoherent(userMessage: string): boolean {
+  if (!userMessage || typeof userMessage !== 'string') return false;
+  const cleanMsg = userMessage.toLowerCase().replace(/[^\w\sàèéìòù]/gi, ' ').replace(/\s+/g, ' ').trim();
+  if (cleanMsg.length < 3) return false;
+
+  // 1. Corrispondenza con una delle 100 domande
+  const matched = findBestMatchingCoachQuestion(userMessage);
+  if (matched) return true;
+
+  // 2. Controllo presenza radici/temi pertinenti al ballo e alla seduzione
+  for (const stem of DANCE_COHERENT_STEMS) {
+    if (cleanMsg.includes(stem)) {
+      return true;
+    }
+  }
+
+  // 3. Controllo sovrapposizione con i testi dei capitoli/metodo
+  const words = cleanMsg.split(/\s+/).filter((w) => w.length >= 4 && !ITALIAN_STOPWORDS.has(w));
+  const pertinent = trovaUnitaPertinenti(cleanMsg, 1);
+  if (pertinent && pertinent.length > 0 && words.length > 0) {
+    const unitText = `${pertinent[0].titolo} ${pertinent[0].sintesi}`.toLowerCase();
+    let matches = 0;
+    for (const w of words) {
+      if (unitText.includes(w)) matches++;
+    }
+    if (matches >= 2) return true;
+  }
+
+  return false;
+}
+
 export function findBestMatchingCoachQuestion(userMessage: string): CoachQuestionItem | null {
   const msgLower = (userMessage || '').toLowerCase().trim();
   const cleanMsg = msgLower.replace(/[^\w\sàèéìòù]/gi, ' ').replace(/\s+/g, ' ').trim();
   if (!cleanMsg) return null;
 
-  // 1. Corrispondenza diretta / inclusione esatta
+  // 1. Corrispondenza diretta della domanda ufficiale o del sommario
   for (const item of COACH_100_QUESTIONS) {
     const qLower = item.question.toLowerCase().trim();
     const sLower = item.summary.toLowerCase().trim();
+    const qClean = qLower.replace(/[^\w\sàèéìòù]/gi, ' ').replace(/\s+/g, ' ').trim();
+    const sClean = sLower.replace(/[^\w\sàèéìòù]/gi, ' ').replace(/\s+/g, ' ').trim();
+
     if (
       msgLower === qLower ||
       msgLower === sLower ||
-      cleanMsg === qLower ||
-      cleanMsg === sLower ||
-      msgLower.includes(qLower) ||
-      cleanMsg.includes(qLower) ||
-      qLower.includes(cleanMsg)
+      cleanMsg === qClean ||
+      cleanMsg === sClean ||
+      (cleanMsg.length >= 25 && (cleanMsg.includes(qClean) || (qClean.includes(cleanMsg) && cleanMsg.length >= qClean.length * 0.85)))
     ) {
       return item;
     }
@@ -119,7 +171,7 @@ export function findBestMatchingCoachQuestion(userMessage: string): CoachQuestio
     }
   }
 
-  if (bestScore >= 14 && bestItem) {
+  if (bestScore >= 35 && bestItem) {
     return bestItem;
   }
 
@@ -140,6 +192,11 @@ export function generateCoachReasoning(params: CoachReasoningParams): string {
   const bestMatch = findBestMatchingCoachQuestion(message);
   if (bestMatch) {
     return `${greeting}${bestMatch.response}`;
+  }
+
+  // Verifica coerenza: se la domanda libera non riguarda il ballo o la seduzione in pista
+  if (!isCoachQuestionCoherent(message)) {
+    return `${greeting}${INCOHERENT_QUESTION_RESPONSE}`;
   }
 
   // Trova unità pertinenti

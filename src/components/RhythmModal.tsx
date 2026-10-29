@@ -1615,18 +1615,20 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
           handleClose();
         }
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#021831]/90 backdrop-blur-md animate-fadeIn overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn overflow-y-auto"
     >
-      <div className="w-full max-w-lg max-h-[94vh] bg-[#042B58] border border-[#88A5BF]/30 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col relative overflow-hidden my-auto">
+      <div className="w-full max-w-xl max-h-[94vh] bg-[#182033] border border-white/10 rounded-3xl p-4 sm:p-6 shadow-card flex flex-col relative overflow-hidden my-auto">
         {/* Header Principale */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#88A5BF]/20 shrink-0">
-          <div className="flex items-center gap-2">
-            <Music className="w-5 h-5 text-[#F9C03E]" />
+        <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gold-soft flex items-center justify-center text-[#E5B869] shadow-sm">
+              <Music className="w-5 h-5" />
+            </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold font-serif text-white leading-tight">
+              <h2 className="text-base sm:text-lg font-bold font-display text-[#f7f6f3] leading-tight">
                 Accademia del Ritmo: Salsa & Bachata
               </h2>
-              <p className="text-[10px] text-[#88A5BF]">
+              <p className="text-xs text-[#9da6b9]">
                 Basi a tempo perfetto per tutti gli allievi
               </p>
             </div>
@@ -1635,9 +1637,9 @@ export const RhythmModal: React.FC<RhythmModalProps> = ({
             type="button"
             onClick={handleClose}
             aria-label="Esci dall'Allenatore di Ritmo"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#021831] hover:bg-[#234C77] text-slate-200 hover:text-white border border-[#88A5BF]/40 text-xs font-semibold transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0d121e] hover:bg-[#212b42] text-[#f7f6f3] border border-white/10 text-xs font-semibold transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
           >
-            <X className="w-4 h-4 text-[#F9C03E]" />
+            <X className="w-4 h-4 text-[#E5B869]" />
             <span>Esci</span>
           </button>
         </div>

@@ -69,12 +69,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#021831]/90 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-md max-h-[90vh] bg-[#042B58] border border-[#88A5BF]/30 rounded-3xl p-5 shadow-2xl flex flex-col relative overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+      <div className="w-full max-w-lg max-h-[90vh] bg-[#182033] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-card flex flex-col relative overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#88A5BF]/20">
+        <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold font-serif text-white">Impostazioni</h2>
+            <h2 className="text-lg font-bold font-display text-[#f7f6f3]">Impostazioni</h2>
           </div>
           <button
             onClick={onClose}

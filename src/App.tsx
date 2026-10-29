@@ -87,8 +87,8 @@ export default function App() {
 
   if (!isInitialized) {
     return (
-      <div className="min-h-screen bg-[#042B58] flex items-center justify-center text-white">
-        <div className="w-8 h-8 rounded-full border-2 border-[#F9C03E] border-t-transparent animate-spin" />
+      <div className="min-h-screen bg-[#121622] flex items-center justify-center text-white">
+        <div className="w-8 h-8 rounded-full border-2 border-[#E5B869] border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -158,19 +158,19 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#042B58] text-slate-100 flex flex-col justify-between selection:bg-[#F9C03E] selection:text-[#042B58]">
+    <div className="min-h-screen bg-[#121622] text-[#f7f6f3] flex flex-col justify-between selection:bg-[#E5B869] selection:text-[#121622]">
       {/* Sticky Trial Banner for Demo Users */}
       {!activeUnit && isTrialUser(user) && (
-        <div className="bg-gradient-to-r from-[#234C77] via-[#042B58] to-[#234C77] border-b border-[#F9C03E]/30 px-3 py-1.5 flex items-center justify-between text-xs text-slate-200 sticky top-0 z-40 backdrop-blur-md">
+        <div className="bg-gradient-to-r from-[#182033] via-[#121622] to-[#182033] border-b border-[#E5B869]/30 px-3 py-1.5 flex items-center justify-between text-xs text-slate-200 sticky top-0 z-40 backdrop-blur-md">
           <div className="flex items-center gap-1.5 truncate pr-2">
-            <Sparkles className="w-3.5 h-3.5 text-[#F9C03E] shrink-0" />
+            <Sparkles className="w-3.5 h-3.5 text-[#E5B869] shrink-0" />
             <span className="truncate">
               Modalità Demo • <strong className="text-white">Prova Gratuita</strong>
             </span>
           </div>
           <button
             onClick={() => openUnlockWithNotice('Passa alla versione completa per sbloccare l\'app senza limiti!')}
-            className="px-2.5 py-0.5 rounded-full gold-gradient-btn text-[11px] font-bold text-[#042B58] hover:brightness-105 transition-all cursor-pointer shrink-0"
+            className="px-2.5 py-0.5 rounded-full gold-gradient-btn text-[11px] font-bold text-[#121622] hover:brightness-105 transition-all cursor-pointer shrink-0"
           >
             Sblocca Completa
           </button>
@@ -188,7 +188,7 @@ export default function App() {
       )}
 
       {/* Main View Area */}
-      <main className="flex-1 w-full max-w-md mx-auto">
+      <main className="flex-1 w-full max-w-xl mx-auto">
         {/* Full-screen Reader view */}
         {activeUnit ? (
           <ReaderScreen

@@ -106,7 +106,7 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
     const distribution = getDistribution();
 
     return (
-      <div className="w-full max-w-md mx-auto p-4 pb-24 space-y-4 animate-fadeIn">
+      <div className="w-full max-w-xl mx-auto px-5 py-5 pb-28 space-y-5 animate-rise">
         {/* Header navigation */}
         <div className="flex items-center justify-between pt-2">
           {onBackToHome && (
@@ -266,7 +266,7 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
   const progressPercent = Math.round(((currentQuestionIndex + 1) / totalQuestions) * 100);
 
   return (
-    <div className="w-full max-w-md mx-auto p-4 pb-24 space-y-4">
+    <div className="w-full max-w-xl mx-auto px-5 py-5 pb-28 space-y-5 animate-rise">
       {/* Top back & progress */}
       <div className="flex items-center justify-between pt-2">
         {onBackToHome && (

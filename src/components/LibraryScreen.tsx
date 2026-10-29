@@ -132,35 +132,42 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
   ];
 
   return (
-    <div className="w-full max-w-md mx-auto p-3.5 pb-36 space-y-3.5 animate-fadeIn">
+    <div className="w-full max-w-xl mx-auto px-5 py-5 pb-36 space-y-5 animate-rise">
       {/* Header and Total Progress */}
-      <div className="flex items-center justify-between pt-1 px-0.5">
+      <div className="flex items-center justify-between pt-1">
         <div>
-          <h1 className="text-xl font-bold font-serif text-white">Libreria</h1>
-          <p className="text-xs text-[#88A5BF]">Tutto il metodo di Andrea Frattesi</p>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E5B869]">
+            Archivio Completo
+          </p>
+          <h1 className="text-xl sm:text-2xl font-bold font-display text-[#f7f6f3] mt-0.5">
+            Libreria
+          </h1>
+          <p className="text-xs text-[#9da6b9] mt-0.5">
+            Tutto il metodo di Andrea Frattesi
+          </p>
         </div>
         <div className="text-right">
-          <span className="text-xs font-mono font-bold text-[#F9C03E]">
+          <span className="text-base font-display font-bold text-[#E5B869] tabular-nums">
             {readUnitsCount}/{totalUnitsCount}
           </span>
-          <p className="text-[10px] text-slate-300">Lette</p>
+          <p className="text-[10px] text-[#9da6b9] uppercase tracking-wider">Lette</p>
         </div>
       </div>
 
-      {/* Search Bar (Compact) */}
+      {/* Search Bar */}
       <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+        <Search className="w-4 h-4 text-[#9da6b9] absolute left-3.5 top-3.5 pointer-events-none" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Cerca nel metodo (es. sguardo, bachata, frasi)..."
-          className="w-full pl-9 pr-8 py-2 bg-[#021831] border border-[#88A5BF]/30 rounded-xl text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#F9C03E]"
+          className="w-full pl-10 pr-9 py-2.5 bg-[#0d121e] border border-white/12 rounded-xl text-[#f7f6f3] text-sm placeholder-[#9da6b9]/60 focus:outline-none focus:border-[#E5B869] transition-colors"
         />
         {searchQuery && (
           <button
             onClick={() => setSearchQuery('')}
-            className="text-xs text-slate-400 hover:text-white absolute right-3 top-2.5"
+            className="text-xs text-[#9da6b9] hover:text-[#f7f6f3] absolute right-3.5 top-3 cursor-pointer"
           >
             ✕
           </button>

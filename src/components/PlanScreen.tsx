@@ -113,23 +113,23 @@ export const PlanScreen: React.FC<PlanScreenProps> = ({
   ];
 
   return (
-    <div className="w-full max-w-md mx-auto p-4 pb-28 space-y-4 animate-fadeIn">
+    <div className="w-full max-w-xl mx-auto px-5 py-5 pb-32 space-y-5 animate-rise">
       {/* Celebration banner if phase completed */}
       {justFinishedPhase && (
-        <div className="p-4 bg-gradient-to-r from-amber-500/20 via-[#F9C03E]/30 to-amber-500/20 border border-[#F9C03E] rounded-2xl text-center relative overflow-hidden animate-fadeIn">
+        <div className="p-4 bg-gradient-to-r from-amber-500/20 via-[#E5B869]/30 to-amber-500/20 border border-[#E5B869] rounded-2xl text-center relative overflow-hidden animate-rise shadow-gold">
           <div className="flex items-center justify-center gap-2 mb-1">
-            <Sparkles className="w-5 h-5 text-[#F9C03E] animate-bounce" />
-            <h3 className="font-serif font-bold text-white text-base">
+            <Sparkles className="w-5 h-5 text-[#E5B869] animate-bounce" />
+            <h3 className="font-display font-bold text-[#f7f6f3] text-base">
               Complimenti! Hai completato la FASE {justFinishedPhase}
             </h3>
-            <Sparkles className="w-5 h-5 text-[#F9C03E] animate-bounce" />
+            <Sparkles className="w-5 h-5 text-[#E5B869] animate-bounce" />
           </div>
-          <p className="text-xs text-slate-200">
+          <p className="text-xs text-[#9da6b9]">
             Il tuo magnetismo in pista è già cambiato. Continua così alla prossima serata!
           </p>
           <button
             onClick={() => setJustFinishedPhase(null)}
-            className="mt-2 text-[11px] underline text-[#F9C03E] font-medium"
+            className="mt-2 text-[11px] underline text-[#E5B869] font-medium cursor-pointer"
           >
             Chiudi
           </button>
@@ -137,17 +137,24 @@ export const PlanScreen: React.FC<PlanScreenProps> = ({
       )}
 
       {/* Main Header Card */}
-      <div className="glass-card p-5 border border-[#88A5BF]/30">
+      <div className="rounded-2xl border border-white/10 bg-[#182033]/85 p-5 sm:p-6 shadow-card backdrop-blur-md">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-xl font-bold font-serif text-white">Piano 21 Serate</h1>
-            <p className="text-xs text-[#88A5BF]">Il percorso completo per sbloccare l'Effetto Calamita</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E5B869]">
+              Percorso Guidato
+            </p>
+            <h1 className="text-xl sm:text-2xl font-bold font-display text-[#f7f6f3] mt-0.5">
+              Piano 21 Serate
+            </h1>
+            <p className="text-xs text-[#9da6b9] mt-0.5">
+              Il percorso per trasformare il tuo ballo in pista
+            </p>
           </div>
           <div className="text-right">
-            <span className="text-base font-bold font-mono text-[#F9C03E]">
+            <span className="text-lg font-bold font-display text-[#E5B869] tabular-nums">
               {completedCount}/21
             </span>
-            <p className="text-[10px] text-slate-300 uppercase tracking-wider">Completate</p>
+            <p className="text-[10px] text-[#9da6b9] uppercase tracking-wider">Completate</p>
           </div>
         </div>
 
@@ -155,7 +162,7 @@ export const PlanScreen: React.FC<PlanScreenProps> = ({
         <div className="pt-1 pb-2">
           <button
             onClick={() => onOpenUnita('bonus6')}
-            className="text-xs text-[#F9C03E] hover:underline flex items-center gap-1 font-semibold"
+            className="text-xs text-[#E5B869] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
           >
             <BookOpen className="w-3.5 h-3.5" />
             <span>Come funziona il piano (leggi Bonus 6) →</span>
@@ -163,9 +170,9 @@ export const PlanScreen: React.FC<PlanScreenProps> = ({
         </div>
 
         {/* Overall progress bar */}
-        <div className="w-full bg-[#021831] h-2.5 rounded-full overflow-hidden border border-slate-700/50 mt-2">
+        <div className="w-full bg-[#0d121e] h-2 rounded-full overflow-hidden border border-white/5 mt-2">
           <div
-            className="bg-gradient-to-r from-[#234C77] via-[#88A5BF] to-[#F9C03E] h-full transition-all duration-500"
+            className="bg-gradient-gold h-full rounded-full transition-all duration-500"
             style={{ width: `${progressPercent}%` }}
           />
         </div>

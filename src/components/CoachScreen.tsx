@@ -12,6 +12,9 @@ import {
   MessageSquarePlus,
   ChevronDown,
   ChevronUp,
+  Send,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { COACH_DAILY_LIMIT, PROFILES, MISSIONS_21 } from '../config';
 import { getUnita } from '../../content/index';
@@ -64,6 +67,17 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isQuestionPickerExpanded, setIsQuestionPickerExpanded] = useState(false);
+  const [freeQuestion, setFreeQuestion] = useState('');
+
+  const categoryScrollRefTop = useRef<HTMLDivElement>(null);
+  const categoryScrollRefBottom = useRef<HTMLDivElement>(null);
+
+  const scrollCategories = (ref: React.RefObject<HTMLDivElement | null>, direction: 'left' | 'right') => {
+    if (ref.current) {
+      const offset = direction === 'left' ? -180 : 180;
+      ref.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
 
   const isTrial = isTrialUser(user);
   const [trialUsed, setTrialUsed] = useState<number>(() => {
@@ -92,6 +106,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   }, [user?.trialCoachQuestionsUsed, user?.email, isTrial, onUserDataUpdated]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const latestMessageRef = useRef<HTMLDivElement>(null);
 
   // Load chat and daily limit
   useEffect(() => {
@@ -108,9 +123,18 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     }
   }, [initialPrompt, onClearInitialPrompt]);
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to make sure the latest response is immediately visible from its start
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length > 0) {
+      const timer = setTimeout(() => {
+        if (latestMessageRef.current) {
+          latestMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 60);
+      return () => clearTimeout(timer);
+    }
   }, [messages, isLoading]);
 
   const handleSendMessage = async (questionText: string) => {
@@ -423,31 +447,91 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col h-[calc(100vh-135px)] md:h-[680px] relative overflow-hidden bg-[#021831]">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#88A5BF]/20 bg-[#042B58]/90 backdrop-blur-md z-10 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-full bg-[#234C77] flex items-center justify-center border border-[#F9C03E]/50 shadow-sm">
-              <Bot className="w-4 h-4 text-[#F9C03E]" />
+    <div className="w-full max-w-xl mx-auto flex flex-col h-[calc(100vh-140px)] md:h-[720px] relative overflow-hidden bg-transparent">
+      {/* Top Header: Full profile on empty state, Ultra-compact bar during conversation */}
+      {!hasMessages ? (
+        <>
+          {/* Coach Profile Card */}
+          <section className="flex items-center gap-4 rounded-2xl border border-white/10 bg-[#182033]/85 p-4 shadow-card animate-rise m-4 mb-2 shrink-0 backdrop-blur-md">
+            <img
+              src="/andrea-frattesi.png"
+              alt="Andrea Frattesi"
+              className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-full object-cover object-top ring-2 ring-[#E5B869]/60 shadow-lg"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between">
+                <h1 className="font-display text-lg sm:text-xl font-semibold text-[#f7f6f3]">
+                  Andrea Frattesi
+                </h1>
+                <button
+                  onClick={handleResetChat}
+                  className="text-xs text-[#9da6b9] hover:text-[#E5B869] flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#0d121e] border border-white/10 transition-colors cursor-pointer"
+                  title="Nuova consultazione"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Nuova</span>
+                </button>
+              </div>
+              <p className="text-xs leading-snug text-[#E5B869] font-medium mt-0.5">
+                Coach di seduzione nel ballo di Salsa e Bachata
+              </p>
+              <p className="mt-0.5 text-xs text-[#9da6b9]">
+                100 domande del metodo
+              </p>
             </div>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#042B58] absolute -bottom-0.5 -right-0.5" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold font-serif text-white">Andrea Frattesi</h2>
-            <p className="text-[10px] text-[#F9C03E] font-medium">Coach Ufficiale • 100 Domande del Metodo</p>
-          </div>
-        </div>
+          </section>
 
-        <button
-          onClick={handleResetChat}
-          className="text-xs text-slate-300 hover:text-[#F9C03E] flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#021831]/60 hover:bg-[#234C77]/50 border border-[#88A5BF]/20 transition-colors cursor-pointer"
-          title="Inizia nuova consultazione"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span className="text-[11px] font-medium">Nuova chat</span>
-        </button>
-      </div>
+          {/* Daily Limits Card */}
+          <section className="mx-4 mb-2 rounded-2xl border border-white/10 bg-[#182033]/60 p-3.5 animate-rise shadow-sm shrink-0">
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="font-semibold text-[#f7f6f3]">Domande rimaste oggi</span>
+              <span className="font-display text-base sm:text-lg font-bold text-[#E5B869] tabular-nums">
+                {isTrial ? `${trialRemaining}/3` : `${remainingToday}/20`}
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#0d121e]">
+              <div
+                className="h-full rounded-full bg-gradient-gold transition-all duration-300"
+                style={{
+                  width: `${isTrial ? (trialRemaining / 3) * 100 : (remainingToday / 20) * 100}%`,
+                }}
+              />
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="flex items-center justify-between gap-3 px-4 py-2 bg-[#182033]/95 border-b border-white/10 shrink-0 backdrop-blur-md shadow-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img
+              src="/andrea-frattesi.png"
+              alt="Andrea Frattesi"
+              className="h-8 w-8 shrink-0 rounded-full object-cover object-top ring-1.5 ring-[#E5B869]/70 shadow-xs"
+            />
+            <div className="min-w-0">
+              <h2 className="font-display text-xs sm:text-sm font-semibold text-[#f7f6f3] truncate">
+                Andrea Frattesi
+              </h2>
+              <p className="text-[10px] text-[#E5B869] font-medium truncate">
+                Coach Effetto Calamita
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#0d121e] border border-white/10 text-[#E5B869] font-bold">
+              {isTrial ? `${trialRemaining}/3 prova` : `${remainingToday}/20`}
+            </span>
+            <button
+              onClick={handleResetChat}
+              className="text-[11px] text-[#9da6b9] hover:text-[#E5B869] flex items-center gap-1 px-2 py-1 rounded-lg bg-[#0d121e] border border-white/10 transition-colors cursor-pointer"
+              title="Nuova consultazione (svuota cronologia)"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Nuova</span>
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -473,23 +557,45 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
               </div>
             </div>
 
-            {/* Category tabs */}
-            <div className="overflow-x-auto pb-1 scrollbar-none flex gap-1.5">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`text-xs px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    activeCategory === cat.id
-                      ? 'gold-gradient-btn text-[#042B58] font-bold shadow-sm'
-                      : 'bg-[#042B58] text-slate-300 hover:text-white border-[#88A5BF]/30'
-                  }`}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.label}</span>
-                  <span className="text-[10px] opacity-75">({cat.count})</span>
-                </button>
-              ))}
+            {/* Category tabs with smooth mobile scroll and touch buttons */}
+            <div className="relative flex items-center w-full">
+              <button
+                type="button"
+                onClick={() => scrollCategories(categoryScrollRefTop, 'left')}
+                className="h-8 w-7 shrink-0 flex items-center justify-center rounded-l-xl bg-[#042B58] hover:bg-[#234C77] text-[#88A5BF] hover:text-[#F9C03E] border border-r-0 border-[#88A5BF]/30 transition-all z-10 cursor-pointer shadow-xs"
+                aria-label="Scorri categorie a sinistra"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div
+                ref={categoryScrollRefTop}
+                className="flex-1 overflow-x-auto touch-pan-x overscroll-x-contain py-1.5 px-1 scrollbar-none flex gap-1.5 items-center [-webkit-overflow-scrolling:touch]"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
+              >
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`text-xs px-3 py-1.5 rounded-xl shrink-0 whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      activeCategory === cat.id
+                        ? 'gold-gradient-btn text-[#042B58] font-bold shadow-sm'
+                        : 'bg-[#042B58] text-slate-300 hover:text-white border-[#88A5BF]/30'
+                    }`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.label}</span>
+                    <span className="text-[10px] opacity-75">({cat.count})</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => scrollCategories(categoryScrollRefTop, 'right')}
+                className="h-8 w-7 shrink-0 flex items-center justify-center rounded-r-xl bg-[#042B58] hover:bg-[#234C77] text-[#88A5BF] hover:text-[#F9C03E] border border-l-0 border-[#88A5BF]/30 transition-all z-10 cursor-pointer shadow-xs"
+                aria-label="Scorri categorie a destra"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Questions List cards */}
@@ -575,28 +681,38 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
 
         {/* Chat message bubbles */}
         {hasMessages &&
-          messages.map((msg) => {
+          messages.map((msg, idx) => {
             const isUser = msg.sender === 'user';
+            const isLast = idx === messages.length - 1;
             return (
               <div
                 key={msg.id}
+                ref={isLast ? latestMessageRef : undefined}
                 className={`flex items-start gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
               >
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
                     isUser
-                      ? 'bg-[#F9C03E] text-[#042B58]'
-                      : 'bg-[#234C77] text-[#F9C03E] border border-[#F9C03E]/40'
+                      ? 'bg-gradient-gold text-[#121622] font-bold text-xs'
+                      : 'ring-1 ring-[#E5B869]/60'
                   }`}
                 >
-                  {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                  {isUser ? (
+                    <User className="w-3.5 h-3.5" />
+                  ) : (
+                    <img
+                      src="/andrea-frattesi.png"
+                      alt="Andrea Frattesi"
+                      className="w-full h-full object-cover object-top"
+                    />
+                  )}
                 </div>
 
                 <div
-                  className={`p-3.5 rounded-2xl max-w-[88%] text-xs md:text-sm leading-relaxed text-left ${
+                  className={`p-4 rounded-2xl max-w-[88%] text-xs md:text-sm leading-relaxed text-left ${
                     isUser
-                      ? 'bg-[#234C77] text-white rounded-tr-none border border-[#88A5BF]/30 shadow-sm'
-                      : 'glass-card-subtle text-slate-100 rounded-tl-none border border-[#88A5BF]/25 shadow-md'
+                      ? 'bg-[#212b42] text-[#f7f6f3] rounded-tr-none border border-white/10 shadow-sm'
+                      : 'bg-[#182033]/90 text-[#f7f6f3] rounded-tl-none border border-white/10 shadow-card'
                   }`}
                 >
                   <div className="whitespace-pre-wrap leading-relaxed">
@@ -610,11 +726,15 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         {/* Loading indicator */}
         {isLoading && (
           <div className="flex items-start gap-2.5 animate-fadeIn text-left">
-            <div className="w-7 h-7 rounded-full bg-[#234C77] flex items-center justify-center shrink-0 border border-[#F9C03E]/40">
-              <Bot className="w-3.5 h-3.5 text-[#F9C03E]" />
+            <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-[#E5B869]/60 shrink-0">
+              <img
+                src="/andrea-frattesi.png"
+                alt="Andrea Frattesi"
+                className="w-full h-full object-cover object-top"
+              />
             </div>
-            <div className="glass-card-subtle p-3 rounded-2xl rounded-tl-none border border-[#88A5BF]/25 flex items-center gap-2 text-xs text-[#88A5BF]">
-              <Sparkles className="w-3.5 h-3.5 text-[#F9C03E] animate-spin" />
+            <div className="bg-[#182033]/90 p-3 rounded-2xl rounded-tl-none border border-white/10 flex items-center gap-2 text-xs text-[#9da6b9]">
+              <Sparkles className="w-3.5 h-3.5 text-[#E5B869] animate-spin" />
               <span>Andrea sta elaborando la diagnosi del Metodo...</span>
             </div>
           </div>
@@ -654,54 +774,99 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         </div>
       )}
 
-      {/* Bottom Panel: 100 Questions Directory (Replaces free text input) */}
-      <div className="p-3 bg-[#042B58] border-t border-[#88A5BF]/25 shrink-0 flex flex-col gap-2">
+      {/* Bottom Panel: Free Question Input + 100 Questions Directory */}
+      <div className="p-3 bg-[#042B58] border-t border-[#88A5BF]/25 shrink-0 flex flex-col gap-2 shadow-lg">
         {/* Trial Status or Lock Card */}
         {isTrial && trialRemaining <= 0 ? (
-          <div className="p-4 rounded-xl bg-gradient-to-b from-[#234C77] to-[#021831] border border-[#F9C03E]/40 text-center space-y-2.5">
+          <div className="p-3.5 rounded-xl bg-gradient-to-b from-[#234C77] to-[#021831] border border-[#F9C03E]/40 text-center space-y-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F9C03E]/20 text-[#F9C03E] text-xs font-bold">
               <Sparkles className="w-3.5 h-3.5" />
               <span>3 Domande di Prova Utilizzate</span>
             </div>
             <p className="text-xs text-slate-200 leading-relaxed">
-              Hai provato il Coach di Andrea Frattesi. Sblocca la versione completa per avere fino a 20 consulti al giorno (reset a mezzanotte) prima, durante e dopo ogni serata!
+              Hai completato le 3 domande della prova con Andrea Frattesi. Sblocca la versione completa per continuare ad avere fino a 20 consulti al giorno prima, durante e dopo ogni serata!
             </p>
             <button
-              onClick={() => onOpenUnlock?.('Hai usato le domande gratuite di oggi.')}
+              onClick={() => onOpenUnlock?.('Hai usato le 3 domande gratuite di prova.')}
               className="py-2.5 px-4 rounded-xl gold-gradient-btn text-xs font-bold text-[#042B58] shadow-lg hover:brightness-105 transition-all cursor-pointer inline-flex items-center gap-2"
             >
-              <span>Sblocca Coach (20 domande/giorno)</span>
+              <span>Sblocca Coach Completo (20 al giorno)</span>
               <Sparkles className="w-4 h-4" />
             </button>
           </div>
         ) : (
           <>
-            {isTrial && (
-              <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#021831]/90 border border-[#F9C03E]/30 text-xs">
-                <span className="flex items-center gap-1.5 text-[#F9C03E] font-medium">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Prova gratuita: <strong>{trialRemaining} su 3 domande rimaste</strong></span>
-                </span>
-                <button
-                  onClick={() => onOpenUnlock?.()}
-                  className="text-[11px] text-[#F9C03E] hover:underline font-bold"
-                >
-                  Sblocca Completa →
-                </button>
+            {/* Free-form Question Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!freeQuestion.trim() || isLoading) return;
+                if (isTrial && trialRemaining <= 0) {
+                  onOpenUnlock?.(
+                    'Hai raggiunto il limite di 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare!'
+                  );
+                  return;
+                }
+                if (!isTrial && remainingToday <= 0) {
+                  setErrorNotice('Hai usato le 20 domande di oggi. Il Coach torna disponibile a mezzanotte.');
+                  return;
+                }
+                handleSendMessage(freeQuestion);
+                setFreeQuestion('');
+              }}
+              className="flex items-center gap-2"
+            >
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={freeQuestion}
+                  onChange={(e) => setFreeQuestion(e.target.value)}
+                  disabled={isLoading || (isTrial ? trialRemaining <= 0 : remainingToday <= 0)}
+                  placeholder={
+                    isTrial && trialRemaining <= 0
+                      ? 'Limite domande raggiunto'
+                      : 'Fai una domanda libera al Coach (es. come sblocco lo sguardo?)...'
+                  }
+                  className="w-full pl-3.5 pr-8 py-2.5 rounded-xl bg-[#021831] border border-[#88A5BF]/30 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E] disabled:opacity-50 transition-all shadow-inner"
+                />
+                {freeQuestion.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setFreeQuestion('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs px-1"
+                    title="Cancella testo"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
-            )}
+
+              <button
+                type="submit"
+                disabled={
+                  !freeQuestion.trim() ||
+                  isLoading ||
+                  (isTrial ? trialRemaining <= 0 : remainingToday <= 0)
+                }
+                className="h-10 px-4 rounded-xl gold-gradient-btn text-xs font-bold text-[#042B58] flex items-center justify-center gap-1.5 shadow-md hover:brightness-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 transition-all"
+                title="Invia domanda ad Andrea Frattesi"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Invia</span>
+              </button>
+            </form>
 
             {/* Toggle button to expand/collapse full question browser when in active conversation */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pt-0.5">
               <button
                 onClick={() => setIsQuestionPickerExpanded((prev) => !prev)}
-                className="flex items-center gap-2 text-xs font-semibold text-white hover:text-[#F9C03E] transition-colors cursor-pointer py-1"
+                className="flex items-center gap-2 text-xs font-semibold text-white hover:text-[#F9C03E] transition-colors cursor-pointer py-0.5"
               >
                 <MessageSquarePlus className="w-4 h-4 text-[#F9C03E]" />
                 <span>
                   {isQuestionPickerExpanded
-                    ? 'Nascondi lista domande'
-                    : 'Scegli una domanda per il Coach (100 disponibili)'}
+                    ? 'Nascondi lista 100 domande'
+                    : 'Oppure scegli tra le 100 domande del Metodo'}
                 </span>
                 {isQuestionPickerExpanded ? (
                   <ChevronDown className="w-3.5 h-3.5 text-[#F9C03E]" />
@@ -721,145 +886,129 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
           </>
         )}
 
-        {/* Category Pills Bar (Always accessible) */}
-        <div className="overflow-x-auto py-1 scrollbar-none flex gap-1.5">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => {
-                setActiveCategory(cat.id);
-                setIsQuestionPickerExpanded(true);
-              }}
-              className={`text-[11px] px-2.5 py-1 rounded-lg whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer border ${
-                activeCategory === cat.id
-                  ? 'bg-[#234C77] text-white border-[#F9C03E] font-medium'
-                  : 'bg-[#021831]/70 text-slate-300 hover:text-white border-[#88A5BF]/20'
-              }`}
-            >
-              <span>{cat.icon}</span>
-              <span>{cat.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Expandable / Collapsible Question Drawer */}
+        {/* Expandable / Collapsible Question Drawer (ONLY when user explicitly opens it) */}
         {isQuestionPickerExpanded && (
-          <div className="mt-1 space-y-2 max-h-64 overflow-y-auto pr-1 animate-fadeIn border-t border-[#88A5BF]/15 pt-2 text-left">
-            {/* Search box among the 100 questions */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cerca tra le 100 domande (es. salsa, rifiuto, tempo 1, sguardo...)"
-                className="w-full pl-8 pr-3 py-1.5 bg-[#021831] border border-[#88A5BF]/30 rounded-xl text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#F9C03E]"
-              />
+          <div className="space-y-2 border-t border-[#88A5BF]/20 pt-2 animate-fadeIn">
+            {/* Category Pills Bar inside the drawer */}
+            <div className="relative flex items-center w-full">
+              <button
+                type="button"
+                onClick={() => scrollCategories(categoryScrollRefBottom, 'left')}
+                className="h-7 w-6 shrink-0 flex items-center justify-center rounded-l-lg bg-[#021831] hover:bg-[#234C77] text-[#88A5BF] hover:text-[#F9C03E] border border-r-0 border-[#88A5BF]/30 transition-all cursor-pointer z-10"
+                aria-label="Scorri categorie a sinistra"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <div
+                ref={categoryScrollRefBottom}
+                className="flex-1 overflow-x-auto touch-pan-x overscroll-x-contain py-1 px-1 scrollbar-none flex gap-1.5 items-center [-webkit-overflow-scrolling:touch]"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
+              >
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg shrink-0 whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer border ${
+                      activeCategory === cat.id
+                        ? 'bg-[#234C77] text-white border-[#F9C03E] font-medium'
+                        : 'bg-[#021831]/70 text-slate-300 hover:text-white border-[#88A5BF]/20'
+                    }`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => scrollCategories(categoryScrollRefBottom, 'right')}
+                className="h-7 w-6 shrink-0 flex items-center justify-center rounded-r-lg bg-[#021831] hover:bg-[#234C77] text-[#88A5BF] hover:text-[#F9C03E] border border-l-0 border-[#88A5BF]/30 transition-all cursor-pointer z-10"
+                aria-label="Scorri categorie a destra"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            <div className="space-y-1.5">
-              {filteredQuestions.map((q: CoachQuestionItem, idx: number) => {
-                const numLabel = getQuestionNumberLabel(q);
-                const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
-                const catIndex = catQuestions.findIndex((item) => item.id === q.id);
-                const isFirstOfCategory =
-                  activeCategory !== 'all'
-                    ? catIndex === 0
-                    : idx === 0 || filteredQuestions[idx - 1].category !== q.category;
-                const theme = SECTION_THEMES[q.category] || SECTION_THEMES.approccio;
+            {/* Questions List */}
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1 text-left">
+              {/* Search box among the 100 questions */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cerca tra le 100 domande (es. salsa, rifiuto, tempo 1, sguardo...)"
+                  className="w-full pl-8 pr-3 py-1.5 bg-[#021831] border border-[#88A5BF]/30 rounded-xl text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#F9C03E]"
+                />
+              </div>
 
-                return (
-                  <React.Fragment key={q.id}>
-                    {isFirstOfCategory && (
-                      <div className={`mt-3 mb-1 px-3 py-1.5 rounded-xl border ${theme.headerBorder} ${theme.headerBg} flex items-center justify-between`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">{theme.icon}</span>
-                          <span className={`text-[11px] font-bold uppercase tracking-wider ${theme.titleColor}`}>
-                            {theme.title}
+              <div className="space-y-1.5">
+                {filteredQuestions.map((q: CoachQuestionItem, idx: number) => {
+                  const numLabel = getQuestionNumberLabel(q);
+                  const catQuestions = OFFICIAL_COACH_QUESTIONS.filter((item) => item.category === q.category);
+                  const catIndex = catQuestions.findIndex((item) => item.id === q.id);
+                  const isFirstOfCategory =
+                    activeCategory !== 'all'
+                      ? catIndex === 0
+                      : idx === 0 || filteredQuestions[idx - 1].category !== q.category;
+                  const theme = SECTION_THEMES[q.category] || SECTION_THEMES.approccio;
+
+                  return (
+                    <React.Fragment key={q.id}>
+                      {isFirstOfCategory && (
+                        <div className={`mt-3 mb-1 px-3 py-1.5 rounded-xl border ${theme.headerBorder} ${theme.headerBg} flex items-center justify-between`}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{theme.icon}</span>
+                            <span className={`text-[11px] font-bold uppercase tracking-wider ${theme.titleColor}`}>
+                              {theme.title}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md border ${theme.badgeBorder} ${theme.badgeBg} ${theme.badgeText}`}>
+                            20 Domande (1–20)
                           </span>
                         </div>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md border ${theme.badgeBorder} ${theme.badgeBg} ${theme.badgeText}`}>
-                          20 Domande (1–20)
-                        </span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => {
-                        if (isTrial && trialRemaining <= 0) {
-                          onOpenUnlock?.(
-                            'Hai raggiunto il limite massimo di 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare!'
-                          );
-                          return;
-                        }
-                        handleSendMessage(q.question);
-                      }}
-                      disabled={(isTrial ? trialRemaining <= 0 : remainingToday <= 0) || isLoading}
-                      className="w-full p-2.5 rounded-xl bg-[#021831]/80 hover:bg-[#234C77] border border-[#88A5BF]/20 hover:border-[#F9C03E]/50 text-left transition-all flex flex-col gap-1 group cursor-pointer disabled:opacity-40"
-                    >
-                      <div className="flex items-center justify-between">
-                        {/* Frase in giallo senza numero */}
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E]">
-                          {q.categoryLabel}
-                        </span>
-                        <span className="text-[10px] text-slate-400 group-hover:text-white font-medium">
-                          Invia →
-                        </span>
-                      </div>
-                      {/* Solo nella domanda in bianco è presente il numero */}
-                      <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug">
-                        {numLabel}. {q.question}
-                      </p>
-                    </button>
-                  </React.Fragment>
-                );
-              })}
+                      )}
+                      <button
+                        onClick={() => {
+                          setIsQuestionPickerExpanded(false);
+                          if (isTrial && trialRemaining <= 0) {
+                            onOpenUnlock?.(
+                              'Hai raggiunto il limite massimo di 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare!'
+                            );
+                            return;
+                          }
+                          handleSendMessage(q.question);
+                        }}
+                        disabled={(isTrial ? trialRemaining <= 0 : remainingToday <= 0) || isLoading}
+                        className="w-full p-2.5 rounded-xl bg-[#021831]/80 hover:bg-[#234C77] border border-[#88A5BF]/20 hover:border-[#F9C03E]/50 text-left transition-all flex flex-col gap-1 group cursor-pointer disabled:opacity-40"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E]">
+                            {q.categoryLabel}
+                          </span>
+                          <span className="text-[10px] text-slate-400 group-hover:text-white font-medium">
+                            Invia →
+                          </span>
+                        </div>
+                        <p className="text-xs text-white group-hover:text-amber-100 font-medium leading-snug">
+                          {numLabel}. {q.question}
+                        </p>
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
 
-              {filteredQuestions.length === 0 && (
-                <div className="p-3 text-center text-xs text-slate-400">
-                  Nessuna domanda trovata per questa ricerca.
-                </div>
-              )}
+                {filteredQuestions.length === 0 && (
+                  <div className="p-3 text-center text-xs text-slate-400">
+                    Nessuna domanda trovata per questa ricerca.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Quick Suggestion buttons when drawer is closed and messages exist */}
-        {!isQuestionPickerExpanded && hasMessages && (
-          <div className="overflow-x-auto py-1 scrollbar-none flex gap-1.5">
-            {filteredQuestions.slice(0, 5).map((q) => {
-              const numLabel = getQuestionNumberLabel(q);
-              return (
-                <button
-                  key={q.id}
-                  onClick={() => {
-                    if (isTrial && trialRemaining <= 0) {
-                      onOpenUnlock?.(
-                        'Hai raggiunto il limite massimo di 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare!'
-                      );
-                      return;
-                    }
-                    handleSendMessage(q.question);
-                  }}
-                  disabled={(isTrial ? trialRemaining <= 0 : remainingToday <= 0) || isLoading}
-                  className="text-[11px] whitespace-nowrap px-3 py-1.5 rounded-xl bg-[#021831] hover:bg-[#234C77] text-slate-200 hover:text-white border border-[#88A5BF]/30 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shrink-0"
-                >
-                  <span className="max-w-[200px] truncate text-white">{numLabel}. {q.summary}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Footer info: Reset time & Daily limit */}
-        <div className="flex items-center justify-between text-[11px] text-[#88A5BF] pt-1 px-1 font-mono">
-          <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3 text-[#F9C03E]" />
-            <span>Reset automatico a mezzanotte</span>
-          </div>
-          <span>
-            {remainingToday > 0 ? `${remainingToday} domande disponibili` : 'Limite giornaliero raggiunto'}
-          </span>
-        </div>
       </div>
     </div>
   );

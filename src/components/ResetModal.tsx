@@ -92,13 +92,13 @@ export const ResetModal: React.FC<ResetModalProps> = ({ isOpen, onClose }) => {
           Reset di Emergenza
         </div>
 
-        <h2 className="text-xl font-bold font-serif text-white mb-2">
+        <h2 className="text-xl sm:text-2xl font-bold font-display text-[#f7f6f3] mb-2">
           Respira. Ritrova il tuo Asse.
         </h2>
 
         {/* Anchor quote */}
-        <div className="my-3 px-4 py-3 bg-[#234C77]/40 border border-[#88A5BF]/20 rounded-2xl w-full">
-          <p className="text-[#F9C03E] text-base font-serif italic leading-relaxed">
+        <div className="my-3 px-4 py-3 bg-[#182033] border border-white/10 rounded-2xl w-full">
+          <p className="text-[#E5B869] text-base font-display italic leading-relaxed">
             "{currentQuote}"
           </p>
         </div>
@@ -107,26 +107,26 @@ export const ResetModal: React.FC<ResetModalProps> = ({ isOpen, onClose }) => {
         <div className="my-6 relative flex items-center justify-center w-52 h-52">
           {/* Outer pulsating ring */}
           <div
-            className={`absolute rounded-full border-2 border-[#F9C03E]/30 transition-all duration-1000 ease-in-out ${
+            className={`absolute rounded-full border-2 border-[#E5B869]/30 transition-all duration-1000 ease-in-out ${
               breathPhase === 'inspira'
-                ? 'w-48 h-48 bg-[#F9C03E]/15 scale-105'
-                : 'w-32 h-32 bg-[#234C77]/40 scale-95'
+                ? 'w-48 h-48 bg-[#E5B869]/15 scale-105 shadow-gold'
+                : 'w-32 h-32 bg-[#212b42]/40 scale-95'
             }`}
           />
 
           {/* Inner core circle */}
           <div
-            className={`w-36 h-36 rounded-full flex flex-col items-center justify-center border border-[#F9C03E]/50 shadow-inner z-10 transition-all duration-1000 ${
-              breathPhase === 'inspira' ? 'bg-[#042B58]' : 'bg-[#021831]'
+            className={`w-36 h-36 rounded-full flex flex-col items-center justify-center border border-[#E5B869]/50 shadow-inner z-10 transition-all duration-1000 ${
+              breathPhase === 'inspira' ? 'bg-[#182033]' : 'bg-[#0d121e]'
             }`}
           >
-            <span className="text-[#F9C03E] text-xs font-bold uppercase tracking-widest mb-1">
+            <span className="text-[#E5B869] text-xs font-bold uppercase tracking-widest mb-1">
               {breathPhase === 'inspira' ? 'Inspira' : 'Espira'}
             </span>
-            <span className="text-3xl font-bold text-white font-mono">
+            <span className="text-3xl font-bold text-white font-mono tabular-nums">
               {breathSeconds}s
             </span>
-            <span className="text-[10px] text-slate-400 mt-1">
+            <span className="text-[10px] text-[#9da6b9] mt-1">
               {breathPhase === 'inspira' ? '(4 secondi)' : '(6 secondi)'}
             </span>
           </div>

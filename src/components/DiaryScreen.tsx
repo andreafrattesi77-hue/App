@@ -231,25 +231,25 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ user, onOpenUnita }) =
   const watchedVideosCount = (user.watchedVideos || []).length;
 
   return (
-    <div className="w-full max-w-md mx-auto p-4 pb-28 space-y-4 animate-fadeIn">
+    <div className="w-full max-w-xl mx-auto px-5 py-5 pb-32 space-y-5 animate-rise">
       {/* Tab toggle */}
-      <div className="flex bg-[#021831] p-1 rounded-2xl border border-slate-700/60">
+      <div className="flex bg-[#0d121e] p-1 rounded-xl border border-white/10">
         <button
           onClick={() => setActiveTab('compila')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'compila'
-              ? 'bg-[#234C77] text-white shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-[#182033] text-[#E5B869] shadow-sm'
+              : 'text-[#9da6b9] hover:text-[#f7f6f3]'
           }`}
         >
           {savedEntryId ? 'Modifica Serata' : 'Compila Serata'}
         </button>
         <button
           onClick={() => setActiveTab('progressi')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'progressi'
-              ? 'bg-[#234C77] text-white shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-[#182033] text-[#E5B869] shadow-sm'
+              : 'text-[#9da6b9] hover:text-[#f7f6f3]'
           }`}
         >
           <BarChart3 className="w-3.5 h-3.5" />

@@ -5,7 +5,12 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import { METODO, trovaUnitaPertinenti, getUnita } from './content/index';
-import { generateCoachReasoning, generateEveningAdviceReasoning } from './src/services/coachReasoning';
+import {
+  generateCoachReasoning,
+  generateEveningAdviceReasoning,
+  isCoachQuestionCoherent,
+  INCOHERENT_QUESTION_RESPONSE,
+} from './src/services/coachReasoning';
 import { analyzeWithEssentia } from './src/services/essentiaServer';
 import { DEFAULT_SHARED_TRACKS } from './src/data/defaultSharedTracks';
 
@@ -110,6 +115,32 @@ function saveCoachTrialUsage(data: Record<string, CoachTrialUsageRecord>) {
   } catch (e) {
     console.error('Error saving coach trial usage:', e);
   }
+}
+
+function isValidRealEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  if (!emailRegex.test(trimmed)) return false;
+
+  const parts = trimmed.split('@');
+  if (parts.length !== 2) return false;
+  const [localPart, domainPart] = parts;
+
+  if (localPart.length < 2) return false;
+  const domainParts = domainPart.split('.');
+  if (domainParts.length < 2) return false;
+
+  const domainName = domainParts[0];
+  const tld = domainParts[domainParts.length - 1];
+
+  if (domainName.length < 2) return false;
+  if (tld.length < 2 || !/^[a-z]+$/.test(tld)) return false;
+
+  const fakeDomains = ['test.test', 'example.com', 'a.a', 'b.b', 'fake.com', 'mail.mail'];
+  if (fakeDomains.includes(domainPart)) return false;
+
+  return true;
 }
 
 function getCoachTrialQuestionsUsed(email: string): number {
@@ -293,6 +324,26 @@ app.post('/api/coach/chat', async (req, res) => {
 
   try {
     const studentName = typeof userName === 'string' ? userName.trim() : '';
+    const greeting = studentName ? `Ciao ${studentName}, ` : 'Ciao, ';
+
+    // Se la domanda non è coerente con il Metodo Effetto Calamita, consuma comunque la quota e rispondi dicendo che non è una domanda coerente
+    if (!isCoachQuestionCoherent(message)) {
+      let newTrialCount: number | undefined = undefined;
+      let newTrialRemaining: number | undefined = undefined;
+
+      if (isTrialUserRequest && cleanEmail) {
+        newTrialCount = incrementCoachTrialQuestions(cleanEmail, message);
+        newTrialRemaining = Math.max(0, 3 - newTrialCount);
+      }
+
+      return res.json({
+        reply: `${greeting}${INCOHERENT_QUESTION_RESPONSE}`,
+        isIncoherent: true,
+        trialCoachQuestionsUsed: newTrialCount,
+        trialRemaining: newTrialRemaining,
+        trialLimitReached: newTrialRemaining !== undefined ? newTrialRemaining <= 0 : false,
+      });
+    }
 
     // Determine relevant units for context
     let unit1 = activeUnitId ? getUnita(activeUnitId) : undefined;
@@ -1007,8 +1058,8 @@ app.post('/api/trial-lead', async (req, res) => {
     const cleanName = String(name || '').trim();
     const cleanEmail = String(email || '').trim().toLowerCase();
 
-    if (!cleanName || !cleanEmail || !cleanEmail.includes('@')) {
-      return res.status(400).json({ error: 'Nome ed email valida sono obbligatori.' });
+    if (!cleanName || !isValidRealEmail(cleanEmail)) {
+      return res.status(400).json({ error: 'Nome ed email valida ed esistente sono obbligatori.' });
     }
 
     const currentLeads = getStoredTrialLeads();

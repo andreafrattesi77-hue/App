@@ -157,7 +157,7 @@ export const RitualScreen: React.FC<RitualScreenProps> = ({
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-4 pb-24 flex flex-col justify-between min-h-[82vh] animate-fadeIn">
+    <div className="w-full max-w-xl mx-auto px-5 py-5 pb-28 flex flex-col justify-between min-h-[82vh] animate-rise">
       {/* Top Header */}
       <div>
         <div className="flex items-center justify-between pt-2 mb-3">

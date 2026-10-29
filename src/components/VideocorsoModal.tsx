@@ -71,21 +71,21 @@ export const VideocorsoModal: React.FC<VideocorsoModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-[#021831]/95 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-2xl max-h-[94vh] bg-[#042B58] border border-[#88A5BF]/30 rounded-3xl shadow-2xl flex flex-col relative overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+      <div className="w-full max-w-2xl max-h-[94vh] bg-[#182033] border border-white/10 rounded-3xl shadow-card flex flex-col relative overflow-hidden">
         {/* Top Header */}
-        <div className="p-3.5 sm:p-4 border-b border-[#88A5BF]/20 flex items-center justify-between shrink-0 bg-[#042B58]/95">
+        <div className="p-3.5 sm:p-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-[#182033]/95">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#234C77] border border-[#F9C03E]/40 flex items-center justify-center text-[#F9C03E] shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-gold-soft flex items-center justify-center text-[#E5B869] shadow-sm">
               <Video className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold font-serif text-white leading-tight">
+              <h2 className="text-sm sm:text-base font-bold font-display text-[#f7f6f3] leading-tight">
                 Videocorso Effetto Calamita
               </h2>
-              <p className="text-[11px] text-[#F9C03E] flex items-center gap-1.5">
+              <p className="text-[11px] text-[#E5B869] flex items-center gap-1.5">
                 <span>9 Moduli Pratici</span>
-                <span className="text-slate-400">•</span>
+                <span className="text-[#9da6b9]">•</span>
                 <span className={isTrial ? 'text-amber-400' : 'text-emerald-400'}>
                   {isTrial ? 'Modulo 1 attivo (8 da sbloccare)' : 'Accesso completo sbloccato'}
                 </span>

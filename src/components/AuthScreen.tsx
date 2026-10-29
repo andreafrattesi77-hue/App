@@ -2,83 +2,106 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   KeyRound,
   ArrowRight,
-  ShieldCheck,
-  UserCheck,
-  CreditCard,
   Sparkles,
-  CheckCircle2,
-  ExternalLink,
-  Lock,
+  Check,
   Mail,
   Loader2,
   User,
+  Star,
+  Lock,
+  Music2,
+  Video,
+  BookOpen,
+  CalendarCheck,
+  ClipboardCheck,
+  MessageCircle,
 } from 'lucide-react';
 import { ACCESS_CODES, STRIPE_CHECKOUT_URL } from '../config';
 import { saveUserData, getUserData } from '../services/storage';
 import { UnlockModal } from './UnlockModal';
-import {
-  loginWithEmail,
-  registerWithEmail,
-  saveUserToFirestore,
-  loadUserFromFirestore,
-} from '../services/firebase';
 
 interface AuthScreenProps {
   onSuccess: (name: string, accessCode: string) => void;
 }
 
+const TRIAL_PERKS = [
+  '3 domande al Coach AI',
+  "Canzoni da 30 secondi con l'Allenatore di Ritmo",
+  'La lezione di introduzione del Videocorso',
+  "Introduzione e prime pagine del capitolo 1 dell'Ebook",
+  'Fai il test del tuo profilo per capire cosa ti blocca',
+];
+
+const CODE_UNLOCKED_FEATURES = [
+  {
+    icon: MessageCircle,
+    title: 'Coach AI',
+    text: '20 domande al giorno, 100 del Metodo',
+  },
+  {
+    icon: Music2,
+    title: 'Allenatore di Ritmo',
+    text: "Canzoni intere, per imparare l'1 e la clave",
+  },
+  {
+    icon: Video,
+    title: 'Videocorso completo',
+    text: "Tutti i 9 moduli, non solo l'introduzione",
+  },
+  {
+    icon: BookOpen,
+    title: 'Ebook e bonus',
+    text: "Tutto l'Ebook, la Guida Ripartire e i 6 bonus",
+  },
+  {
+    icon: CalendarCheck,
+    title: 'Piano 21 serate',
+    text: "Una missione per serata, dal rituale all'uomo magnetico",
+  },
+  {
+    icon: ClipboardCheck,
+    title: 'Diario e test',
+    text: 'Termostato del filo, progressi e test dei 4 profili',
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    text: 'Un efficace mix di tecniche per acquisire il magnetismo e la totale padronanza in pista con la salsa e la bachata.',
+    name: 'Ugo Emanuele Mosconi',
+  },
+  {
+    text: 'Il percorso che ho fatto è stato una bellissima esperienza che mi ha dato tanto. Andrea è stato un tutor che ha sempre cercato di stimolarmi in modo positivo.',
+    name: 'Massimo',
+  },
+];
+
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
-  const [activeMode, setActiveMode] = useState<'trial' | 'code'>('trial');
-  const [accessMethod, setAccessMethod] = useState<'code' | 'email'>('code');
-  const [emailMode, setEmailMode] = useState<'register' | 'login'>('register');
+  const [activeMode, setActiveMode] = useState<'trial' | 'login'>('trial');
+  const [loginMethod, setLoginMethod] = useState<'code' | 'email'>('code');
 
   // Input states
   const [code, setCode] = useState('');
-  const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [registerName, setRegisterName] = useState('');
-  const [registerCode, setRegisterCode] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-
-  // Trial form inputs
   const [trialName, setTrialName] = useState('');
   const [trialEmail, setTrialEmail] = useState('');
-  const [trialConsent, setTrialConsent] = useState(true);
-  const [isSubmittingTrial, setIsSubmittingTrial] = useState(false);
+  const [trialConsent, setTrialConsent] = useState(false);
+
+  // Email login states
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
 
-  // Refs for scrolling to form
-  const trialFormRef = useRef<HTMLDivElement>(null);
-  const trialNameInputRef = useRef<HTMLInputElement>(null);
-
-  const handleSelectTrialAndScroll = () => {
-    setActiveMode('trial');
-    setErrorMessage('');
-    setTimeout(() => {
-      trialFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setTimeout(() => {
-        trialNameInputRef.current?.focus();
-      }, 350);
-    }, 60);
-  };
-
-  // Step 2 name modal for instant code access
+  // Step 2 for code access if name not yet set
   const [step, setStep] = useState<'auth' | 'name'>('auth');
   const [validCode, setValidCode] = useState('');
-  const [name, setName] = useState('');
-  const [isAutoUnlocked, setIsAutoUnlocked] = useState(false);
+  const [nameInput, setNameInput] = useState('');
 
-  // Initialize stored name if already saved previously
-  useEffect(() => {
-    const existing = getUserData();
-    if (existing?.name) {
-      setName(existing.name);
-      setRegisterName(existing.name);
-    }
-  }, []);
+  const formRef = useRef<HTMLDivElement>(null);
 
-  // Magic Link auto-detection on mount: ?codice=... o ?code=... e ?nome=... o ?name=...
+  // Magic link check on mount
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -93,23 +116,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
       const queryName = (params.get('nome') || params.get('name') || '').trim();
 
       if (queryCode) {
-        const isValid = ACCESS_CODES.some(
-          (valid) => valid.toUpperCase() === queryCode
-        );
+        const isValid = ACCESS_CODES.some((c) => c.toUpperCase() === queryCode);
         if (isValid) {
           const existing = getUserData();
           const targetName = queryName || existing?.name?.trim();
           if (targetName) {
-            // Accesso istantaneo completo
             saveUserData({ accessCode: queryCode, name: targetName });
             window.history.replaceState({}, document.title, window.location.pathname);
             onSuccess(targetName, queryCode);
             return;
           } else {
-            // Codice valido riconosciuto dal link, chiede subito il nome
             setValidCode(queryCode);
-            setRegisterCode(queryCode);
-            setIsAutoUnlocked(true);
             setStep('name');
             window.history.replaceState({}, document.title, window.location.pathname);
             return;
@@ -121,185 +138,57 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     }
   }, [onSuccess]);
 
-  // Handle Instant Code verification
-  const handleVerifyCode = (e: React.FormEvent) => {
+function isValidRealEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  if (!emailRegex.test(trimmed)) return false;
+
+  const parts = trimmed.split('@');
+  if (parts.length !== 2) return false;
+  const [localPart, domainPart] = parts;
+
+  if (localPart.length < 2) return false;
+  const domainParts = domainPart.split('.');
+  if (domainParts.length < 2) return false;
+
+  const domainName = domainParts[0];
+  const tld = domainParts[domainParts.length - 1];
+
+  if (domainName.length < 2) return false;
+  if (tld.length < 2 || !/^[a-z]+$/.test(tld)) return false;
+
+  const fakeDomains = ['test.test', 'example.com', 'a.a', 'b.b', 'fake.com', 'mail.mail'];
+  if (fakeDomains.includes(domainPart)) return false;
+
+  return true;
+}
+
+  // Handle Trial submission
+  const handleTrialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    const cleanCode = code.trim().toUpperCase();
-
-    if (!cleanCode) {
-      setErrorMessage('Inserisci il codice di accesso ricevuto via email.');
-      return;
-    }
-
-    const isValid = ACCESS_CODES.some(
-      (valid) => valid.toUpperCase() === cleanCode
-    );
-
-    if (isValid) {
-      // Se il nome è già in memoria, accede direttamente senza chiederlo di nuovo
-      const existing = getUserData();
-      const existingName = existing?.name?.trim() || name.trim();
-      if (existingName) {
-        saveUserData({
-          accessCode: cleanCode,
-          name: existingName,
-          email: existing?.email,
-          isTrial: false,
-          isVideocorsoUnlocked: true,
-        });
-        onSuccess(existingName, cleanCode);
-        return;
-      }
-
-      setValidCode(cleanCode);
-      setStep('name');
-    } else {
-      setErrorMessage("Codice non valido. Inserisci il codice ricevuto dopo l'acquisto o contatta l'assistenza.");
-    }
-  };
-
-  // Handle Step 2: save user name after instant code
-  const handleSaveName = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanName = name.trim();
-    if (!cleanName) {
-      setErrorMessage('Inserisci il tuo nome per continuare.');
-      return;
-    }
-
-    const resolvedCode = validCode || 'ACQUISTO_CONFERMATO';
-    const existing = getUserData();
-    saveUserData({
-      accessCode: resolvedCode,
-      name: cleanName,
-      email: existing?.email,
-      isTrial: false,
-      isVideocorsoUnlocked: true,
-    });
-
-    onSuccess(cleanName, resolvedCode);
-  };
-
-  // Handle Email Auth (Registration or Login)
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanEmail = emailInput.trim();
-    const cleanPass = passwordInput.trim();
-
-    if (!cleanEmail || !cleanPass) {
-      setErrorMessage('Inserisci sia la tua email che la password.');
-      return;
-    }
-
-    // CONTROLLO DI SICUREZZA: Per registrarsi è OBBLIGATORIO avere il codice di acquisto
-    let validatedCode = 'ACQUISTO_CONFERMATO';
-    if (emailMode === 'register') {
-      if (!registerName.trim()) {
-        setErrorMessage('Inserisci il tuo nome per completare la registrazione.');
-        return;
-      }
-
-      const cleanRegCode = registerCode.trim().toUpperCase();
-      if (!cleanRegCode) {
-        setErrorMessage("Per creare un account devi inserire il codice di accesso ricevuto via email dopo l'acquisto. Se non hai acquistato, clicca su 'Acquista ora'.");
-        return;
-      }
-
-      const isCodeValid = ACCESS_CODES.some(
-        (valid) => valid.toUpperCase() === cleanRegCode
-      );
-
-      if (!isCodeValid) {
-        setErrorMessage("Codice di accesso non valido. Controlla l'email di conferma acquisto oppure acquista l'accesso.");
-        return;
-      }
-
-      validatedCode = cleanRegCode;
-    }
-
-    setIsAuthenticating(true);
-    setErrorMessage('');
-
-    try {
-      if (emailMode === 'register') {
-        const res = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: cleanEmail,
-            password: cleanPass,
-            name: registerName.trim(),
-            accessCode: validatedCode,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Errore nella registrazione.');
-        }
-
-        const resolvedUser = data.user;
-        saveUserData({
-          name: resolvedUser.name,
-          accessCode: resolvedUser.accessCode,
-        });
-        onSuccess(resolvedUser.name, resolvedUser.accessCode);
-      } else {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: cleanEmail,
-            password: cleanPass,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Email o password non corretti.');
-        }
-
-        const resolvedUser = data.user;
-        saveUserData({
-          name: resolvedUser.name,
-          accessCode: resolvedUser.accessCode || 'MAGNETICO',
-          ...(resolvedUser.profile ? { profile: resolvedUser.profile } : {}),
-        });
-        onSuccess(resolvedUser.name, resolvedUser.accessCode || 'MAGNETICO');
-      }
-    } catch (err: unknown) {
-      console.error('Email Auth error:', err);
-      const msg = (err as Error)?.message || '';
-      setErrorMessage(
-        msg ||
-          (emailMode === 'register'
-            ? 'Errore nella registrazione. Controlla i dati e riprova.'
-            : 'Accesso non riuscito. Controlla email e password.')
-      );
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
-
-  const handleStartTrial = async (e: React.FormEvent) => {
-    e.preventDefault();
     const cleanName = trialName.trim();
     const cleanEmail = trialEmail.trim().toLowerCase();
 
-    if (!cleanName || cleanName.length < 2) {
-      setErrorMessage('Inserisci il tuo nome per iniziare la prova.');
+    if (!cleanName || !cleanEmail) {
+      setErrorMessage('Inserisci sia il tuo nome che la tua email per accedere.');
       return;
     }
 
-    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      setErrorMessage('Inserisci una email valida per creare il tuo account di prova.');
+    if (!isValidRealEmail(cleanEmail)) {
+      setErrorMessage('Inserisci un indirizzo email valido ed esistente (es. nome@gmail.com o nome@libero.it).');
       return;
     }
 
-    setErrorMessage('');
-    setIsSubmittingTrial(true);
+    if (!trialConsent) {
+      setErrorMessage('È necessario accettare la privacy policy per iniziare la prova.');
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      // 1. Invia a backend per salvataggio lead ed inoltro webhook Systeme.io e recupera stato domande Coach
       let serverQuestionsUsed = 0;
       try {
         const res = await fetch('/api/trial-lead', {
@@ -314,13 +203,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           }
         }
       } catch (err) {
-        console.warn('Invio trial lead:', err);
+        console.warn('Lead submit note:', err);
       }
 
-      // 2. Salva localmente mantenendo il conteggio reale registrato sul server
       const existing = getUserData();
-      const existingForThisEmail = existing?.email === cleanEmail ? (existing.trialCoachQuestionsUsed || 0) : 0;
-      const finalQuestionsUsed = Math.max(serverQuestionsUsed, existingForThisEmail);
+      const existingForEmail = existing?.email === cleanEmail ? (existing.trialCoachQuestionsUsed || 0) : 0;
+      const finalQuestionsUsed = Math.max(serverQuestionsUsed, existingForEmail);
 
       saveUserData({
         accessCode: 'TRIAL',
@@ -340,587 +228,495 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
       });
       onSuccess(cleanName, 'TRIAL');
     } finally {
-      setIsSubmittingTrial(false);
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Code verification
+  const handleVerifyCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    const cleanCode = code.trim().toUpperCase();
+
+    if (!cleanCode) {
+      setErrorMessage('Inserisci il codice di accesso ricevuto dopo l’acquisto.');
+      return;
+    }
+
+    const isValid = ACCESS_CODES.some((valid) => valid.toUpperCase() === cleanCode);
+
+    if (isValid) {
+      const existing = getUserData();
+      const existingName = existing?.name?.trim();
+      if (existingName) {
+        saveUserData({
+          accessCode: cleanCode,
+          name: existingName,
+          isTrial: false,
+          isVideocorsoUnlocked: true,
+        });
+        onSuccess(existingName, cleanCode);
+        return;
+      }
+      setValidCode(cleanCode);
+      setStep('name');
+    } else {
+      setErrorMessage("Codice non valido. Inserisci il codice ricevuto via email o contatta l'assistenza.");
+    }
+  };
+
+  // Handle Step 2 name save
+  const handleSaveName = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = nameInput.trim();
+    if (!cleanName) {
+      setErrorMessage('Inserisci il tuo nome per continuare.');
+      return;
+    }
+    const resolvedCode = validCode || 'ACQUISTO_CONFERMATO';
+    saveUserData({
+      accessCode: resolvedCode,
+      name: cleanName,
+      isTrial: false,
+      isVideocorsoUnlocked: true,
+    });
+    onSuccess(cleanName, resolvedCode);
+  };
+
+  // Handle Email Auth login
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = emailInput.trim();
+    const cleanPass = passwordInput.trim();
+
+    if (!cleanEmail || !cleanPass) {
+      setErrorMessage('Inserisci email e password.');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage('');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password: cleanPass }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Email o password non corretti.');
+      }
+      const resolved = data.user;
+      saveUserData({
+        name: resolved.name,
+        accessCode: resolved.accessCode || 'MAGNETICO',
+        email: cleanEmail,
+        isTrial: false,
+        isVideocorsoUnlocked: true,
+      });
+      onSuccess(resolved.name, resolved.accessCode || 'MAGNETICO');
+    } catch (err: unknown) {
+      setErrorMessage((err as Error)?.message || 'Accesso non riuscito. Controlla i dati.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col justify-between items-center p-4 sm:p-6 bg-[#042B58] relative overflow-hidden">
-      {/* Decorative ambient lights */}
-      <div className="absolute top-0 -left-20 w-72 h-72 bg-[#234C77]/40 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 -right-20 w-80 h-80 bg-[#F9C03E]/10 rounded-full blur-3xl pointer-events-none" />
-
-      {/* Top Header Badge */}
-      <div className="w-full pt-2 sm:pt-4 flex justify-center z-10">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#234C77]/70 border border-[#88A5BF]/30 text-[#88A5BF] text-xs font-medium">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#F9C03E]" />
-          <span>Accesso Riservato • Effetto Calamita</span>
-        </div>
-      </div>
-
-      {/* Main Container */}
-      <div className="w-full max-w-md my-auto py-4 z-10">
-        <div className="glass-card p-5 sm:p-7 text-center relative border border-[#88A5BF]/30 shadow-2xl">
-          {/* Logo & Headline */}
-          <div className="mb-4">
-            <h1 className="text-2xl sm:text-3xl font-bold font-serif tracking-wider text-white">
-              EFFETTO CALAMITA
-            </h1>
-            <p className="text-sm font-medium text-[#F9C03E] mt-0.5 font-serif italic">
-              Il metodo del flirt invisibile
-            </p>
-            <p className="text-xs text-slate-300 leading-relaxed mt-2">
-              L'app per creare vera connessione nel ballo di Salsa e Bachata, di Andrea Frattesi. Con Ebook, Coach AI, Allenatore di Ritmo e Videocorso compreso.
-            </p>
-          </div>
-
-          {step === 'auth' ? (
-            <div className="space-y-4">
-              {/* Main Tab Selector: Prova gratis vs Accedi */}
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#021831]/80 rounded-xl border border-[#88A5BF]/25">
-                <button
-                  type="button"
-                  onClick={handleSelectTrialAndScroll}
-                  className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    activeMode === 'trial'
-                      ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Prova gratis</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMode('code');
-                    setErrorMessage('');
-                  }}
-                  className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    activeMode === 'code'
-                      ? 'bg-[#F9C03E] text-[#042B58] shadow-sm'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  <KeyRound className="w-3.5 h-3.5 shrink-0" />
-                  <span>Accedi</span>
-                </button>
-              </div>
-
-              {/* MODE 1: Prova gratis (COSA TROVI NELL'APP + Registrazione) */}
-              {activeMode === 'trial' && (
-                <div className="space-y-4 text-left animate-fadeIn">
-                  {/* Riquadro: COSA TROVI NELL'APP */}
-                  <div className="p-4 rounded-xl bg-[#021831]/60 border border-[#88A5BF]/25 space-y-3">
-                    <div className="pb-1.5 border-b border-slate-700/50">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#F9C03E] flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-[#F9C03E]" />
-                        <span>COSA TROVI NELL'APP</span>
-                      </span>
-                    </div>
-
-                    <ul className="space-y-2.5 text-xs text-slate-200">
-                      {/* Coach AI */}
-                      <li className="flex items-start gap-2.5 p-2 rounded-lg bg-[#234C77]/40 border border-[#F9C03E]/30">
-                        <Sparkles className="w-4 h-4 text-[#F9C03E] shrink-0 mt-0.5" />
-                        <div>
-                          <strong className="text-[#F9C03E] block font-semibold">Coach AI (20 domande al giorno)</strong>
-                          <span className="text-slate-300 text-[11px] leading-tight block mt-0.5">
-                            Fino a 20 domande al giorno (reset a mezzanotte) prima, durante o dopo la serata. Risponde all'istante con il metodo pratico di Andrea Frattesi per sbloccare ogni situazione.
-                          </span>
-                        </div>
-                      </li>
-
-                      {/* Test personalizzato */}
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Test personalizzato:</strong>
-                          <span className="text-slate-300 ml-1">in base alla tua situazione personale (Tecnico, Congelato, Bravo Ragazzo, Collezionista) con piano d'azione mirato.</span>
-                        </div>
-                      </li>
-
-                      {/* Ebook e bonus */}
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Tutti i 16 Capitoli dell'Ebook & 6 Bonus Pratici:</strong>
-                          <span className="text-slate-300 ml-1">l'Ebook completo in 16 capitoli (+ Introduzione e Conclusione), i 6 Bonus pratici e la Guida Ripartire.</span>
-                        </div>
-                      </li>
-
-                      {/* Allenatore di Ritmo */}
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Allenatore di Ritmo (Salsa & Bachata):</strong>
-                          <span className="text-slate-300 ml-1">con tracce interattive per capire l'1 della musica, trovare la clave e ballare sempre perfettamente a tempo.</span>
-                        </div>
-                      </li>
-
-                      {/* Videocorso Compreso */}
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Videocorso Completo Compreso:</strong>
-                          <span className="text-slate-300 ml-1">9 moduli pratici con dimostrazioni video di Salsa e Bachata per applicare ogni tecnica dal vivo in pista.</span>
-                        </div>
-                      </li>
-
-                      {/* Piano 21 Serate & Aggiornamenti */}
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F9C03E] shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Piano 21 Serate, Diario & Aggiornamenti:</strong>
-                          <span className="text-slate-300 ml-1">monitora i progressi serata per serata con il Coach e ricevi aggiornamenti continui.</span>
-                        </div>
-                      </li>
-                    </ul>
-                  </div>
-
-                  {/* Modulo Registrazione Prova Gratuita */}
-                  <div ref={trialFormRef} className="pt-2 scroll-mt-6">
-                    <form onSubmit={handleStartTrial} className="space-y-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-200 mb-1">
-                          Il tuo Nome <span className="text-[#F9C03E]">*</span>
-                        </label>
-                        <div className="relative">
-                          <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                          <input
-                            ref={trialNameInputRef}
-                            type="text"
-                            value={trialName}
-                            onChange={(e) => {
-                              setTrialName(e.target.value);
-                              setErrorMessage('');
-                            }}
-                            placeholder="Es. Marco"
-                            required
-                            className="w-full pl-9 pr-3 py-2 bg-[#021831] border border-[#88A5BF]/30 rounded-xl text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#F9C03E]"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-200 mb-1">
-                          La tua Email migliore <span className="text-[#F9C03E]">*</span>
-                        </label>
-                        <div className="relative">
-                          <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                          <input
-                            type="email"
-                            value={trialEmail}
-                            onChange={(e) => {
-                              setTrialEmail(e.target.value);
-                              setErrorMessage('');
-                            }}
-                            placeholder="nome@email.com"
-                            required
-                            className="w-full pl-9 pr-3 py-2 bg-[#021831] border border-[#88A5BF]/30 rounded-xl text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#F9C03E]"
-                          />
-                        </div>
-                      </div>
-
-                      <label className="flex items-start gap-2 pt-0.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={trialConsent}
-                          onChange={(e) => setTrialConsent(e.target.checked)}
-                          className="mt-0.5 rounded border-slate-600 text-[#F9C03E] focus:ring-0"
-                        />
-                        <span className="text-[10px] text-slate-300 leading-tight">
-                          Acconsento a ricevere i consigli pratici di ballo di Andrea Frattesi e il riepilogo della mia prova.
-                        </span>
-                      </label>
-
-                      {errorMessage && (
-                        <div className="p-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs">
-                          {errorMessage}
-                        </div>
-                      )}
-
-                      {/* Grande pulsante giallo in fondo: Prova gratis → */}
-                      <button
-                        type="submit"
-                        disabled={isSubmittingTrial}
-                        className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer text-[#042B58] disabled:opacity-50"
-                      >
-                        {isSubmittingTrial ? (
-                          <div className="w-4 h-4 border-2 border-[#042B58] border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <span>Prova gratis →</span>
-                        )}
-                      </button>
-
-                      <p className="text-[10px] text-center text-slate-400 pt-0.5">
-                        Nessuna carta richiesta • Accesso istantaneo alla prova
-                      </p>
-                    </form>
-                  </div>
-                </div>
-              )}
-
-              {/* MODE 2: Accesso con Codice Istantaneo o Registrazione Email */}
-              {activeMode === 'code' && (
-                <div className="space-y-3.5 animate-fadeIn">
-                  {/* Sub-selector: Codice Istantaneo vs Registrazione/Email */}
-                  <div className="flex rounded-lg bg-[#021831] p-1 border border-[#88A5BF]/25">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAccessMethod('code');
-                        setErrorMessage('');
-                      }}
-                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        accessMethod === 'code'
-                          ? 'bg-[#234C77] text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <KeyRound className="w-3.5 h-3.5 text-[#F9C03E]" />
-                      <span>Codice Istantaneo</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAccessMethod('email');
-                        setErrorMessage('');
-                      }}
-                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        accessMethod === 'email'
-                          ? 'bg-[#234C77] text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <Mail className="w-3.5 h-3.5 text-[#F9C03E]" />
-                      <span>Registrazione / Email</span>
-                    </button>
-                  </div>
-
-                  {/* 1. OPZIONE CODICE ISTANTANEO */}
-                  {accessMethod === 'code' && (
-                    <form onSubmit={handleVerifyCode} className="space-y-3.5 text-left animate-fadeIn">
-                      <div>
-                        <label
-                          htmlFor="accessCodeInput"
-                          className="block text-xs font-semibold text-[#88A5BF] uppercase tracking-wider mb-1.5"
-                        >
-                          Inserisci il tuo codice di accesso
-                        </label>
-                        <div className="relative">
-                          <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                          <input
-                            id="accessCodeInput"
-                            type="text"
-                            value={code}
-                            onChange={(e) => {
-                              setCode(e.target.value);
-                              if (errorMessage) setErrorMessage('');
-                            }}
-                            placeholder="Inserisci Codice"
-                            className="w-full pl-10 pr-4 py-3 bg-[#021831]/80 border border-[#88A5BF]/40 rounded-xl text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E]"
-                            autoCapitalize="characters"
-                            autoCorrect="off"
-                            autoFocus
-                          />
-                        </div>
-                        <p className="text-[11px] text-slate-400 mt-1.5">
-                          Inserisci il codice di accesso ricevuto via email dopo l'acquisto.
-                        </p>
-                      </div>
-
-                      {errorMessage && (
-                        <div className="p-3 bg-red-950/70 border border-red-500/40 rounded-xl text-xs text-red-200">
-                          <p className="font-medium">{errorMessage}</p>
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-sm font-bold flex items-center justify-center gap-2 group cursor-pointer"
-                      >
-                        <span>Verifica ed Entra Subito</span>
-                        <ArrowRight className="w-4 h-4 text-[#042B58] group-hover:translate-x-1 transition-transform" />
-                      </button>
-
-                      <div className="pt-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAccessMethod('email');
-                            setErrorMessage('');
-                          }}
-                          className="text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          <span>Preferisci registrarti con Email e Password? Clicca qui →</span>
-                        </button>
-                      </div>
-                    </form>
-                  )}
-
-                  {/* 2. OPZIONE REGISTRAZIONE / ACCESSO EMAIL */}
-                  {accessMethod === 'email' && (
-                    <form onSubmit={handleEmailAuth} className="space-y-3.5 text-left animate-fadeIn">
-                      {/* Mini Switch Registrati / Accedi */}
-                      <div className="flex items-center justify-between p-1 bg-[#021831]/90 rounded-lg border border-[#88A5BF]/25">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEmailMode('register');
-                            setErrorMessage('');
-                          }}
-                          className={`flex-1 py-1 px-2 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                            emailMode === 'register'
-                              ? 'bg-[#F9C03E] text-[#042B58]'
-                              : 'text-slate-300 hover:text-white'
-                          }`}
-                        >
-                          Crea Account (Registrati)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEmailMode('login');
-                            setErrorMessage('');
-                          }}
-                          className={`flex-1 py-1 px-2 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                            emailMode === 'login'
-                              ? 'bg-[#F9C03E] text-[#042B58]'
-                              : 'text-slate-300 hover:text-white'
-                          }`}
-                        >
-                          Accedi con Email
-                        </button>
-                      </div>
-
-                      {/* Header spiegazione */}
-                      <div className="text-center pt-1 pb-0.5">
-                        <p className="text-xs font-semibold text-white">
-                          {emailMode === 'register'
-                            ? 'Crea il tuo Account Personale'
-                            : 'Accedi al tuo Account'}
-                        </p>
-                        <p className="text-[11px] text-slate-300 mt-0.5">
-                          {emailMode === 'register'
-                            ? 'Per registrarti inserisci i tuoi dati e il codice di acquisto.'
-                            : 'Inserisci email e password per accedere ai tuoi dati.'}
-                        </p>
-                      </div>
-
-                      {/* Campo Nome (solo se registrazione) */}
-                      {emailMode === 'register' && (
-                        <div>
-                          <label className="block text-[11px] font-semibold text-[#88A5BF] uppercase tracking-wider mb-1">
-                            Il tuo nome
-                          </label>
-                          <div className="relative">
-                            <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                            <input
-                              type="text"
-                              value={registerName}
-                              onChange={(e) => {
-                                setRegisterName(e.target.value);
-                                if (errorMessage) setErrorMessage('');
-                              }}
-                              placeholder="Es. Marco, Alessandro..."
-                              className="w-full pl-9 pr-3 py-2.5 bg-[#021831]/80 border border-[#88A5BF]/30 rounded-lg text-white placeholder-slate-500 text-xs focus:outline-none focus:border-[#F9C03E]"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Campo Codice di Acquisto (solo se registrazione: BLOCCO ANTI-INTRUSIONE) */}
-                      {emailMode === 'register' && (
-                        <div>
-                          <label className="block text-[11px] font-semibold text-[#88A5BF] uppercase tracking-wider mb-1">
-                            Codice di acquisto (ricevuto via email)
-                          </label>
-                          <div className="relative">
-                            <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                            <input
-                              type="text"
-                              value={registerCode}
-                              onChange={(e) => {
-                                setRegisterCode(e.target.value);
-                                if (errorMessage) setErrorMessage('');
-                              }}
-                              placeholder="Codice ricevuto dopo l'acquisto"
-                              className="w-full pl-9 pr-3 py-2.5 bg-[#021831]/80 border border-[#88A5BF]/30 rounded-lg text-white placeholder-slate-500 text-xs font-mono uppercase focus:outline-none focus:border-[#F9C03E]"
-                              autoCapitalize="characters"
-                            />
-                          </div>
-                          <p className="text-[10px] text-slate-400 mt-1">
-                            Richiesto per verificare l'acquisto e sbloccare l'account.
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Campo Email */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-[#88A5BF] uppercase tracking-wider mb-1">
-                          Email
-                        </label>
-                        <div className="relative">
-                          <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                          <input
-                            type="email"
-                            value={emailInput}
-                            onChange={(e) => {
-                              setEmailInput(e.target.value);
-                              if (errorMessage) setErrorMessage('');
-                            }}
-                            placeholder="nome@esempio.com"
-                            className="w-full pl-9 pr-3 py-2.5 bg-[#021831]/80 border border-[#88A5BF]/30 rounded-lg text-white placeholder-slate-500 text-xs focus:outline-none focus:border-[#F9C03E]"
-                            autoCapitalize="none"
-                            autoCorrect="off"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Campo Password */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-[#88A5BF] uppercase tracking-wider mb-1">
-                          Password
-                        </label>
-                        <div className="relative">
-                          <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                          <input
-                            type="password"
-                            value={passwordInput}
-                            onChange={(e) => {
-                              setPasswordInput(e.target.value);
-                              if (errorMessage) setErrorMessage('');
-                            }}
-                            placeholder="Almeno 6 caratteri"
-                            className="w-full pl-9 pr-3 py-2.5 bg-[#021831]/80 border border-[#88A5BF]/30 rounded-lg text-white placeholder-slate-500 text-xs focus:outline-none focus:border-[#F9C03E]"
-                          />
-                        </div>
-                      </div>
-
-                      {errorMessage && (
-                        <div className="p-3 bg-red-950/70 border border-red-500/40 rounded-xl text-xs text-red-200">
-                          <p className="font-medium">{errorMessage}</p>
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={isAuthenticating}
-                        className="w-full py-3 px-4 rounded-xl gold-gradient-btn text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
-                      >
-                        {isAuthenticating ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-[#042B58]" />
-                        ) : (
-                          <ArrowRight className="w-4 h-4 text-[#042B58]" />
-                        )}
-                        <span>
-                          {emailMode === 'register'
-                            ? 'Crea Account ed Entra'
-                            : 'Accedi al tuo Account'}
-                        </span>
-                      </button>
-
-                      <div className="pt-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAccessMethod('code');
-                            setErrorMessage('');
-                          }}
-                          className="text-xs text-[#88A5BF] hover:text-[#F9C03E] transition-colors cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <KeyRound className="w-3.5 h-3.5" />
-                          <span>Hai già un codice di accesso? Entra con codice istantaneo →</span>
-                        </button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-              )}
-            </div>
+    <main className="mx-auto flex min-h-screen max-w-xl flex-col px-5 py-5 sm:py-8">
+      {/* Top Bar with brand mark and switch button */}
+      <div className="flex items-center justify-between text-sm text-[#9da6b9]">
+        <span className="font-display text-base tracking-[0.2em] text-[#f7f6f3] font-bold">
+          EC
+        </span>
+        <button
+          onClick={() => {
+            setActiveMode(activeMode === 'trial' ? 'login' : 'trial');
+            setErrorMessage('');
+          }}
+          className="transition-colors hover:text-[#E5B869] cursor-pointer"
+        >
+          {activeMode === 'trial' ? (
+            <>
+              Hai già un account?{' '}
+              <span className="font-semibold text-[#E5B869]">Accedi</span>
+            </>
           ) : (
-            /* STEP 2: Inserimento Nome Utente (solo se codice inserito la prima volta) */
-            <form onSubmit={handleSaveName} className="space-y-4 animate-fadeIn">
-              <div className="w-12 h-12 mx-auto rounded-full bg-[#234C77] flex items-center justify-center border border-[#F9C03E]/40 mb-2">
-                <UserCheck className="w-6 h-6 text-[#F9C03E]" />
-              </div>
-
-              {isAutoUnlocked ? (
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
-                    ✓ Pagamento Confermato
-                  </span>
-                  <h2 className="text-lg font-serif font-bold text-white">
-                    Benvenuto in Effetto Calamita!
-                  </h2>
-                  <p className="text-xs text-slate-300">
-                    Come ti chiami? Andrea e l'app ti chiameranno per nome.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <h2 className="text-lg font-serif font-bold text-white">
-                    Codice verificato!
-                  </h2>
-                  <p className="text-xs text-slate-300">
-                    Come ti chiami? Andrea e l'app ti chiameranno per nome.
-                  </p>
-                </div>
-              )}
-
-              <div className="text-left pt-2">
-                <label
-                  htmlFor="userNameInput"
-                  className="block text-xs font-semibold text-[#88A5BF] uppercase tracking-wider mb-2"
-                >
-                  Il tuo nome
-                </label>
-                <input
-                  id="userNameInput"
-                  type="text"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    if (errorMessage) setErrorMessage('');
-                  }}
-                  placeholder="Es. Marco, Alessandro..."
-                  autoFocus
-                  className="w-full px-4 py-3 bg-[#021831]/80 border border-[#88A5BF]/40 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-[#F9C03E] focus:ring-1 focus:ring-[#F9C03E]"
-                />
-              </div>
-
-              {errorMessage && (
-                <div className="p-2.5 bg-red-950/70 border border-red-500/40 rounded-xl text-left text-xs text-red-200">
-                  <p>{errorMessage}</p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-3.5 px-4 rounded-xl gold-gradient-btn text-sm font-bold flex items-center justify-center gap-2 group cursor-pointer"
-              >
-                <span>Inizia il Metodo</span>
-                <ArrowRight className="w-4 h-4 text-[#042B58] group-hover:translate-x-1 transition-transform" />
-              </button>
-            </form>
+            <>
+              Nuovo qui?{' '}
+              <span className="font-semibold text-[#E5B869]">Prova gratis</span>
+            </>
           )}
-        </div>
+        </button>
       </div>
 
-      {/* Modal Sblocca Versione Completa */}
-      <UnlockModal
-        isOpen={isUnlockModalOpen}
-        onClose={() => setIsUnlockModalOpen(false)}
-        onUnlocked={() => {
-          const existing = getUserData();
-          if (existing?.name && existing?.accessCode) {
-            onSuccess(existing.name, existing.accessCode);
-          }
-        }}
-      />
-    </div>
+      {/* Hero Header */}
+      <header className="mt-5 text-center animate-rise">
+        <h1 className="font-display text-3xl font-bold tracking-[0.06em] sm:text-4xl text-[#f7f6f3]">
+          EFFETTO <span className="text-[#E5B869]">CALAMITA</span>
+        </h1>
+        <p className="mt-2 font-display text-base italic text-[#E5B869]">
+          Il metodo del flirt invisibile
+        </p>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#f7f6f3]/90">
+          Smetti di ballare a caso: crea connessione vera in pista, già dalla prossima serata.
+        </p>
+
+        {/* Author Avatar Lockup */}
+        <div className="mx-auto mt-4 flex max-w-sm items-center justify-center gap-3 text-left text-sm leading-snug text-[#9da6b9]">
+          <img
+            src="/andrea-frattesi.png"
+            alt="Andrea Frattesi"
+            className="h-11 w-11 shrink-0 rounded-full object-cover object-top ring-2 ring-[#E5B869]/60 shadow-md"
+          />
+          <span>
+            di <span className="font-semibold text-[#f7f6f3]">Andrea Frattesi</span>, Coach di seduzione nel ballo di Salsa e Bachata
+          </span>
+        </div>
+      </header>
+
+      {/* Main Interactive Form Card */}
+      <section
+        ref={formRef}
+        className="mt-6 rounded-2xl border border-white/10 bg-[#182033]/85 p-5 shadow-card backdrop-blur-md animate-rise sm:p-7"
+        style={{ animationDelay: '120ms' }}
+      >
+        {step === 'name' ? (
+          // Step 2: Name Input for Verified Code
+          <form onSubmit={handleSaveName} className="space-y-4">
+            <h2 className="font-display text-lg font-semibold text-[#f7f6f3]">
+              Come ti chiami?
+            </h2>
+            <p className="text-sm text-[#9da6b9]">
+              Codice confermato! Inserisci il tuo nome per personalizzare il Coach e le missioni.
+            </p>
+            <label className="block">
+              <span className="text-sm font-semibold text-[#f7f6f3]">Il tuo nome</span>
+              <span className="mt-1.5 flex items-center gap-3 rounded-xl border border-white/12 bg-[#0d121e] px-4 py-3 focus-within:border-[#E5B869]">
+                <User className="h-4 w-4 shrink-0 text-[#9da6b9]" />
+                <input
+                  required
+                  type="text"
+                  placeholder="Es. Marco"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  className="w-full bg-transparent text-base text-[#f7f6f3] outline-none placeholder:text-[#9da6b9]/70"
+                />
+              </span>
+            </label>
+
+            {errorMessage && (
+              <p className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/40 rounded-lg p-2.5">
+                {errorMessage}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-gold py-4 text-base font-bold text-[#121622] shadow-gold transition-transform hover:-translate-y-0.5 cursor-pointer"
+            >
+              <span>Entra nell'app</span>
+              <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+            </button>
+          </form>
+        ) : activeMode === 'trial' ? (
+          // Trial Form
+          <form onSubmit={handleTrialSubmit} className="space-y-3.5">
+            <h2 className="font-display text-lg font-semibold text-[#f7f6f3]">
+              Prova gratis, senza carta
+            </h2>
+
+            <label className="block">
+              <span className="text-sm font-semibold text-[#f7f6f3]">Il tuo nome</span>
+              <span className="mt-1.5 flex items-center gap-3 rounded-xl border border-white/12 bg-[#0d121e] px-4 py-3 focus-within:border-[#E5B869]">
+                <User className="h-4 w-4 shrink-0 text-[#9da6b9]" />
+                <input
+                  required
+                  type="text"
+                  placeholder="Es. Marco"
+                  value={trialName}
+                  onChange={(e) => setTrialName(e.target.value)}
+                  className="w-full bg-transparent text-base text-[#f7f6f3] outline-none placeholder:text-[#9da6b9]/70"
+                />
+              </span>
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-semibold text-[#f7f6f3]">La tua email</span>
+              <span className="mt-1.5 flex items-center gap-3 rounded-xl border border-white/12 bg-[#0d121e] px-4 py-3 focus-within:border-[#E5B869]">
+                <Mail className="h-4 w-4 shrink-0 text-[#9da6b9]" />
+                <input
+                  required
+                  type="email"
+                  placeholder="nome@email.com"
+                  value={trialEmail}
+                  onChange={(e) => setTrialEmail(e.target.value)}
+                  className="w-full bg-transparent text-base text-[#f7f6f3] outline-none placeholder:text-[#9da6b9]/70"
+                />
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 text-sm leading-snug text-[#9da6b9] cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                required
+                checked={trialConsent}
+                onChange={(e) => setTrialConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#E5B869]"
+              />
+              <span>
+                Accetto la{' '}
+                <a
+                  href="https://andreaseduzioneballo.com/datenschutz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-[#E5B869]"
+                >
+                  privacy policy
+                </a>{' '}
+                e di ricevere i consigli di ballo di Andrea Frattesi.
+              </span>
+            </label>
+
+            {errorMessage && (
+              <p className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/40 rounded-lg p-2.5">
+                {errorMessage}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-gold py-4 text-base font-bold text-[#121622] shadow-gold transition-transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-75"
+            >
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <span>Prova gratis</span>
+                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
+            </button>
+
+            <p className="text-center text-xs text-[#9da6b9]">
+              Nessuna carta richiesta · Accesso immediato
+            </p>
+
+            {/* Cosa vedi nella prova */}
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E5B869]">
+                Cosa vedi nella prova
+              </p>
+              <ul className="mt-3 space-y-2.5">
+                {TRIAL_PERKS.map((perk) => (
+                  <li key={perk} className="flex items-start gap-3 text-sm text-[#f7f6f3]/90">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#E5B869]" />
+                    <span>{perk}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </form>
+        ) : (
+          // Login Form (Code or Email)
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold text-[#f7f6f3]">
+                Bentornato
+              </h2>
+              <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#0d121e] border border-white/10 text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setLoginMethod('code')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    loginMethod === 'code'
+                      ? 'bg-[#182033] text-[#E5B869] font-bold'
+                      : 'text-[#9da6b9] hover:text-[#f7f6f3]'
+                  }`}
+                >
+                  Codice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoginMethod('email')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    loginMethod === 'email'
+                      ? 'bg-[#182033] text-[#E5B869] font-bold'
+                      : 'text-[#9da6b9] hover:text-[#f7f6f3]'
+                  }`}
+                >
+                  Email
+                </button>
+              </div>
+            </div>
+
+            {loginMethod === 'code' ? (
+              <form onSubmit={handleVerifyCode} className="space-y-3.5">
+                <label className="block">
+                  <span className="text-sm font-semibold text-[#f7f6f3]">Il tuo codice di sblocco</span>
+                  <span className="mt-1.5 flex items-center gap-3 rounded-xl border border-white/12 bg-[#0d121e] px-4 py-3 focus-within:border-[#E5B869]">
+                    <KeyRound className="h-4 w-4 shrink-0 text-[#9da6b9]" />
+                    <input
+                      required
+                      type="text"
+                      placeholder="Il codice ricevuto dopo l'acquisto"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      className="w-full bg-transparent text-base text-[#f7f6f3] outline-none placeholder:text-[#9da6b9]/70 uppercase font-mono tracking-wider"
+                    />
+                  </span>
+                </label>
+
+                {errorMessage && (
+                  <p className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/40 rounded-lg p-2.5">
+                    {errorMessage}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-gold py-4 text-base font-bold text-[#121622] shadow-gold transition-transform hover:-translate-y-0.5 cursor-pointer"
+                >
+                  <span>Accedi</span>
+                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </button>
+
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsUnlockModalOpen(true)}
+                    className="text-xs text-[#9da6b9] hover:text-[#E5B869] transition-colors underline cursor-pointer"
+                  >
+                    Non hai ancora acquistato? Sblocca l'accesso qui
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleEmailLogin} className="space-y-3.5">
+                <label className="block">
+                  <span className="text-sm font-semibold text-[#f7f6f3]">La tua email</span>
+                  <span className="mt-1.5 flex items-center gap-3 rounded-xl border border-white/12 bg-[#0d121e] px-4 py-3 focus-within:border-[#E5B869]">
+                    <Mail className="h-4 w-4 shrink-0 text-[#9da6b9]" />
+                    <input
+                      required
+                      type="email"
+                      placeholder="nome@email.com"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="w-full bg-transparent text-base text-[#f7f6f3] outline-none placeholder:text-[#9da6b9]/70"
+                    />
+                  </span>
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-semibold text-[#f7f6f3]">Password</span>
+                  <span className="mt-1.5 flex items-center gap-3 rounded-xl border border-white/12 bg-[#0d121e] px-4 py-3 focus-within:border-[#E5B869]">
+                    <Lock className="h-4 w-4 shrink-0 text-[#9da6b9]" />
+                    <input
+                      required
+                      type="password"
+                      placeholder="••••••••"
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      className="w-full bg-transparent text-base text-[#f7f6f3] outline-none placeholder:text-[#9da6b9]/70"
+                    />
+                  </span>
+                </label>
+
+                {errorMessage && (
+                  <p className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/40 rounded-lg p-2.5">
+                    {errorMessage}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-gold py-4 text-base font-bold text-[#121622] shadow-gold transition-transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-75"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <span>Accedi con Email</span>
+                      <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Google Reviews Testimonials */}
+      <div
+        className="mt-8 grid gap-4 sm:grid-cols-2 animate-rise"
+        style={{ animationDelay: '220ms' }}
+      >
+        {TESTIMONIALS.map((t) => (
+          <figure
+            key={t.name}
+            className="rounded-2xl border border-white/10 bg-[#182033]/60 p-5 text-center shadow-card backdrop-blur-sm flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex justify-center gap-1 text-[#E5B869]">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className="h-4 w-4 fill-current" />
+                ))}
+              </div>
+              <blockquote className="mt-2.5 font-display text-sm italic leading-relaxed text-[#f7f6f3]/95">
+                "{t.text}"
+              </blockquote>
+            </div>
+            <figcaption className="mt-3 text-xs text-[#9da6b9]">
+              {t.name} · <span className="text-[#E5B869]/80 font-medium">Recensione Google</span>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+
+      {/* Section: Cosa sblocchi con il codice */}
+      <section className="mt-12 animate-rise" style={{ animationDelay: '320ms' }}>
+        <h2 className="text-center text-xs font-bold uppercase tracking-[0.25em] text-[#E5B869]">
+          Cosa sblocchi con il codice
+        </h2>
+        <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-relaxed text-[#9da6b9]">
+          Il codice arriva dopo l'acquisto e apre tutta l'app.
+        </p>
+
+        <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+          {CODE_UNLOCKED_FEATURES.map(({ icon: Icon, title, text }) => (
+            <li
+              key={title}
+              className="flex gap-4 rounded-xl border border-white/10 bg-[#182033]/70 p-4 shadow-sm"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gold-soft text-[#E5B869]">
+                <Icon className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-semibold text-[#f7f6f3] text-sm">{title}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-[#9da6b9]">{text}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Footer */}
+      <footer className="mt-12 text-center text-xs text-[#9da6b9]">
+        © {new Date().getFullYear()} Effetto Calamita · Andrea Frattesi
+      </footer>
+
+      {/* Unlock Modal for purchasing */}
+      {isUnlockModalOpen && (
+        <UnlockModal
+          isOpen={isUnlockModalOpen}
+          onClose={() => setIsUnlockModalOpen(false)}
+        />
+      )}
+    </main>
   );
 };
