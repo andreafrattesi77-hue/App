@@ -21,7 +21,58 @@ import {
   Firestore,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { UserData, EveningEntry, MissionProgress, ChatMessage } from '../types';
+import { UserData, EveningEntry } from '../types';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): void {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+}
 
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -32,10 +83,11 @@ const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
 
 let firestoreDb: Firestore;
 try {
+  // Use auto-detect long polling so WebSockets are prioritized and fallback to long-polling only if blocked
   firestoreDb = initializeFirestore(
     app,
     {
-      experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: true,
     },
     databaseId
   );
@@ -53,11 +105,15 @@ export async function testConnection(): Promise<boolean> {
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn('Firebase client is offline, using local mode.');
+    } else {
+      console.warn('Firebase connectivity check info:', error);
     }
     return false;
   }
 }
-testConnection();
+
+// Non-blocking connectivity test on boot
+testConnection().catch(() => {});
 
 // Authentication Helpers
 export async function loginWithEmail(email: string, pass: string): Promise<FirebaseUser> {
@@ -90,6 +146,7 @@ export async function saveUserToFirestore(
   userId: string,
   data: Partial<UserData>
 ): Promise<void> {
+  const path = `users/${userId}`;
   try {
     const userRef = doc(db, 'users', userId);
     await setDoc(
@@ -101,13 +158,14 @@ export async function saveUserToFirestore(
       { merge: true }
     );
   } catch (err) {
-    console.error('Error saving user to Firestore:', err);
+    handleFirestoreError(err, OperationType.WRITE, path);
   }
 }
 
 export async function loadUserFromFirestore(
   userId: string
 ): Promise<UserData | null> {
+  const path = `users/${userId}`;
   try {
     const userRef = doc(db, 'users', userId);
     const snap = await getDoc(userRef);
@@ -115,7 +173,7 @@ export async function loadUserFromFirestore(
       return snap.data() as UserData;
     }
   } catch (err) {
-    console.error('Error loading user from Firestore:', err);
+    handleFirestoreError(err, OperationType.GET, path);
   }
   return null;
 }
@@ -124,17 +182,19 @@ export async function saveDiaryToFirestore(
   userId: string,
   entry: EveningEntry
 ): Promise<void> {
+  const path = `users/${userId}/diary/${entry.id}`;
   try {
     const entryRef = doc(db, 'users', userId, 'diary', entry.id);
     await setDoc(entryRef, entry, { merge: true });
   } catch (err) {
-    console.error('Error saving diary to Firestore:', err);
+    handleFirestoreError(err, OperationType.WRITE, path);
   }
 }
 
 export async function loadDiaryFromFirestore(
   userId: string
 ): Promise<EveningEntry[]> {
+  const path = `users/${userId}/diary`;
   try {
     const colRef = collection(db, 'users', userId, 'diary');
     const snap = await getDocs(colRef);
@@ -142,7 +202,7 @@ export async function loadDiaryFromFirestore(
     snap.forEach((d) => entries.push(d.data() as EveningEntry));
     return entries.sort((a, b) => b.createdAt - a.createdAt);
   } catch (err) {
-    console.error('Error loading diary from Firestore:', err);
+    handleFirestoreError(err, OperationType.GET, path);
     return [];
   }
 }
@@ -151,9 +211,10 @@ export async function deleteDiaryFromFirestore(
   userId: string,
   entryId: string
 ): Promise<void> {
+  const path = `users/${userId}/diary/${entryId}`;
   try {
     await deleteDoc(doc(db, 'users', userId, 'diary', entryId));
   } catch (err) {
-    console.error('Error deleting diary entry from Firestore:', err);
+    handleFirestoreError(err, OperationType.DELETE, path);
   }
 }

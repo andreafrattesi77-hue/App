@@ -76,6 +76,10 @@
       "schema": { "$ref": "#/entities/MissionProgress" },
       "description": "Stato missioni 21 serate per l'utente"
     },
+    "/test/{docId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Documento di test per verificare la connettività del backend Firestore"
+    },
     "/users/{userId}/chat/{messageId}": {
       "schema": { "$ref": "#/entities/ChatMessage" },
       "description": "Messaggi di chat con il Coach per l'utente"
