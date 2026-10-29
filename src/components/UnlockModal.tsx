@@ -69,27 +69,27 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
         <ul className="space-y-2 text-[15px] text-slate-800 text-left mt-3.5">
           <li className="flex items-start gap-2.5 leading-snug">
             <span className="text-emerald-600 font-bold text-base shrink-0">✓</span>
-            <span><strong>Sblocca il videocorso completo</strong> (tutti i 9 moduli pratici)</span>
+            <span><strong>Coach</strong>: 20 domande al giorno con le 100 più frequenti già impostate tra cui scegliere, più le tue domande libere coerenti con il metodo</span>
           </li>
           <li className="flex items-start gap-2.5 leading-snug">
             <span className="text-emerald-600 font-bold text-base shrink-0">✓</span>
-            <span><strong>Coach</strong> AI 24/7 con 20 domande al giorno</span>
+            <span><strong>Allenatore di ritmo</strong>: le tue canzoni preferite per imparare a ballare a tempo</span>
           </li>
           <li className="flex items-start gap-2.5 leading-snug">
             <span className="text-emerald-600 font-bold text-base shrink-0">✓</span>
-            <span>Test personalizzato con il tuo piano d'azione completo</span>
+            <span><strong>Videocorso Completo</strong>: tutti i 9 moduli da vedere quando vuoi</span>
           </li>
           <li className="flex items-start gap-2.5 leading-snug">
             <span className="text-emerald-600 font-bold text-base shrink-0">✓</span>
-            <span>Piano 21 Serate & Diario completo</span>
+            <span><strong>L'Ebook completo</strong>, la Guida Ripartire e i 6 bonus</span>
           </li>
           <li className="flex items-start gap-2.5 leading-snug">
             <span className="text-emerald-600 font-bold text-base shrink-0">✓</span>
-            <span>Sezione ritmo completa</span>
+            <span><strong>Piano 21 serate</strong>: autoanalisi delle tue serate</span>
           </li>
           <li className="flex items-start gap-2.5 leading-snug">
             <span className="text-emerald-600 font-bold text-base shrink-0">✓</span>
-            <span>Aggiornamenti continui inclusi</span>
+            <span><strong>Diario e test</strong>: test del tuo profilo attuale e monitoraggio dei tuoi progressi</span>
           </li>
         </ul>
 

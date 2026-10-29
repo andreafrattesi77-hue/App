@@ -35,33 +35,33 @@ const TRIAL_PERKS = [
 const CODE_UNLOCKED_FEATURES = [
   {
     icon: MessageCircle,
-    title: 'Coach AI',
-    text: '20 domande al giorno, 100 del Metodo',
+    title: 'Coach',
+    text: '20 domande al giorno con le 100 più frequenti già impostate tra cui scegliere, più le tue domande libere coerenti con il metodo.',
   },
   {
     icon: Music2,
-    title: 'Allenatore di Ritmo',
-    text: "Canzoni intere, per imparare l'1 e la clave",
+    title: 'Allenatore di ritmo',
+    text: 'Le tue canzoni preferite per imparare a ballare a tempo.',
   },
   {
     icon: Video,
-    title: 'Videocorso completo',
-    text: "Tutti i 9 moduli, non solo l'introduzione",
+    title: 'Videocorso Completo',
+    text: 'Tutti i 9 moduli da vedere quando vuoi.',
   },
   {
     icon: BookOpen,
-    title: 'Ebook e bonus',
-    text: "Tutto l'Ebook, la Guida Ripartire e i 6 bonus",
+    title: "L'Ebook completo",
+    text: "L'Ebook completo, la Guida Ripartire e i 6 bonus.",
   },
   {
     icon: CalendarCheck,
     title: 'Piano 21 serate',
-    text: "Una missione per serata, dal rituale all'uomo magnetico",
+    text: 'Autoanalisi delle tue serate.',
   },
   {
     icon: ClipboardCheck,
     title: 'Diario e test',
-    text: 'Termostato del filo, progressi e test dei 4 profili',
+    text: 'Test del tuo profilo attuale e monitoraggio dei tuoi progressi.',
   },
 ];
 
