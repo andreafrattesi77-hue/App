@@ -235,6 +235,9 @@ app.post('/api/auth/register', (req, res) => {
   };
   saveUsers(users);
 
+  // Inoltro automatico a Systeme.io con Tag "Acquisto App" (ID 2228910)
+  syncContactToSystemeIo(cleanName, cleanEmail, 2228910).catch(() => {});
+
   res.json({
     success: true,
     user: {
@@ -988,7 +991,11 @@ const SYSTEME_IO_API_KEY =
   'aglqtfw4ilfr1z33q4b8zwc2d230eby743pyhh1gh82octrjcaufchhbsoqqzlcc';
 const SYSTEME_IO_TAG_ID = 2247225; // Tag "Prova Gratuita App" creato su Systeme.io
 
-async function syncContactToSystemeIo(name: string, email: string): Promise<boolean> {
+async function syncContactToSystemeIo(
+  name: string,
+  email: string,
+  tagId: number = SYSTEME_IO_TAG_ID
+): Promise<boolean> {
   if (!SYSTEME_IO_API_KEY) return false;
   try {
     const cleanEmail = email.trim().toLowerCase();
@@ -1031,7 +1038,7 @@ async function syncContactToSystemeIo(name: string, email: string): Promise<bool
       }
     }
 
-    // 2. Assegna il Tag "Prova Gratuita App" per far partire la campagna email
+    // 2. Assegna il Tag (es. "Prova Gratuita App" o "Acquisto App")
     if (contactId) {
       await fetch(`https://api.systeme.io/api/contacts/${contactId}/tags`, {
         method: 'POST',
@@ -1040,9 +1047,9 @@ async function syncContactToSystemeIo(name: string, email: string): Promise<bool
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ tagId: SYSTEME_IO_TAG_ID }),
+        body: JSON.stringify({ tagId: tagId }),
       });
-      console.log(`[Systeme.io] Contatto ${cleanEmail} sincronizzato con tag Prova Gratuita App (ID ${SYSTEME_IO_TAG_ID})`);
+      console.log(`[Systeme.io] Contatto ${cleanEmail} sincronizzato con tag ID ${tagId}`);
       return true;
     }
   } catch (err) {
