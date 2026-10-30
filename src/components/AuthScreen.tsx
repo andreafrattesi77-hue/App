@@ -219,19 +219,18 @@ function isValidRealEmail(email: string): boolean {
           body: JSON.stringify({ name: cleanName, email: cleanEmail }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setErrorMessage(data?.error || 'Errore durante la registrazione. Verifica la tua email.');
-          setIsLoading(false);
-          return;
-        }
-        if (typeof data.trialCoachQuestionsUsed === 'number') {
-          serverQuestionsUsed = data.trialCoachQuestionsUsed;
+        if (res.ok) {
+          if (typeof data.trialCoachQuestionsUsed === 'number') {
+            serverQuestionsUsed = data.trialCoachQuestionsUsed;
+          }
+        } else {
+          console.warn('[Trial Lead Sync]: server responded with', res.status, data);
         }
       } catch (err) {
         console.warn('Lead submit note:', err);
       }
 
-      // Isola i dati per questa specifica email
+      // Isola i dati per questa specifica email (sempre nuova prova indipendente)
       const existing = getUserData(cleanEmail);
       const existingForEmail = existing?.email === cleanEmail ? (existing.trialCoachQuestionsUsed || 0) : 0;
       const finalQuestionsUsed = Math.max(serverQuestionsUsed, existingForEmail);

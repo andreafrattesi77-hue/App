@@ -5,5 +5,12 @@
     "createdAt": "2026-10-29T11:19:41.813Z",
     "status": "trial_active",
     "source": "app_prova_gratuita"
+  },
+  {
+    "name": "Liuk",
+    "email": "andreafrattesi@gmail.com",
+    "createdAt": "2026-10-30T09:20:19.848Z",
+    "status": "trial_active",
+    "source": "app_prova_gratuita"
   }
 ]

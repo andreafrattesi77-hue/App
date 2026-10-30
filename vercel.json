@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/trial-lead",
+      "destination": "/api/trial-lead"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
