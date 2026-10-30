@@ -1,17 +1,22 @@
 import React from 'react';
-import { Settings, Sparkles } from 'lucide-react';
+import { Settings, Sparkles, User, LogOut } from 'lucide-react';
+import { UserData } from '../types';
 
 interface TopHeaderProps {
   onOpenReset?: () => void;
   onOpenSettings: () => void;
   isTrial?: boolean;
   onOpenUpgrade?: () => void;
+  user?: UserData | null;
+  onLogout?: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenSettings,
   isTrial = false,
   onOpenUpgrade,
+  user,
+  onLogout,
 }) => {
   return (
     <header className="sticky top-0 z-30 w-full bg-[#121622]/90 backdrop-blur-md border-b border-white/10">
@@ -31,6 +36,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
+          {/* Active User Pill (tap to open settings or switch) */}
+          {user && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#182033]/80 hover:bg-[#212b42] border border-white/10 text-xs text-slate-300 hover:text-white transition-colors cursor-pointer max-w-[130px] sm:max-w-[180px]"
+              title={`Account attivo: ${user.email || user.name}`}
+            >
+              <User className="w-3.5 h-3.5 text-[#E5B869] shrink-0" />
+              <span className="truncate text-[11px] font-medium text-slate-200">
+                {user.name || user.email?.split('@')[0] || 'Account'}
+              </span>
+            </button>
+          )}
+
           {/* Sblocca versione completa per utenti gratuiti */}
           {isTrial && onOpenUpgrade && (
             <button

@@ -15,9 +15,17 @@ import {
   CalendarCheck,
   ClipboardCheck,
   MessageCircle,
+  Trash2,
 } from 'lucide-react';
 import { ACCESS_CODES, STRIPE_CHECKOUT_URL } from '../config';
-import { saveUserData, getUserData } from '../services/storage';
+import {
+  saveUserData,
+  getUserData,
+  getSavedAccounts,
+  switchAccount,
+  removeSavedAccount,
+  SavedAccountItem,
+} from '../services/storage';
 import { UnlockModal } from './UnlockModal';
 
 interface AuthScreenProps {
@@ -85,6 +93,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   const [trialName, setTrialName] = useState('');
   const [trialEmail, setTrialEmail] = useState('');
   const [trialConsent, setTrialConsent] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccountItem[]>(() => getSavedAccounts());
+
+  const handleSelectAccount = (acc: SavedAccountItem) => {
+    const switched = switchAccount(acc.email);
+    if (switched) {
+      onSuccess(switched.name, switched.accessCode || 'TRIAL');
+    }
+  };
+
+  const handleRemoveAccount = (e: React.MouseEvent, email: string) => {
+    e.stopPropagation();
+    removeSavedAccount(email);
+    setSavedAccounts(getSavedAccounts());
+  };
 
   // Email login states
   const [emailInput, setEmailInput] = useState('');
@@ -196,17 +218,21 @@ function isValidRealEmail(email: string): boolean {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: cleanName, email: cleanEmail }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (typeof data.trialCoachQuestionsUsed === 'number') {
-            serverQuestionsUsed = data.trialCoachQuestionsUsed;
-          }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setErrorMessage(data?.error || 'Errore durante la registrazione. Verifica la tua email.');
+          setIsLoading(false);
+          return;
+        }
+        if (typeof data.trialCoachQuestionsUsed === 'number') {
+          serverQuestionsUsed = data.trialCoachQuestionsUsed;
         }
       } catch (err) {
         console.warn('Lead submit note:', err);
       }
 
-      const existing = getUserData();
+      // Isola i dati per questa specifica email
+      const existing = getUserData(cleanEmail);
       const existingForEmail = existing?.email === cleanEmail ? (existing.trialCoachQuestionsUsed || 0) : 0;
       const finalQuestionsUsed = Math.max(serverQuestionsUsed, existingForEmail);
 
@@ -216,7 +242,7 @@ function isValidRealEmail(email: string): boolean {
         name: cleanName,
         email: cleanEmail,
         trialCoachQuestionsUsed: finalQuestionsUsed,
-      });
+      }, cleanEmail);
 
       onSuccess(cleanName, 'TRIAL');
     } catch {
@@ -225,7 +251,7 @@ function isValidRealEmail(email: string): boolean {
         isTrial: true,
         name: cleanName,
         email: cleanEmail,
-      });
+      }, cleanEmail);
       onSuccess(cleanName, 'TRIAL');
     } finally {
       setIsLoading(false);
@@ -421,11 +447,68 @@ function isValidRealEmail(email: string): boolean {
             </button>
           </form>
         ) : activeMode === 'trial' ? (
-          // Trial Form
-          <form onSubmit={handleTrialSubmit} className="space-y-3.5">
-            <h2 className="font-display text-lg font-semibold text-[#f7f6f3]">
-              Prova gratis, senza carta
-            </h2>
+          // Trial Form with Multi-Account Switcher
+          <div className="space-y-4">
+            {savedAccounts.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-[#0d121e]/90 border border-white/10 space-y-2">
+                <div className="flex items-center justify-between text-xs text-[#9da6b9]">
+                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 text-[#E5B869]" />
+                    Profili su questo dispositivo ({savedAccounts.length}):
+                  </span>
+                  <span className="text-[10px] text-[#E5B869]">Account separati</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {savedAccounts.map((acc) => (
+                    <div
+                      key={acc.email}
+                      onClick={() => handleSelectAccount(acc)}
+                      className="w-full flex items-center justify-between p-2.5 rounded-lg bg-[#182033] hover:bg-[#212b42] border border-white/10 hover:border-[#E5B869]/50 transition-all text-left cursor-pointer group"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className="text-xs font-bold text-white truncate group-hover:text-[#E5B869] transition-colors">
+                          {acc.name || 'Allievo'}{' '}
+                          <span className="font-normal text-slate-400 text-[11px]">({acc.email})</span>
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {acc.isTrial ? (
+                            <span className="text-[#E5B869] font-medium">
+                              Prova: {acc.questionsRemaining}/3 domande Coach rimaste
+                            </span>
+                          ) : (
+                            <span className="text-emerald-400 font-medium">Versione Completa Sbloccata</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => handleRemoveAccount(e, acc.email)}
+                          className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                          title="Rimuovi da questo dispositivo"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="px-2.5 py-1 rounded bg-[#E5B869]/20 group-hover:bg-gradient-gold text-[#E5B869] group-hover:text-[#121622] text-[11px] font-bold transition-all">
+                          Entra
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleTrialSubmit} className="space-y-3.5">
+              <div>
+                <h2 className="font-display text-lg font-semibold text-[#f7f6f3]">
+                  {savedAccounts.length > 0 ? 'Oppure accedi con un’altra email' : 'Prova gratis, senza carta'}
+                </h2>
+                <p className="text-xs text-[#9da6b9] mt-0.5">
+                  Ogni email ha la sua prova indipendente (3 domande Coach e diario dedicato).
+                </p>
+              </div>
 
             <label className="block">
               <span className="text-sm font-semibold text-[#f7f6f3]">Il tuo nome</span>
@@ -519,7 +602,8 @@ function isValidRealEmail(email: string): boolean {
               </ul>
             </div>
           </form>
-        ) : (
+        </div>
+      ) : (
           // Login Form (Code or Email)
           <div className="space-y-4">
             <div className="flex items-center justify-between">

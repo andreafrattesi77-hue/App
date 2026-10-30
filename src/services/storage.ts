@@ -3,6 +3,8 @@ import { UserData, EveningEntry, MissionProgress, ChatMessage, DailyCoachUsage }
 
 const STORAGE_KEYS = {
   USER: 'ec_user_data',
+  ACTIVE_EMAIL: 'ec_active_email',
+  ACCOUNTS_REGISTRY: 'ec_saved_accounts',
   MISSIONS: 'ec_missions_progress',
   DIARY: 'ec_evening_diary',
   CHAT: 'ec_coach_chat',
@@ -23,12 +25,83 @@ function getTodayLocalDate(): string {
   return `${year}-${month}-${day}`;
 }
 
-export function getUserData(): UserData | null {
+export function getActiveEmail(): string {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.USER);
+    return (localStorage.getItem(STORAGE_KEYS.ACTIVE_EMAIL) || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+export function setActiveEmail(email: string): void {
+  try {
+    const clean = email.trim().toLowerCase();
+    if (clean) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_EMAIL, clean);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_EMAIL);
+    }
+  } catch {}
+}
+
+function getScopedKey(base: string, email?: string): string {
+  const target = (email || getActiveEmail() || '').trim().toLowerCase();
+  if (!target) return base;
+  const safeTarget = target.replace(/[^a-z0-9]/g, '_');
+  return `${base}__${safeTarget}`;
+}
+
+export interface SavedAccountItem {
+  email: string;
+  name: string;
+  isTrial: boolean;
+  accessCode: string;
+  lastActive: number;
+  questionsRemaining: number;
+}
+
+export function getSavedAccounts(): SavedAccountItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS_REGISTRY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function updateSavedAccountsRegistry(user: UserData): void {
+  if (!user.email) return;
+  try {
+    const clean = user.email.trim().toLowerCase();
+    const list = getSavedAccounts().filter((a) => a.email.toLowerCase() !== clean);
+    const remaining = user.isTrial ? Math.max(0, 3 - (user.trialCoachQuestionsUsed || 0)) : 20;
+    list.unshift({
+      email: clean,
+      name: user.name || '',
+      isTrial: !!user.isTrial,
+      accessCode: user.accessCode || '',
+      lastActive: Date.now(),
+      questionsRemaining: remaining,
+    });
+    localStorage.setItem(STORAGE_KEYS.ACCOUNTS_REGISTRY, JSON.stringify(list.slice(0, 10)));
+  } catch {}
+}
+
+export function getUserData(targetEmail?: string): UserData | null {
+  try {
+    const email = (targetEmail || getActiveEmail() || '').trim().toLowerCase();
+    const scopedKey = email ? getScopedKey(STORAGE_KEYS.USER, email) : STORAGE_KEYS.USER;
+    let raw = localStorage.getItem(scopedKey);
+    if (!raw && !email) {
+      raw = localStorage.getItem(STORAGE_KEYS.USER);
+    }
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return {
+      id: parsed.id || undefined,
+      email: parsed.email || email,
       accessCode: parsed.accessCode || '',
       name: parsed.name || '',
       profile: parsed.profile || null,
@@ -52,8 +125,17 @@ export function getUserData(): UserData | null {
   }
 }
 
-export function saveUserData(data: Partial<UserData>): UserData {
-  const current = getUserData() || {
+export function saveUserData(data: Partial<UserData>, targetEmail?: string): UserData {
+  const target = (targetEmail || data.email || getActiveEmail() || '').trim().toLowerCase();
+
+  if (target) {
+    setActiveEmail(target);
+  }
+
+  // Load existing data for THIS SPECIFIC email (isolated from other accounts on the device)
+  const current = (target ? getUserData(target) : null) || {
+    id: undefined,
+    email: target || '',
     accessCode: '',
     name: '',
     profile: null,
@@ -68,7 +150,7 @@ export function saveUserData(data: Partial<UserData>): UserData {
     readerFontSize: 17,
     isVideocorsoUnlocked: false,
     watchedVideos: [],
-    isTrial: false,
+    isTrial: true,
     trialCoachQuestionsUsed: 0,
   };
 
@@ -76,8 +158,6 @@ export function saveUserData(data: Partial<UserData>): UserData {
   const isExplicitTrialCode = incomingCode === 'TRIAL' || incomingCode === 'DEMO';
   const isPaidAccessCode = !!incomingCode && !isExplicitTrialCode;
 
-  // Se viene fornito o è presente un codice di acquisto valido (diverso da TRIAL/DEMO),
-  // l'utente DEVE avere sempre la versione completa a vita (isTrial = false)
   let resolvedIsTrial = current.isTrial;
   if (data.isTrial !== undefined) {
     resolvedIsTrial = data.isTrial;
@@ -87,7 +167,6 @@ export function saveUserData(data: Partial<UserData>): UserData {
     resolvedIsTrial = true;
   }
 
-  // Un codice di acquisto valido sblocca automaticamente anche il videocorso
   let resolvedVideocorso = current.isVideocorsoUnlocked;
   if (data.isVideocorsoUnlocked !== undefined) {
     resolvedVideocorso = data.isVideocorsoUnlocked;
@@ -99,7 +178,7 @@ export function saveUserData(data: Partial<UserData>): UserData {
     ...current,
     ...data,
     accessCode: incomingCode || current.accessCode,
-    email: data.email !== undefined ? data.email : current.email,
+    email: target || data.email || current.email,
     customIntentions: data.customIntentions || current.customIntentions || DEFAULT_INTENTIONS,
     readUnits: data.readUnits !== undefined ? data.readUnits : current.readUnits,
     readingPositions: data.readingPositions !== undefined ? data.readingPositions : current.readingPositions,
@@ -108,10 +187,15 @@ export function saveUserData(data: Partial<UserData>): UserData {
     isTrial: resolvedIsTrial,
     isVideocorsoUnlocked: resolvedVideocorso,
     trialCoachQuestionsUsed: data.trialCoachQuestionsUsed !== undefined
-      ? Math.max(current.trialCoachQuestionsUsed || 0, data.trialCoachQuestionsUsed)
+      ? data.trialCoachQuestionsUsed
       : (current.trialCoachQuestionsUsed || 0),
   };
 
+  if (target) {
+    const scopedKey = getScopedKey(STORAGE_KEYS.USER, target);
+    localStorage.setItem(scopedKey, JSON.stringify(updated));
+    updateSavedAccountsRegistry(updated);
+  }
   localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
   return updated;
 }
@@ -120,18 +204,15 @@ export function isTrialUser(user?: UserData | null): boolean {
   if (!user) return true;
   const cleanCode = (user.accessCode || '').trim().toUpperCase();
 
-  // Se l'utente ha inserito un codice di acquisto ufficiale valido, è sbloccato a vita
   const validPurchaseCodes = ['MAGNETICO', 'CODICE', 'CALAMITA2026', 'CALAMITA', 'ACQUISTO_CONFERMATO'];
   if (validPurchaseCodes.includes(cleanCode)) {
     return false;
   }
 
-  // Se l'utente ha scelto esplicitamente la prova gratuita (TRIAL, DEMO o isTrial = true)
   if (user.isTrial === true || cleanCode === 'TRIAL' || cleanCode === 'DEMO') {
     return true;
   }
 
-  // In assenza di un codice di acquisto valido, l'utente è sempre in prova gratuita / bloccato
   return true;
 }
 
@@ -141,34 +222,63 @@ export function getTrialCoachRemaining(user?: UserData | null): number {
   return Math.max(0, 3 - (user.trialCoachQuestionsUsed || 0));
 }
 
-export function incrementTrialCoachQuestions(count?: number): number {
-  const current = getUserData();
+export function incrementTrialCoachQuestions(count?: number, email?: string): number {
+  const target = email || getActiveEmail();
+  const current = getUserData(target);
   const currentCount = current?.trialCoachQuestionsUsed || 0;
-  const nextCount = typeof count === 'number' ? Math.max(currentCount, count) : currentCount + 1;
-  saveUserData({ trialCoachQuestionsUsed: nextCount });
+  const nextCount = typeof count === 'number' ? count : currentCount + 1;
+  saveUserData({ trialCoachQuestionsUsed: nextCount }, target);
   return nextCount;
 }
 
 export function clearUserData(): void {
-  // Logout: removes access code
-  const current = getUserData();
-  if (current) {
-    saveUserData({ accessCode: '' });
-  }
+  try {
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_EMAIL);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+  } catch {}
 }
 
-// Coach Usage & Daily Limit
-export function getCoachDailyUsage(): { usedToday: number; remainingToday: number; canSend: boolean } {
+export function removeSavedAccount(email: string): void {
+  try {
+    const clean = email.trim().toLowerCase();
+    const list = getSavedAccounts().filter((a) => a.email.toLowerCase() !== clean);
+    localStorage.setItem(STORAGE_KEYS.ACCOUNTS_REGISTRY, JSON.stringify(list));
+    localStorage.removeItem(getScopedKey(STORAGE_KEYS.USER, clean));
+    localStorage.removeItem(getScopedKey(STORAGE_KEYS.CHAT, clean));
+    localStorage.removeItem(getScopedKey(STORAGE_KEYS.MISSIONS, clean));
+    localStorage.removeItem(getScopedKey(STORAGE_KEYS.DIARY, clean));
+    localStorage.removeItem(getScopedKey(STORAGE_KEYS.USAGE, clean));
+    if (getActiveEmail() === clean) {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_EMAIL);
+      localStorage.removeItem(STORAGE_KEYS.USER);
+    }
+  } catch {}
+}
+
+export function switchAccount(email: string): UserData | null {
+  const clean = email.trim().toLowerCase();
+  const found = getUserData(clean);
+  if (found) {
+    setActiveEmail(clean);
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(found));
+    return found;
+  }
+  return null;
+}
+
+// Coach Usage & Daily Limit (isolated per email)
+export function getCoachDailyUsage(email?: string): { usedToday: number; remainingToday: number; canSend: boolean } {
+  const key = getScopedKey(STORAGE_KEYS.USAGE, email);
   const today = getTodayLocalDate();
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.USAGE);
+    const raw = localStorage.getItem(key);
     if (!raw) {
       return { usedToday: 0, remainingToday: COACH_DAILY_LIMIT, canSend: true };
     }
     const usage: DailyCoachUsage = JSON.parse(raw);
     if (usage.date !== today) {
       const resetUsage: DailyCoachUsage = { date: today, count: 0 };
-      localStorage.setItem(STORAGE_KEYS.USAGE, JSON.stringify(resetUsage));
+      localStorage.setItem(key, JSON.stringify(resetUsage));
       return { usedToday: 0, remainingToday: COACH_DAILY_LIMIT, canSend: true };
     }
     const remaining = Math.max(0, COACH_DAILY_LIMIT - usage.count);
@@ -182,16 +292,17 @@ export function getCoachDailyUsage(): { usedToday: number; remainingToday: numbe
   }
 }
 
-export function incrementCoachUsage(): { remainingToday: number } {
+export function incrementCoachUsage(email?: string): { remainingToday: number } {
+  const key = getScopedKey(STORAGE_KEYS.USAGE, email);
   const today = getTodayLocalDate();
-  const current = getCoachDailyUsage();
+  const current = getCoachDailyUsage(email);
   const newCount = current.usedToday + 1;
   const newUsage: DailyCoachUsage = { date: today, count: newCount };
-  localStorage.setItem(STORAGE_KEYS.USAGE, JSON.stringify(newUsage));
+  localStorage.setItem(key, JSON.stringify(newUsage));
   return { remainingToday: Math.max(0, COACH_DAILY_LIMIT - newCount) };
 }
 
-// Chat History
+// Chat History (isolated per email)
 export function createInitialCoachMessage(userName?: string): ChatMessage {
   const cleanName = userName?.trim();
   const namePart = cleanName ? ` ${cleanName}, ` : ', ';
@@ -203,16 +314,16 @@ export function createInitialCoachMessage(userName?: string): ChatMessage {
   };
 }
 
-export function getChatMessages(userName?: string): ChatMessage[] {
+export function getChatMessages(userName?: string, email?: string): ChatMessage[] {
+  const key = getScopedKey(STORAGE_KEYS.CHAT, email);
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.CHAT);
+    const raw = localStorage.getItem(key);
     const initial = [createInitialCoachMessage(userName)];
     if (!raw) return initial;
 
     const msgs: ChatMessage[] = JSON.parse(raw);
     if (!Array.isArray(msgs) || msgs.length === 0) return initial;
 
-    // Se c'è solo il messaggio iniziale di benvenuto (o inizia con init-coach), aggiorna il saluto con il nome
     if (msgs.length === 1 && msgs[0].sender === 'coach') {
       return initial;
     }
@@ -223,11 +334,14 @@ export function getChatMessages(userName?: string): ChatMessage[] {
   }
 }
 
-export function saveChatMessages(messages: ChatMessage[]): void {
+export function saveChatMessages(messages: ChatMessage[], email?: string): void {
+  const key = getScopedKey(STORAGE_KEYS.CHAT, email);
+  localStorage.setItem(key, JSON.stringify(messages));
   localStorage.setItem(STORAGE_KEYS.CHAT, JSON.stringify(messages));
 }
 
-export function resetChatMessages(userName?: string): ChatMessage[] {
+export function resetChatMessages(userName?: string, email?: string): ChatMessage[] {
+  const key = getScopedKey(STORAGE_KEYS.CHAT, email);
   const initial = [
     {
       ...createInitialCoachMessage(userName),
@@ -235,14 +349,16 @@ export function resetChatMessages(userName?: string): ChatMessage[] {
       timestamp: Date.now(),
     },
   ];
+  localStorage.setItem(key, JSON.stringify(initial));
   localStorage.setItem(STORAGE_KEYS.CHAT, JSON.stringify(initial));
   return initial;
 }
 
-// Missions State
-export function getMissionsProgress(): Record<number, MissionProgress> {
+// Missions State (isolated per email)
+export function getMissionsProgress(email?: string): Record<number, MissionProgress> {
+  const key = getScopedKey(STORAGE_KEYS.MISSIONS, email);
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.MISSIONS);
+    const raw = localStorage.getItem(key);
     if (!raw) {
       const initial: Record<number, MissionProgress> = {};
       MISSIONS_21.forEach((m) => {
@@ -262,22 +378,25 @@ export function getMissionsProgress(): Record<number, MissionProgress> {
 
 export function saveMissionProgress(
   id: number,
-  data: Partial<MissionProgress>
+  data: Partial<MissionProgress>,
+  email?: string
 ): Record<number, MissionProgress> {
-  const current = getMissionsProgress();
+  const key = getScopedKey(STORAGE_KEYS.MISSIONS, email);
+  const current = getMissionsProgress(email);
   current[id] = {
     ...current[id],
     ...data,
     completedAt: data.completed ? data.completedAt || new Date().toISOString() : undefined,
   };
-  localStorage.setItem(STORAGE_KEYS.MISSIONS, JSON.stringify(current));
+  localStorage.setItem(key, JSON.stringify(current));
   return { ...current };
 }
 
-// Diary entries
-export function getDiaryEntries(): EveningEntry[] {
+// Diary entries (isolated per email)
+export function getDiaryEntries(email?: string): EveningEntry[] {
+  const key = getScopedKey(STORAGE_KEYS.DIARY, email);
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.DIARY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const entries: EveningEntry[] = JSON.parse(raw);
     return entries.sort((a, b) => b.createdAt - a.createdAt);
@@ -286,51 +405,51 @@ export function getDiaryEntries(): EveningEntry[] {
   }
 }
 
-export function saveDiaryEntry(entry: EveningEntry): EveningEntry[] {
-  const entries = getDiaryEntries();
+export function saveDiaryEntry(entry: EveningEntry, email?: string): EveningEntry[] {
+  const key = getScopedKey(STORAGE_KEYS.DIARY, email);
+  const entries = getDiaryEntries(email);
   const existingIdx = entries.findIndex((e) => e.id === entry.id);
   if (existingIdx >= 0) {
     entries[existingIdx] = entry;
   } else {
     entries.unshift(entry);
   }
-  localStorage.setItem(STORAGE_KEYS.DIARY, JSON.stringify(entries));
+  localStorage.setItem(key, JSON.stringify(entries));
   return [...entries];
 }
 
-export function deleteDiaryEntry(id: string): EveningEntry[] {
-  const entries = getDiaryEntries().filter((e) => e.id !== id);
-  localStorage.setItem(STORAGE_KEYS.DIARY, JSON.stringify(entries));
+export function deleteDiaryEntry(id: string, email?: string): EveningEntry[] {
+  const key = getScopedKey(STORAGE_KEYS.DIARY, email);
+  const entries = getDiaryEntries(email).filter((e) => e.id !== id);
+  localStorage.setItem(key, JSON.stringify(entries));
   return entries;
 }
 
 // Export and Wipe
-export function exportAllData(): string {
+export function exportAllData(email?: string): string {
+  const target = email || getActiveEmail();
   const payload = {
-    user: getUserData(),
-    missions: getMissionsProgress(),
-    diary: getDiaryEntries(),
-    chat: getChatMessages(),
-    usage: localStorage.getItem(STORAGE_KEYS.USAGE),
+    user: getUserData(target),
+    missions: getMissionsProgress(target),
+    diary: getDiaryEntries(target),
+    chat: getChatMessages(undefined, target),
+    usage: getCoachDailyUsage(target),
     exportedAt: new Date().toISOString(),
   };
   return JSON.stringify(payload, null, 2);
 }
 
-/**
- * Azzera i progressi, le note, il diario e le letture,
- * MA PRESERVA i codici di accesso e di sblocco videocorso come richiesto.
- */
-export function wipeAllAppData(): void {
-  const current = getUserData();
+export function wipeAllAppData(email?: string): void {
+  const target = email || getActiveEmail();
+  const current = getUserData(target);
   const preservedAccessCode = current?.accessCode || '';
   const preservedVideoUnlock = !!current?.isVideocorsoUnlocked;
   const preservedVideoCode = current?.videoUnlockCode;
 
-  // Clear sub-storages
-  localStorage.removeItem(STORAGE_KEYS.MISSIONS);
-  localStorage.removeItem(STORAGE_KEYS.DIARY);
-  localStorage.removeItem(STORAGE_KEYS.CHAT);
+  // Clear sub-storages for this email
+  localStorage.removeItem(getScopedKey(STORAGE_KEYS.MISSIONS, target));
+  localStorage.removeItem(getScopedKey(STORAGE_KEYS.DIARY, target));
+  localStorage.removeItem(getScopedKey(STORAGE_KEYS.CHAT, target));
 
   // Reset user data keeping codes
   saveUserData({
@@ -346,5 +465,5 @@ export function wipeAllAppData(): void {
     watchedVideos: [],
     customIntentions: DEFAULT_INTENTIONS,
     ritualCompletedDates: [],
-  });
+  }, target);
 }

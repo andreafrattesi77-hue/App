@@ -14,7 +14,7 @@ import {
   Video,
   Play,
 } from 'lucide-react';
-import { wipeAllAppData, saveUserData } from '../services/storage';
+import { wipeAllAppData, saveUserData, isTrialUser, getTrialCoachRemaining } from '../services/storage';
 import { exportAndPrintReport } from '../services/reportExport';
 import { logoutFirebase } from '../services/firebase';
 import { AREA_RISERVATA_URL, INSTAGRAM_URL } from '../config';
@@ -86,6 +86,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <div className="overflow-y-auto py-3 space-y-4 pr-1 my-1">
+
+          {/* Account Profile Card */}
+          <div className="glass-card p-4 border border-[#E5B869]/25 bg-[#0d121e]/80">
+            <div className="flex items-start justify-between">
+              <div className="min-w-0 pr-2">
+                <span className="text-[10px] font-bold tracking-wider text-[#E5B869] uppercase block mb-1">
+                  Account Attivo
+                </span>
+                <p className="text-sm font-bold text-white truncate">
+                  {user.name || 'Allievo'}
+                </p>
+                <p className="text-xs text-slate-400 truncate">
+                  {user.email || 'Nessuna email registrata'}
+                </p>
+              </div>
+              <span
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                  isTrialUser(user)
+                    ? 'bg-amber-500/20 text-[#E5B869] border border-amber-500/30'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                }`}
+              >
+                {isTrialUser(user)
+                  ? `Prova: ${getTrialCoachRemaining(user)}/3 domande`
+                  : 'Versione Completa'}
+              </span>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between gap-2">
+              <p className="text-[11px] text-slate-400">
+                Vuoi accedere con un'altra email o nuova prova?
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white border border-white/10 transition-colors shrink-0 cursor-pointer"
+              >
+                Cambia email / Esci
+              </button>
+            </div>
+          </div>
 
           {/* Change Name */}
           <div className="glass-card p-4">

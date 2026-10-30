@@ -66,23 +66,34 @@ export default function App() {
           .then((res) => res.json())
           .then((data) => {
             if (typeof data.questionsUsed === 'number') {
-              const synced = saveUserData({ trialCoachQuestionsUsed: data.questionsUsed });
+              const synced = saveUserData({ trialCoachQuestionsUsed: data.questionsUsed }, existing.email);
               setUser(synced);
             }
           })
           .catch(() => {});
       }
+      setMissionsProgress(getMissionsProgress(existing.email));
+      setDiaryEntries(getDiaryEntries(existing.email));
+    } else {
+      setMissionsProgress(getMissionsProgress());
+      setDiaryEntries(getDiaryEntries());
     }
-    setMissionsProgress(getMissionsProgress());
-    setDiaryEntries(getDiaryEntries());
     setIsInitialized(true);
   }, []);
 
+  // Update missions and diary whenever active user email changes
+  useEffect(() => {
+    if (user?.email) {
+      setMissionsProgress(getMissionsProgress(user.email));
+      setDiaryEntries(getDiaryEntries(user.email));
+    }
+  }, [user?.email]);
+
   const refreshData = () => {
-    const updatedUser = getUserData();
+    const updatedUser = getUserData(user?.email);
     setUser(updatedUser);
-    setMissionsProgress(getMissionsProgress());
-    setDiaryEntries(getDiaryEntries());
+    setMissionsProgress(getMissionsProgress(updatedUser?.email));
+    setDiaryEntries(getDiaryEntries(updatedUser?.email));
   };
 
   if (!isInitialized) {
@@ -100,6 +111,10 @@ export default function App() {
         onSuccess={(_name, _accessCode) => {
           const fresh = getUserData();
           setUser(fresh);
+          if (fresh?.email) {
+            setMissionsProgress(getMissionsProgress(fresh.email));
+            setDiaryEntries(getDiaryEntries(fresh.email));
+          }
         }}
       />
     );
@@ -165,15 +180,29 @@ export default function App() {
           <div className="flex items-center gap-1.5 truncate pr-2">
             <Sparkles className="w-3.5 h-3.5 text-[#E5B869] shrink-0" />
             <span className="truncate">
-              Modalità Demo • <strong className="text-white">Prova Gratuita</strong>
+              Prova: <span className="text-[#E5B869] font-medium">{user.email || user.name}</span> •{' '}
+              <strong className="text-white">
+                {Math.max(0, 3 - (user.trialCoachQuestionsUsed || 0))}/3 domande Coach
+              </strong>
             </span>
           </div>
-          <button
-            onClick={() => openUnlockWithNotice('Passa alla versione completa per sbloccare l\'app senza limiti!')}
-            className="px-2.5 py-0.5 rounded-full gold-gradient-btn text-[11px] font-bold text-[#121622] hover:brightness-105 transition-all cursor-pointer shrink-0"
-          >
-            Sblocca Completa
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-[10px] text-slate-300 hover:text-white transition-colors cursor-pointer"
+              title="Esci da questo account e passa a un'altra email"
+            >
+              Cambia email
+            </button>
+            <button
+              type="button"
+              onClick={() => openUnlockWithNotice('Passa alla versione completa per sbloccare l\'app senza limiti!')}
+              className="px-2.5 py-0.5 rounded-full gold-gradient-btn text-[11px] font-bold text-[#121622] hover:brightness-105 transition-all cursor-pointer"
+            >
+              Sblocca
+            </button>
+          </div>
         </div>
       )}
 
@@ -184,6 +213,8 @@ export default function App() {
           onOpenSettings={() => setIsSettingsOpen(true)}
           isTrial={isTrialUser(user)}
           onOpenUpgrade={() => openUnlockWithNotice()}
+          user={user}
+          onLogout={handleLogout}
         />
       )}
 

@@ -60,6 +60,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   onUserDataUpdated,
 }) => {
   const currentUserName = user?.name || getUserData()?.name || '';
+  const currentEmail = (user?.email || getUserData()?.email || '').trim().toLowerCase();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
@@ -81,13 +82,13 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
 
   const isTrial = isTrialUser(user);
   const [trialUsed, setTrialUsed] = useState<number>(() => {
-    return user?.trialCoachQuestionsUsed ?? getUserData()?.trialCoachQuestionsUsed ?? 0;
+    return user?.trialCoachQuestionsUsed ?? getUserData(user?.email)?.trialCoachQuestionsUsed ?? 0;
   });
   const trialRemaining = Math.max(0, 3 - trialUsed);
 
   // Sync trial usage from server whenever user/email changes or on mount
   useEffect(() => {
-    const currentStoredUsed = user?.trialCoachQuestionsUsed ?? getUserData()?.trialCoachQuestionsUsed ?? 0;
+    const currentStoredUsed = user?.trialCoachQuestionsUsed ?? getUserData(user?.email)?.trialCoachQuestionsUsed ?? 0;
     setTrialUsed(currentStoredUsed);
 
     const email = (user?.email || getUserData()?.email || '').trim().toLowerCase();
@@ -97,7 +98,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         .then((data) => {
           if (typeof data.questionsUsed === 'number') {
             setTrialUsed(data.questionsUsed);
-            const updated = saveUserData({ trialCoachQuestionsUsed: data.questionsUsed });
+            const updated = saveUserData({ trialCoachQuestionsUsed: data.questionsUsed }, email);
             onUserDataUpdated?.(updated);
           }
         })
@@ -108,12 +109,12 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const latestMessageRef = useRef<HTMLDivElement>(null);
 
-  // Load chat and daily limit
+  // Load chat and daily limit (scoped to current user's email)
   useEffect(() => {
-    setMessages(getChatMessages(currentUserName));
-    const usage = getCoachDailyUsage();
+    setMessages(getChatMessages(currentUserName, currentEmail));
+    const usage = getCoachDailyUsage(currentEmail);
     setRemainingToday(usage.remainingToday);
-  }, [currentUserName]);
+  }, [currentUserName, currentEmail]);
 
   // Handle incoming prompt (e.g. from Reader or Quiz)
   useEffect(() => {
@@ -205,7 +206,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
           ? response.trialCoachQuestionsUsed
           : trialUsed + 1;
         setTrialUsed(nextUsed);
-        const updated = saveUserData({ trialCoachQuestionsUsed: nextUsed });
+        const updated = saveUserData({ trialCoachQuestionsUsed: nextUsed }, currentEmail);
         onUserDataUpdated?.(updated);
       }
 
@@ -218,15 +219,15 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
 
       const finalHistory = [...newHistory, coachMessage];
       setMessages(finalHistory);
-      saveChatMessages(finalHistory);
+      saveChatMessages(finalHistory, currentEmail);
     } catch (err: any) {
       if (err?.trialLimitReached) {
         setTrialUsed(3);
-        const updated = saveUserData({ trialCoachQuestionsUsed: 3 });
+        const updated = saveUserData({ trialCoachQuestionsUsed: 3 }, currentEmail);
         onUserDataUpdated?.(updated);
         // Rollback message so they don't see an unanswered user bubble
         setMessages(messages);
-        saveChatMessages(messages);
+        saveChatMessages(messages, currentEmail);
         onOpenUnlock?.(
           'Hai raggiunto il limite massimo di 3 domande gratuite al Coach per la tua email. Sblocca la versione completa per continuare!'
         );
@@ -249,7 +250,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
       };
       const finalHistory = [...newHistory, fallbackMsg];
       setMessages(finalHistory);
-      saveChatMessages(finalHistory);
+      saveChatMessages(finalHistory, currentEmail);
     } finally {
       setIsLoading(false);
     }
@@ -257,7 +258,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
 
   const handleResetChat = () => {
     if (window.confirm('Vuoi cancellare la cronologia e iniziare una nuova sessione con il Coach?')) {
-      const initial = resetChatMessages(currentUserName);
+      const initial = resetChatMessages(currentUserName, currentEmail);
       setMessages(initial);
       setErrorNotice(null);
       setIsQuestionPickerExpanded(true);

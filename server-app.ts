@@ -991,18 +991,33 @@ const SYSTEME_IO_API_KEY =
   'aglqtfw4ilfr1z33q4b8zwc2d230eby743pyhh1gh82octrjcaufchhbsoqqzlcc';
 const SYSTEME_IO_TAG_ID = 2247225; // Tag "Prova Gratuita App" creato su Systeme.io
 
+interface SystemeIoSyncResult {
+  success: boolean;
+  contactId?: number;
+  alreadyExisted?: boolean;
+  validationError?: string;
+  error?: string;
+}
+
 async function syncContactToSystemeIo(
   name: string,
   email: string,
   tagId: number = SYSTEME_IO_TAG_ID
-): Promise<boolean> {
-  if (!SYSTEME_IO_API_KEY) return false;
+): Promise<SystemeIoSyncResult> {
+  if (!SYSTEME_IO_API_KEY) {
+    console.warn('[Systeme.io] Chiave API non configurata.');
+    return { success: false, error: 'API key non configurata' };
+  }
   try {
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim();
 
+    console.log(`[Systeme.io] Inizio sincronizzazione per: ${cleanEmail} (Nome: "${cleanName}"), Tag ID: ${tagId}`);
+
     // 1. Crea il contatto su Systeme.io
     let contactId: number | null = null;
+    let alreadyExisted = false;
+
     const createRes = await fetch('https://api.systeme.io/api/contacts', {
       method: 'POST',
       headers: {
@@ -1016,31 +1031,63 @@ async function syncContactToSystemeIo(
       }),
     });
 
+    const createBodyText = await createRes.text().catch(() => '');
+
     if (createRes.ok) {
-      const data = await createRes.json();
-      contactId = data?.id || null;
+      try {
+        const data = JSON.parse(createBodyText);
+        contactId = data?.id || null;
+        console.log(`[Systeme.io] Nuovo contatto creato con successo! ID: ${contactId}`);
+      } catch {
+        console.warn('[Systeme.io] Risposta creazione ricevuta ma parsing JSON fallito.');
+      }
     } else {
-      // Se il contatto esiste già in Systeme.io, cerchiamo il suo id tramite email
-      const searchRes = await fetch(
-        `https://api.systeme.io/api/contacts?email=${encodeURIComponent(cleanEmail)}`,
-        {
-          headers: {
-            'X-API-Key': SYSTEME_IO_API_KEY,
-            'Accept': 'application/json',
-          },
-        }
-      );
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        if (searchData.items && searchData.items.length > 0) {
-          contactId = searchData.items[0].id;
+      console.log(`[Systeme.io] Risposta creazione (Status ${createRes.status}):`, createBodyText);
+
+      // Controllo se Systeme.io ha rifiutato il dominio per mancanza di record MX/A
+      if (
+        createBodyText.includes('lacks a valid MX or A DNS record') ||
+        createBodyText.includes('invalid and can’t receive emails')
+      ) {
+        console.warn(`[Systeme.io] Dominio email non valido o non configurato per la ricezione: ${cleanEmail}`);
+        return {
+          success: false,
+          validationError:
+            "L'indirizzo email inserito non risulta abilitato a ricevere messaggi (controllo DNS/MX non superato). Inserisci un'email reale (es. Gmail, Libero, Yahoo, ecc.).",
+        };
+      }
+
+      // Se il contatto esiste già in Systeme.io (errore 422: "This value is already used.")
+      if (createRes.status === 422 || createBodyText.includes('already used')) {
+        alreadyExisted = true;
+        console.log(`[Systeme.io] Il contatto ${cleanEmail} è già presente nel database Systeme.io. Ricerca ID in corso...`);
+        const searchRes = await fetch(
+          `https://api.systeme.io/api/contacts?email=${encodeURIComponent(cleanEmail)}`,
+          {
+            headers: {
+              'X-API-Key': SYSTEME_IO_API_KEY,
+              'Accept': 'application/json',
+            },
+          }
+        );
+        if (searchRes.ok) {
+          const searchData = await searchRes.json().catch(() => ({}));
+          if (Array.isArray(searchData.items) && searchData.items.length > 0) {
+            contactId = searchData.items[0].id;
+            console.log(`[Systeme.io] Contatto esistente trovato! ID: ${contactId}`);
+          } else {
+            console.warn(`[Systeme.io] Ricerca per ${cleanEmail} non ha restituito record.`);
+          }
+        } else {
+          console.error(`[Systeme.io] Errore durante la ricerca del contatto esistente: Status ${searchRes.status}`);
         }
       }
     }
 
-    // 2. Assegna il Tag (es. "Prova Gratuita App" o "Acquisto App")
+    // 2. Assegna il Tag al contatto (es. "Prova Gratuita App" Tag ID 2247225)
     if (contactId) {
-      await fetch(`https://api.systeme.io/api/contacts/${contactId}/tags`, {
+      console.log(`[Systeme.io] Assegnazione Tag ID ${tagId} al contatto ID ${contactId}...`);
+      const tagRes = await fetch(`https://api.systeme.io/api/contacts/${contactId}/tags`, {
         method: 'POST',
         headers: {
           'X-API-Key': SYSTEME_IO_API_KEY,
@@ -1049,13 +1096,40 @@ async function syncContactToSystemeIo(
         },
         body: JSON.stringify({ tagId: tagId }),
       });
-      console.log(`[Systeme.io] Contatto ${cleanEmail} sincronizzato con tag ID ${tagId}`);
-      return true;
+
+      if (tagRes.ok || tagRes.status === 204) {
+        console.log(`[Systeme.io] Tag ID ${tagId} applicato con successo al contatto ID ${contactId}!`);
+        return {
+          success: true,
+          contactId,
+          alreadyExisted,
+        };
+      } else {
+        const tagErrText = await tagRes.text().catch(() => '');
+        console.warn(`[Systeme.io] Esito assegnazione tag (Status ${tagRes.status}):`, tagErrText);
+        // Anche se il tag era già assegnato o dà 204, il contatto è su Systeme.io
+        return {
+          success: true,
+          contactId,
+          alreadyExisted,
+          error: `Tag status ${tagRes.status}`,
+        };
+      }
+    } else {
+      console.warn(`[Systeme.io] Impossibile recuperare contactId per ${cleanEmail}`);
+      return {
+        success: false,
+        alreadyExisted,
+        error: 'contactId non recuperato da Systeme.io',
+      };
     }
-  } catch (err) {
-    console.error('[Systeme.io Sync Error]:', err);
+  } catch (err: any) {
+    console.error('[Systeme.io Sync Error]:', err?.message || err);
+    return {
+      success: false,
+      error: err?.message || 'Eccezione di rete verso Systeme.io',
+    };
   }
-  return false;
 }
 
 // 1. Registra un nuovo contatto dalla prova gratuita
@@ -1069,6 +1143,15 @@ app.post('/api/trial-lead', async (req, res) => {
       return res.status(400).json({ error: 'Nome ed email valida ed esistente sono obbligatori.' });
     }
 
+    // 1. Inoltro diretto e sincrono a Systeme.io con Tag "Prova Gratuita App" (ID 2247225)
+    const syncResult = await syncContactToSystemeIo(cleanName, cleanEmail, SYSTEME_IO_TAG_ID);
+
+    // Se Systeme.io ha restituito un errore di validazione dominio reale (DNS/MX)
+    if (syncResult.validationError) {
+      return res.status(400).json({ error: syncResult.validationError });
+    }
+
+    // 2. Salva nei lead locali di backup
     const currentLeads = getStoredTrialLeads();
     const existingIndex = currentLeads.findIndex((l) => l.email === cleanEmail);
 
@@ -1087,13 +1170,13 @@ app.post('/api/trial-lead', async (req, res) => {
     }
     saveStoredTrialLeads(currentLeads);
 
-    // Inoltro automatico diretto via API ufficiale a Systeme.io
-    syncContactToSystemeIo(cleanName, cleanEmail).catch(() => {});
-
     const currentQuestionsUsed = getCoachTrialQuestionsUsed(cleanEmail);
     res.json({
       success: true,
       lead: leadRecord,
+      systemeIoSynced: syncResult.success,
+      systemeIoContactId: syncResult.contactId,
+      systemeIoAlreadyExisted: syncResult.alreadyExisted,
       trialCoachQuestionsUsed: currentQuestionsUsed,
       trialCoachRemaining: Math.max(0, 3 - currentQuestionsUsed),
     });

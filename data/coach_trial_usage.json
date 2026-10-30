@@ -1,1 +1,13 @@
-{}
+{
+  "allievo_a@gmail.com": {
+    "email": "allievo_a@gmail.com",
+    "count": 1,
+    "lastUsedAt": "2026-10-30T09:09:45.158Z",
+    "history": [
+      {
+        "question": "Cosa faccio quando entro in pista e c è confusione?",
+        "time": "2026-10-30T09:09:45.158Z"
+      }
+    ]
+  }
+}
