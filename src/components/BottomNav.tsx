@@ -26,8 +26,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl bg-[#141a2a]/95 border-t border-white/10 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl shadow-2xl">
-      {/* Banner fisso per utenti in prova */}
-      {isTrial && onOpenUpgrade && (
+      {/* Banner fisso per utenti in prova (nascosto solo nella schermata Coach per lasciare spazio alla casella di testo) */}
+      {isTrial && onOpenUpgrade && currentTab !== 'coach' && (
         <button
           type="button"
           onClick={onOpenUpgrade}

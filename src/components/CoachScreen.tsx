@@ -448,7 +448,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="w-full max-w-xl mx-auto flex flex-col h-[calc(100vh-140px)] md:h-[720px] relative overflow-hidden bg-transparent">
+    <div className="w-full max-w-xl mx-auto flex flex-col h-[calc(100dvh-95px)] min-h-[480px] md:h-[720px] relative overflow-hidden bg-transparent">
       {/* Top Header: Full profile on empty state, Ultra-compact bar during conversation */}
       {!hasMessages ? (
         <>
@@ -775,8 +775,8 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         </div>
       )}
 
-      {/* Bottom Panel: Free Question Input + 100 Questions Directory */}
-      <div className="p-3 bg-[#042B58] border-t border-[#88A5BF]/25 shrink-0 flex flex-col gap-2 shadow-lg">
+      {/* Bottom Panel: Free Question Input + 100 Questions Directory (alzato con pb-24 per essere perfettamente visibile sopra la barra inferiore) */}
+      <div className="p-3 pb-24 sm:pb-20 bg-[#042B58] border-t border-[#88A5BF]/25 shrink-0 flex flex-col gap-2 shadow-2xl z-20">
         {/* Trial Status or Lock Card */}
         {isTrial && trialRemaining <= 0 ? (
           <div className="p-3.5 rounded-xl bg-gradient-to-b from-[#234C77] to-[#021831] border border-[#F9C03E]/40 text-center space-y-2">
