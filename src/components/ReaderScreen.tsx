@@ -66,7 +66,7 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
   // Track scroll and restore reading position
   useEffect(() => {
     // Record this unit as last opened
-    const updated = saveUserData({ lastOpenedUnitId: unita.id });
+    const updated = saveUserData({ lastOpenedUnitId: unita.id }, user.email);
     onUserDataUpdated(updated);
 
     // If target heading is specified, scroll to it
@@ -105,7 +105,7 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
         ...(user.readingPositions || {}),
         [unita.id]: percent,
       },
-    });
+    }, user.email);
   };
 
   const toggleBookmark = () => {
@@ -117,7 +117,7 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
       favs.add(unita.id);
       setIsBookmarked(true);
     }
-    const updated = saveUserData({ favorites: Array.from(favs) });
+    const updated = saveUserData({ favorites: Array.from(favs) }, user.email);
     onUserDataUpdated(updated);
   };
 
@@ -130,20 +130,20 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
       read.add(unita.id);
       setIsRead(true);
     }
-    const updated = saveUserData({ readUnits: Array.from(read) });
+    const updated = saveUserData({ readUnits: Array.from(read) }, user.email);
     onUserDataUpdated(updated);
   };
 
   const handleThemeChange = (newTheme: 'notte' | 'giorno') => {
     setTheme(newTheme);
-    const updated = saveUserData({ readerTheme: newTheme });
+    const updated = saveUserData({ readerTheme: newTheme }, user.email);
     onUserDataUpdated(updated);
   };
 
   const handleFontSizeChange = (delta: number) => {
     const nextSize = Math.max(14, Math.min(24, fontSize + delta));
     setFontSize(nextSize);
-    const updated = saveUserData({ readerFontSize: nextSize });
+    const updated = saveUserData({ readerFontSize: nextSize }, user.email);
     onUserDataUpdated(updated);
   };
 
@@ -350,7 +350,7 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
           <ReactMarkdown
             components={{
               h2: ({ children }) => {
-                const text = String(children);
+                const text = getNodeText(children);
                 const id = slugify(text);
                 return (
                   <h2
@@ -504,9 +504,21 @@ export const ReaderScreen: React.FC<ReaderScreenProps> = ({
   );
 };
 
+function getNodeText(node: React.ReactNode): string {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(getNodeText).join('');
+  if (React.isValidElement(node) && node.props && (node.props as { children?: React.ReactNode }).children) {
+    return getNodeText((node.props as { children?: React.ReactNode }).children);
+  }
+  return '';
+}
+
 function slugify(text: string): string {
-  return text
+  return String(text || '')
     .toLowerCase()
+    .replace(/[*_#`~]/g, '')
     .replace(/[^\w\s-]/g, '')
     .replace(/\s+/g, '-')
     .slice(0, 50);

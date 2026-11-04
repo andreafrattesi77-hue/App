@@ -16,6 +16,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { LibraryScreen } from './components/LibraryScreen';
 import { ReaderScreen } from './components/ReaderScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { CoachScreen } from './components/CoachScreen';
 import { RitualScreen } from './components/RitualScreen';
 import { PlanScreen } from './components/PlanScreen';
@@ -222,19 +223,32 @@ export default function App() {
       <main className="flex-1 w-full max-w-xl mx-auto">
         {/* Full-screen Reader view */}
         {activeUnit ? (
-          <ReaderScreen
-            unita={activeUnit}
-            user={user}
-            targetHeading={readerTargetHeading}
-            onBack={() => {
+          <ErrorBoundary
+            fallbackTitle="Caricamento capitolo"
+            onReset={() => {
               setActiveUnit(null);
               setReaderTargetHeading(undefined);
               refreshData();
             }}
-            onOpenUnita={(newId, newHeading) => handleOpenUnita(newId, newHeading)}
-            onAskCoachWithPrompt={handleAskCoachWithPrompt}
-            onUserDataUpdated={(updated) => setUser(updated)}
-          />
+          >
+            <ReaderScreen
+              unita={activeUnit}
+              user={user}
+              targetHeading={readerTargetHeading}
+              onBack={() => {
+                setActiveUnit(null);
+                setReaderTargetHeading(undefined);
+                refreshData();
+              }}
+              onOpenUnita={(newId, newHeading) => handleOpenUnita(newId, newHeading)}
+              onAskCoachWithPrompt={handleAskCoachWithPrompt}
+              onUserDataUpdated={(updated) => {
+                if (updated && updated.accessCode) {
+                  setUser(updated);
+                }
+              }}
+            />
+          </ErrorBoundary>
         ) : isQuizView ? (
           <QuizScreen
             initialProfile={user.profile}

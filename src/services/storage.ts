@@ -92,9 +92,13 @@ function updateSavedAccountsRegistry(user: UserData): void {
 export function getUserData(targetEmail?: string): UserData | null {
   try {
     const email = (targetEmail || getActiveEmail() || '').trim().toLowerCase();
-    const scopedKey = email ? getScopedKey(STORAGE_KEYS.USER, email) : STORAGE_KEYS.USER;
-    let raw = localStorage.getItem(scopedKey);
-    if (!raw && !email) {
+    let raw: string | null = null;
+    if (email) {
+      const scopedKey = getScopedKey(STORAGE_KEYS.USER, email);
+      raw = localStorage.getItem(scopedKey);
+    }
+    // Always fall back to the global key if scoped was not found or if email was empty
+    if (!raw) {
       raw = localStorage.getItem(STORAGE_KEYS.USER);
     }
     if (!raw) return null;
@@ -126,14 +130,16 @@ export function getUserData(targetEmail?: string): UserData | null {
 }
 
 export function saveUserData(data: Partial<UserData>, targetEmail?: string): UserData {
-  const target = (targetEmail || data.email || getActiveEmail() || '').trim().toLowerCase();
+  // 1. Retrieve the existing active session as reliable baseline
+  const existingActive = getUserData(targetEmail) || getUserData() || null;
+  const target = (targetEmail || data.email || existingActive?.email || getActiveEmail() || '').trim().toLowerCase();
 
   if (target) {
     setActiveEmail(target);
   }
 
-  // Load existing data for THIS SPECIFIC email (isolated from other accounts on the device)
-  const current = (target ? getUserData(target) : null) || {
+  // 2. Load existing data for target email, or fall back to existingActive, or default template
+  const current = (target ? getUserData(target) : null) || existingActive || {
     id: undefined,
     email: target || '',
     accessCode: '',
@@ -178,7 +184,8 @@ export function saveUserData(data: Partial<UserData>, targetEmail?: string): Use
     ...current,
     ...data,
     accessCode: incomingCode || current.accessCode,
-    email: target || data.email || current.email,
+    name: data.name !== undefined ? data.name : (current.name || ''),
+    email: target || data.email || current.email || '',
     customIntentions: data.customIntentions || current.customIntentions || DEFAULT_INTENTIONS,
     readUnits: data.readUnits !== undefined ? data.readUnits : current.readUnits,
     readingPositions: data.readingPositions !== undefined ? data.readingPositions : current.readingPositions,
@@ -196,6 +203,7 @@ export function saveUserData(data: Partial<UserData>, targetEmail?: string): Use
     localStorage.setItem(scopedKey, JSON.stringify(updated));
     updateSavedAccountsRegistry(updated);
   }
+  // Always guarantee global key persistence so session is never lost on refresh or chapter open
   localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
   return updated;
 }
