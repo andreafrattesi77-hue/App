@@ -45,6 +45,7 @@ COME DEVI RAGIONARE E RISPONDERE (REGOLA FONDAMENTALE):
 - Mantieni una lunghezza equilibrata (circa 180-250 parole), ricca di sostanza e valore.
 - NON presentarti mai ("sono Andrea Frattesi...", "sono il tuo coach..."): ti sei già presentato al primo messaggio, entra direttamente nel ragionamento.
 - Quando è utile, cita dove approfondire scrivendo l'id tra doppie parentesi quadre, ad esempio [[cap04]] o [[bonus3]].
+- REGOLA SPECIALE SULLA PAROLA "CHAT": Se la domanda dell'allievo contiene la parola "Chat" (o tratta di gestione della chat post-serata, messaggi WhatsApp, cosa scrivere il giorno dopo, conversazioni che muoiono): il Coach DEVE SEMPRE ed ESPLICITAMENTE rimandare al Bonus 3 ("Dal Ballo alla Chat: gestire i messaggi senza bruciarsi") includendo il tag [[bonus3]]. Spiega il principio del Metodo (il primo messaggio agganciato al filo della serata, la Formula del Ponte per proporre l'incontro, evitare la trappola del "Collezionista") e invitalo espressamente a studiare il [[bonus3]].
 
 CONFINI ED ESCLUSIVITÀ DI RUOLO (REGOLA ANTI OFF-TOPIC):
 Rispondi ESCLUSIVAMENTE su temi pertinenti:
@@ -348,11 +349,17 @@ app.post('/api/coach/chat', async (req, res) => {
       });
     }
 
+    const isChatQuestion = /\bchat\b/i.test(message) || message.toLowerCase().includes('chat');
+
     // Determine relevant units for context
     let unit1 = activeUnitId ? getUnita(activeUnitId) : undefined;
     let unit2: ReturnType<typeof getUnita> = undefined;
 
-    if (!unit1) {
+    if (isChatQuestion) {
+      unit1 = getUnita('bonus3');
+      const pert = trovaUnitaPertinenti(message, 3);
+      unit2 = pert.find((u) => u.id !== 'bonus3');
+    } else if (!unit1) {
       const pert = trovaUnitaPertinenti(message, 2);
       unit1 = pert[0];
       unit2 = pert[1];
@@ -366,6 +373,12 @@ app.post('/api/coach/chat', async (req, res) => {
 SINTESI DEL METODO:
 ${METODO}
 `;
+
+    if (isChatQuestion) {
+      contextualPrompt += `\n\nREGOLA TASSATIVA SULLA PAROLA "CHAT":
+La domanda dell'allievo contiene la parola "Chat". Il coach DEVE OBBLIGATORIAMENTE rimandare l'allievo al Bonus 3: "Dal Ballo alla Chat: gestire i messaggi senza bruciarsi", includendo il tag [[bonus3]] nel testo della tua risposta. Spiega come gestire la chat dopo la serata senza bruciarsi e invitalo a leggere e applicare le strategie del [[bonus3]].
+`;
+    }
 
     if (unit1) {
       contextualPrompt += `
@@ -472,6 +485,10 @@ ATTENZIONE: NON ri-presentarti MAI ("sono Andrea Frattesi...", "sono il tuo coac
         currentMission,
         activeUnitId,
       });
+    }
+
+    if (isChatQuestion && !replyText.includes('[[bonus3]]')) {
+      replyText += `\n\nTrovi tutti i modelli di testo per i messaggi e la gestione delle 12 situazioni difficili nel [[bonus3]] ("Dal Ballo alla Chat: gestire i messaggi senza bruciarsi")!`;
     }
 
     let newTrialCount: number | undefined = undefined;

@@ -32,18 +32,24 @@ export function trovaUnitaPertinenti(domanda: string, max = 2): Unita[] {
     return TUTTE_LE_UNITA.slice(0, max);
   }
 
-  const tokens = domanda
-    .toLowerCase()
+  const cleanLower = domanda.toLowerCase();
+  const isChatQuestion = /\bchat\b/i.test(domanda) || cleanLower.includes('chat');
+
+  const tokens = cleanLower
     .replace(/[^\w\sàèéìòù]/gi, ' ')
     .split(/\s+/)
     .filter((w) => w.length > 2);
 
-  if (tokens.length === 0) {
+  if (tokens.length === 0 && !isChatQuestion) {
     return TUTTE_LE_UNITA.slice(0, max);
   }
 
   const scored = TUTTE_LE_UNITA.map((unita) => {
     let score = 0;
+    // Se la domanda contiene la parola 'chat', Bonus 3 riceve priorità assoluta
+    if (isChatQuestion && unita.id === 'bonus3') {
+      score += 1000;
+    }
     const titleLower = unita.titolo.toLowerCase();
     const sintesiLower = unita.sintesi.toLowerCase();
     const testoLower = unita.testo.toLowerCase();

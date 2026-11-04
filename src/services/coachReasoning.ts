@@ -63,7 +63,7 @@ const DANCE_COHERENT_STEMS = [
   'sicurezz', 'postur', 'presenz', 'carism', 'tenson', 'tension', 'giudizi', 'aspettativ',
   'ment', 'test', 'chiusur', 'chiud', 'numer', 'whatsapp', 'instagram', 'telefon',
   'messagg', 'scriver', 'frattes', 'metod', 'asse', 'ragazz', 'donn', 'partner',
-  'approcc', 'bac', 'uscir', 'parlar', 'conversaz', 'secondo ball', 'due ball',
+  'chat', 'chatt', 'approcc', 'bac', 'uscir', 'parlar', 'conversaz', 'secondo ball', 'due ball',
   '3 second', 'tre second', '10 minut', 'dieci minut', '21 serat', 'profil', 'cors',
   'scuol', 'livell', 'leader', 'follower', 'stage', 'rituale', 'diario'
 ];
@@ -192,6 +192,26 @@ export function generateCoachReasoning(params: CoachReasoningParams): string {
   const bestMatch = findBestMatchingCoachQuestion(message);
   if (bestMatch) {
     return `${greeting}${bestMatch.response}`;
+  }
+
+  // Se la domanda contiene la parola "chat", il Coach rimanda direttamente e prioritariamente al Bonus 3
+  const isChatQuestion = /\bchat\b/i.test(message) || msgLower.includes('chat');
+  if (isChatQuestion) {
+    return `${greeting}quando si tratta di gestire la **chat** dopo aver preso il contatto in pista, la regola fondamentale del Metodo Effetto Calamita è evitare la sindrome del "Collezionista": accumulare numeri o contatti social senza trasformarli mai in un secondo appuntamento reale.
+
+🔍 **1. LA DIAGNOSI EMOTIVA:**
+La quasi totalità delle chat muore perché il primo messaggio inviato è piatto, generico e prevedibile (*"Ciao bella, grazie per il ballo di ieri"*, *"Come va la domenica?"*). Questo tipo di testo spegne all'istante la tensione emotiva e il flirt creati in pista: non le ricorda perché le eri piaciuto e mette su di lei l'onere noioso di portare avanti la conversazione.
+
+🧠 **2. IL RAGIONAMENTO DEL METODO:**
+Nel Metodo Effetto Calamita la chat non serve per fare conversazioni eterne o chattare a caso: **la chat è un ponte per un secondo incontro reale.**
+Il primo messaggio deve sempre riallacciarsi al **filo della serata** (un dettaglio curioso di cui avete riso o parlato al bancone) e sfruttare la **Formula del Ponte**: proporre una cosa specifica, rilassata e piacevole legata a quello che vi siete detti in sala, senza trasmettere fretta o bisogno.
+
+⚡ **3. L'AZIONE PRATICA:**
+1. **La Finestra Temporale:** Scrivi nel primo pomeriggio del giorno dopo (verso le 14:00 - 16:00), mai alle 8 del mattino e mai dopo tre giorni di silenzio tattico.
+2. **Formula del Ponte:** Invece di chiedere genericamente *"Ti va di vederci?"*, usa un pretesto naturale legato alla vostra conversazione della serata.
+3. **Studio di [[bonus3]]:** Trovi i modelli di messaggio pronti da copiare, gli errori letali da evitare e le strategie per gestire le 12 situazioni difficili (se visualizza e non risponde, se è fredda, se rimanda) nel [[bonus3]]!
+
+Per tutti i copioni dettagliati da adattare con parole tue, studia subito il capitolo dedicato in [[bonus3]] ("Dal Ballo alla Chat: gestire i messaggi senza bruciarsi") prima di mandarle il prossimo messaggio!`;
   }
 
   // Verifica coerenza: se la domanda libera non riguarda il ballo o la seduzione in pista
@@ -427,7 +447,7 @@ Il **Tempo 1** è annunciato dal basso (Tumbao) e dall'accordo d'apertura del pi
 2. **Il Passo Sinistro sul Battere:** Quando senti l'accordo pieno del pianoforte, quello è l'1: affonda il passo sinistro in avanti con calma e decisione.
 3. **Allenamento Dedicato:** Usa la sezione Musica dell'app con i brani a BPM comodi (148-152) per automatizzare l'orecchio.
 
-Approfondisci la musicalità pratica in [[bonus3]]!`;
+Approfondisci la musicalità pratica in [[cap08]] e con l'Allenatore di Ritmo!`;
   }
 
   // 13. PARTNER CHE BALLA DA SOLA

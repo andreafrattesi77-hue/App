@@ -402,10 +402,10 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
     return matchesCategory && matchesSearch;
   });
 
-  // Render text replacing [[id]] with clickable chips
+  // Render text replacing [[id]] and mentions of Bonus 3 with clickable chips
   const renderMessageContent = (text: string) => {
     const parts: React.ReactNode[] = [];
-    const regex = /\[\[([a-zA-Z0-9_-]+)\]\]/g;
+    const regex = /\[\[([a-zA-Z0-9_-]+)\]\]|\b(Bonus\s+3)\b/gi;
     let lastIndex = 0;
     let match;
 
@@ -414,8 +414,12 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
         parts.push(text.substring(lastIndex, match.index));
       }
 
-      const id = match[1];
-      const targetUnit = getUnita(id);
+      let id = match[1];
+      if (!id && match[2]) {
+        id = 'bonus3';
+      }
+
+      const targetUnit = id ? getUnita(id) : undefined;
 
       if (targetUnit) {
         parts.push(
@@ -432,7 +436,7 @@ export const CoachScreen: React.FC<CoachScreenProps> = ({
           </button>
         );
       } else {
-        parts.push(id);
+        parts.push(match[0]);
       }
 
       lastIndex = regex.lastIndex;
