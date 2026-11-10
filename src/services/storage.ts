@@ -243,6 +243,10 @@ export function clearUserData(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.ACTIVE_EMAIL);
     localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(STORAGE_KEYS.CHAT);
+    localStorage.removeItem(STORAGE_KEYS.MISSIONS);
+    localStorage.removeItem(STORAGE_KEYS.DIARY);
+    localStorage.removeItem(STORAGE_KEYS.USAGE);
   } catch {}
 }
 
@@ -332,8 +336,17 @@ export function getChatMessages(userName?: string, email?: string): ChatMessage[
     const msgs: ChatMessage[] = JSON.parse(raw);
     if (!Array.isArray(msgs) || msgs.length === 0) return initial;
 
+    // Sincronizza sempre il messaggio di benvenuto iniziale del coach con il nome ATTUALE dell'utente,
+    // evitando che compaia un vecchio nome di sessioni passate
+    if (msgs.length > 0 && msgs[0].id === 'init-coach' && userName && userName.trim()) {
+      msgs[0] = {
+        ...createInitialCoachMessage(userName.trim()),
+        timestamp: msgs[0].timestamp || Date.now(),
+      };
+    }
+
     if (msgs.length === 1 && msgs[0].sender === 'coach') {
-      return initial;
+      return [createInitialCoachMessage(userName)];
     }
 
     return msgs;
